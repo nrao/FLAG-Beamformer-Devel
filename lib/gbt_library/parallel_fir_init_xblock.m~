@@ -27,8 +27,18 @@ f1=filter_coeffs(2:2:end);
 f0pf1=f0+f1;
 
 % validate coefficients
-check = parallel_fir_coefficient_check(filter_coeffs);
-if check
+f0_round = round(f0 * 1e16) * 1e-16;
+if mod(length(f0)/4,1) ~= 0,
+    error('The number of coefficients must be integer multiples of the number of inputs');
+    return;
+end
+num_fir_col = length(f0)/4;
+disp(num_fir_col);
+if coeff_round(1:int32(length(f0)/2)) == f0_round(length(f0):-1:int32(length(f0)/2)+1)
+    num_fir_col = num_fir_col / 2;
+end
+if num_fir_col <= 0
+    disp(['error: the number of column must be a positive integer. num_fir_col = ', num2str(num_fir_col)]);
     return;
 end
 
@@ -146,6 +156,8 @@ xlsub3_f1_sub = xBlock(struct('source', str2func('dec_fir_init_xblock'), 'name',
 
 
 if ~isempty(blk) && ~strcmp(blk(1),'/')
+    annotation=sprintf('%d taps\n%d_%d r/i', length(coeff), n_bits, n_bits-1);
+    set_param(blk,'AttributesFormatString',annotation);
     clean_blocks(blk);
 end
 
