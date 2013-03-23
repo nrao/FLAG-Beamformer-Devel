@@ -17,7 +17,7 @@ mac_base = (2 << 40) + (2<<32)
 fabric_port = 60000
 
 #acc_len=1023
-acc_len=767
+acc_len=383
 #acc_len=2046
 
 fpga=corr.katcp_wrapper.FpgaClient(roach,7147)
@@ -31,8 +31,13 @@ time.sleep(1)
 #boffile='v01_16r4t11f_ver137_2013_Jan_13_1830.bof'
 #boffile='v01_16r4t11f_ver139_2013_Jan_13_1848.bof'
 #boffile='v02_16r4t11f_ver103_2013_Jan_22_1839.bof'
-boffile='v01_16r4t11f_ver141_2013_Feb_19_1801.bof' # 1 subband - seems to work
+#boffile='v01_16r4t11f_ver141_2013_Feb_19_1801.bof' # 1 subband - seems to work
 #boffile='v13_16r128dr_ver111_2013_Mar_06_1933.bof'
+#boffile='v02_16r4t11f_ver103_2013_Jan_22_1839.bof'
+#boffile='v02_16r4t11f_ver104b_2013_Mar_18_1104.bof'
+#boffile='v02_16r4t11f_ver105_2013_Mar_21_0316.bof'
+#boffile='v02_16r4t11f_ver106_2013_Mar_22_0620.bof'
+boffile='v02_16r4t11f_ver107_2013_Mar_22_1537.bof'
 
 # Program the Device
 fpga.progdev(boffile)
@@ -51,8 +56,7 @@ fpga.write_int('dest_port',dest_port)
 fpga.write_int('acc_len',acc_len)
 
 # Set FFT shift schedule
-fpga.write_int('fftshift', 0b1010101010)
-
+fpga.write_int('fftshift', 0b10111011111)
 
 # Set sync period
 time.sleep(1)
@@ -76,7 +80,7 @@ def reset():
     fpga.write_int('sg_sync',0x11)
 
 def getadc0():
-  adc0=np.fromstring(fpga.snapshot_get('adcsnap0',man_trig=True,man_valid=True)['data'],dtype='<i1')
+  adc0=np.fromstring(fpga.snapshot_get('adcsnap0',man_trig=True)['data'],dtype='<i1')
   return adc0
 
 def getadc1():
