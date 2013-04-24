@@ -42,13 +42,13 @@ all: $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw vegas_hpc_server
 clean:
 	rm -f $(PROGS) $(THREAD_PROGS) *~ *.o sdfits.tgz test_psrfits_0*.fits *.ptx
 INSTALL_DIR = ../bin
-install: $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw
+install: $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw vegas_hpc_server
 	mkdir -p $(INSTALL_DIR) && \
-	cp -f $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw $(INSTALL_DIR)
+	cp -f $? $(INSTALL_DIR)
 sdfits.tgz: sdfits.h read_sdfits.c \
     vegas_SDFITS_template.txt \
 	tar cvzf $@ $^
-find_dropped_blocks: find_dropped_blocks.o 
+find_dropped_blocks: find_dropped_blocks.o
 #	$(CC) $(CFLAGS) $< -o $@ -L$(OPT64)/lib -lcfitsio -lm
 	$(CC) $(CFLAGS) $< -o $@ -lcfitsio -lm
 %.o : %.cu
