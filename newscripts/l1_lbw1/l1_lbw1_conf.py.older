@@ -1,15 +1,17 @@
 #! /usr/bin/env python2.6
 
 import corr,time,numpy,struct,sys
+#n_inputs = 4 # number of simultaneous inputs - should be 4 for final design
 
+#boffile='l1_lbw1_ver100_2013_Apr_10_1217.bof'
+#boffile = 'l1_lbw1_ver100_2013_Apr_10_1217.bof'
+boffile = 'l1_ver100_2013_Apr_17_1407.bof'
 roach = '192.168.40.82'
 
 dest_ip  = 10*(2**24) +  145 #10.0.0.145
 src_ip   = 10*(2**24) + 4  #10.0.0.4
-
 dest_port     = 60000
 fabric_port     = 60000
-
 mac_base = (2<<40) + (2<<32)
 
 print('Connecting to server %s on port... '%(roach)),
@@ -20,6 +22,12 @@ if fpga.is_connected():
 	print 'ok\n'	
 else:
     print 'ERROR\n'
+
+print '------------------------'
+print 'Programming FPGA with %s...' % boffile,
+fpga.progdev(boffile)
+print 'ok\n'
+time.sleep(5)
 
 print '------------------------'
 print 'Setting the port 0 linkup :',
@@ -38,6 +46,7 @@ print 'done'
 
 print '------------------------'
 print 'Setting-up packet core...',
+
 sys.stdout.flush()
 fpga.write_int('dest_ip',dest_ip)
 fpga.write_int('dest_port',dest_port)
@@ -52,6 +61,3 @@ fpga.write_int('sg_sync', 0b10101)
 fpga.write_int('sg_sync', 0b10100)
 print 'done'
 
-#########################################
-
-print "Board Clock: ",fpga.est_brd_clk()

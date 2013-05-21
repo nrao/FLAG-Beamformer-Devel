@@ -1,7 +1,6 @@
 #! /usr/bin/env python2.6
 
 import corr,time,numpy,struct,sys
-
 roach = '192.168.40.82'
 
 dest_ip  = 10*(2**24) +  145 #10.0.0.145
@@ -22,8 +21,7 @@ else:
     print 'ERROR\n'
 
 print '------------------------'
-print 'Setting the port 0 linkup :',
-
+print 'Setting the port 0 linkup :',2
 gbe0_link=bool(fpga.read_int('gbe0'))
 print gbe0_link
 
@@ -41,6 +39,7 @@ print 'Setting-up packet core...',
 sys.stdout.flush()
 fpga.write_int('dest_ip',dest_ip)
 fpga.write_int('dest_port',dest_port)
+time.sleep(1)
 
 fpga.write_int('sg_sync', 0b10100)
 time.sleep(1)
@@ -54,4 +53,5 @@ print 'done'
 
 #########################################
 
-print "Board Clock: ",fpga.est_brd_clk()
+
+
