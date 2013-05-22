@@ -53,13 +53,18 @@ class AutoVivification(dict):
 class BankData(object):
     """
     Container for all Bank specific data:
-    datahost   : The 10Gbs IP address for the roach
-    dataport   : The 10Gbs port for the roach
-    dest_ip    : The 10Gbs HPC IP address
-    dest_port  : The 10Gbs HPC port
-    katcp_ip   : The KATCP host, on the 1Gbs network
-    katcp_port : The KATCP port on the 1Gbs network
-    synth_port : The Valon synthesizer serial port
+    datahost        : The 10Gbs IP address for the roach
+    dataport        : The 10Gbs port for the roach
+    dest_ip         : The 10Gbs HPC IP address
+    dest_port       : The 10Gbs HPC port
+    katcp_ip        : The KATCP host, on the 1Gbs network
+    katcp_port      : The KATCP port on the 1Gbs network
+    synth_port      : The Valon synthesizer serial port
+    synth_ref       : Valon internal/external reference setting
+    synth_ref_freq  : Valon reference frequency
+    synth_vco_range : Valon VCO range
+    synth_rf_level  : Valon RF ouput level
+    synth_options   : Valon option flags/values
     """
     def __init__(self):
         self.datahost = None
@@ -73,14 +78,15 @@ class BankData(object):
         self.synth_ref = None
         self.synth_ref_freq = None
         self.synth_vco_range = None
+        self.synth_rf_level = None
         self.synth_options = None
         self.mac_base = (2 << 40) + (2 << 32)
 
     def __repr__(self):
         return "BankData (datahost=%s, dataport=%i, dest_ip=%s, dest_port=%i, " \
                "katcp_ip=%s, katcp_port=%i, synth=%s, synth_port=%s, synth_ref=%i, " \
-               "synth_ref_freq=%i, synth_vco_range=(%i,%i), synth_options=(%i,%i,%i,%i), " \
-               "mac_base=%i)" \
+               "synth_ref_freq=%i, synth_vco_range=(%i,%i), synth_rf_level=%i, " \
+               "synth_options=(%i,%i,%i,%i), mac_base=%i)" \
             % (self.datahost,
                self.dataport,
                self.dest_ip,
@@ -93,6 +99,7 @@ class BankData(object):
                self.synth_ref_freq,
                self.synth_vco_range[0],
                self.synth_vco_range[1],
+               self.synth_rf_level,
                self.synth_options[0],
                self.synth_options[1],
                self.synth_options[2],
@@ -230,6 +237,7 @@ class Bank(object):
             self.roach_data.synth_ref = 1 if config.get(bank, 'synth_ref') == 'external' else 0
             self.roach_data.synth_ref_freq = config.getint(bank, 'synth_ref_freq')
             self.roach_data.synth_vco_range = [int(i) for i in config.get(bank, 'synth_vco_range').split(',')]
+            self.roach_data.synth_rf_level = config.getint(bank, "synth_rf_level")
             self.roach_data.synth_options = [int(i) for i in config.get(bank, 'synth_options').split(',')]
 
             # Get config info on all modes
@@ -285,6 +293,7 @@ class Bank(object):
         self.valon.set_ref_select(self.roach_data.synth_ref)
         self.valon.set_reference(self.roach_data.synth_ref_freq)
         self.valon.set_vco_range(0, *self.roach_data.synth_vco_range)
+        self.valon.set_rf_level(0, self.roach_data.synth_rf_level)
         self.valon.set_options(0, *self.roach_data.synth_options)
 
         print "connecting to %s, port %i" % (self.roach_data.katcp_ip, self.roach_data.katcp_port)
