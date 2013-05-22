@@ -68,19 +68,35 @@ class BankData(object):
         self.dest_port = None
         self.katcp_ip = None
         self.katcp_port = None
+        self.synth = None
         self.synth_port = None
+        self.synth_ref = None
+        self.synth_ref_freq = None
+        self.synth_vco_range = None
+        self.synth_options = None
         self.mac_base = (2 << 40) + (2 << 32)
 
     def __repr__(self):
         return "BankData (datahost=%s, dataport=%i, dest_ip=%s, dest_port=%i, " \
-               "katcp_ip=%s, katcp_port=%i, synth_port=%s, mac_base=%i)" \
+               "katcp_ip=%s, katcp_port=%i, synth=%s, synth_port=%s, synth_ref=%i, " \
+               "synth_ref_freq=%i, synth_vco_range=(%i,%i), synth_options=(%i,%i,%i,%i), " \
+               "mac_base=%i)" \
             % (self.datahost,
                self.dataport,
                self.dest_ip,
                self.dest_port,
                self.katcp_ip,
                self.katcp_port,
+               self.synth,
                self.synth_port,
+               self.synth_ref,
+               self.synth_ref_freq,
+               self.synth_vco_range[0],
+               self.synth_vco_range[1],
+               self.synth_options[0],
+               self.synth_options[1],
+               self.synth_options[2],
+               self.synth_options[3],
                self.mac_base)
 
 class ModeData(object):
@@ -144,7 +160,7 @@ class Bank(object):
         self.vegas_hpc = None
         self.fifo_name = None
         self.status = vegas_status()
-        self.read_config_file('/home/sim/etc/config/vegas.conf')
+        self.read_config_file('./dibas.conf')
 
     def hpc_cmd(self, cmd):
         """
@@ -209,7 +225,12 @@ class Bank(object):
             self.roach_data.dest_port = config.getint(bank, 'dest_port')
             self.roach_data.katcp_ip = config.get(bank, 'katcp_ip').lstrip('"').rstrip('"')
             self.roach_data.katcp_port = config.getint(bank, 'katcp_port')
+            self.roach_data.synth = config.get(bank, 'synth')
             self.roach_data.synth_port = config.get(bank, 'synth_port').lstrip('"').rstrip('"')
+            self.roach_data.synth_ref = 1 if config.get(bank, 'synth_ref') == 'external' else 0
+            self.roach_data.synth_ref_freq = config.getint(bank, 'synth_ref_freq')
+            self.roach_data.synth_vco_range = [int(i) for i in config.get(bank, 'synth_vco_range').split(',')]
+            self.roach_data.synth_options = [int(i) for i in config.get(bank, 'synth_options').split(',')]
 
             # Get config info on all modes
             modes = [s for s in config.sections() if 'MODE' in s]
@@ -248,6 +269,24 @@ class Bank(object):
             return str(e)
 
         self.roach = katcp_wrapper.FpgaClient(self.roach_data.katcp_ip, self.roach_data.katcp_port)
+        time.sleep(1)
+
+        # The Valon can be on this host ('local') or on the ROACH ('katcp'). Create accordingly.
+        if self.roach_data.synth == 'local':
+            import valon_synth
+            self.valon = valon_synth.Synthesizer(self.roach_data.synth_port)
+        elif self.roach_data.synth == 'katcp':
+            from valon_katcp import ValonKATCP
+            self.valon = ValonKATCP(self.roach, self.roach_data.synth_port)
+        else:
+            raise ValonException("Unrecognized option %s for valon synthesizer" % self.roach_data.synth)
+
+        # Valon is now assumed to be working
+        self.valon.set_ref_select(self.roach_data.synth_ref)
+        self.valon.set_reference(self.roach_data.synth_ref_freq)
+        self.valon.set_vco_range(0, *self.roach_data.synth_vco_range)
+        self.valon.set_options(0, *self.roach_data.synth_options)
+
         print "connecting to %s, port %i" % (self.roach_data.katcp_ip, self.roach_data.katcp_port)
         print self.roach_data
         return "config file loaded."
@@ -290,6 +329,7 @@ class Bank(object):
                     self.set_status(OBS_MODE = self.mode_data[mode].obs_mode)
                     self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
                     self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
+                    self.valon.set_frequency(0, self.mode_data[mode].frequency)
 
                     return (True, 'New mode %s set!' % mode)
                 else:
