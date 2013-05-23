@@ -330,8 +330,10 @@ class Bank(object):
             return str(e)
 
         # Now that all the configuration data is loaded, set up some basic things: KATCP, Valon, etc.
+        # KATCP:
         self.roach = katcp_wrapper.FpgaClient(self.roach_data.katcp_ip, self.roach_data.katcp_port)
-        time.sleep(1)
+        time.sleep(1) # It takes the KATCP interface a little while to get ready. It's used below
+                      # by the Valon interface, so we must wait a little.
 
         # The Valon can be on this host ('local') or on the ROACH ('katcp'). Create accordingly.
         if self.roach_data.synth == 'local':
@@ -475,6 +477,11 @@ class Bank(object):
 
         if not bof:
             bof = self.mode_data[self.current_mode].bof
+
+        reply, informs = self.roach._request("progdev") # deprogram roach first
+
+        if reply.arguments[0] != 'ok':
+            print "Warning, FPGA was not deprogrammed."
 
         print "progdev programming bof", str(bof)
         return self.roach.progdev(str(bof))
