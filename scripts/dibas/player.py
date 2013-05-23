@@ -50,7 +50,56 @@ class AutoVivification(dict):
             value = self[item] = type(self)()
             return value
 
-class BankData(object):
+class ConfigData(object):
+    """
+    A common base class for data read out of a config file using
+    ConfigParser. It's main purpose is to serve as a common area for
+    helper functions.
+    """
+
+    def read_kv_pairs(self, config, section, kvkey):
+        """
+        read_kv_pairs(self, config, section, kvkey)
+
+        config: an open ConfigParser object
+        section: the name of a section in the config file
+        kvkey: the key of keys
+
+        returns: A dictionary of kv pairs, empty if 'kvkey' is not
+        there, or if it doesn't have any value, or if any of the values
+        are not themselves keys in the section.
+
+        Looks in the ConfigParser object for a key-of-keys 'kvkey' which
+        list a set of arbitrary keys to be read that the program does
+        not know about. The value associated with this key is a comma
+        delimited list of keys. The function parses this, then iterates
+        over the keys to obtain the values, returning a dictionary of
+        key/value pairs:
+
+        shmkeys = foo,bar,baz
+        foo = frog
+        bar = cat
+        baz = dog
+
+        -> {'bar': 'cat', 'baz': 'dog', 'foo': 'frog'}
+
+        In the example above, 'shmkeys' is the key-of-keys, and
+        'foo,bar,baz' are the arbitrary keys. The function will then
+        know to read these keys. This allows any arbitrary key/value
+        pair to be stored in the configuration and have it be read.  An
+        example application is kv pairs to be stored in the DIBAS shared
+        status memory.
+        """
+        try:
+            # get the keys, stripping out any spaces
+            keys = [key.lstrip().rstrip() for key in config.get(section, kvkey).split(',')]
+            # now iterate over the keys, obtaining the values. Store in dictionary.
+            kvpairs = {key: config.get(section, key) for key in keys}
+            return kvpairs
+        except ConfigParser.NoOptionError:
+            return {}
+
+class BankData(ConfigData):
     """
     Container for all Bank specific data:
     datahost        : The 10Gbs IP address for the roach
@@ -81,12 +130,13 @@ class BankData(object):
         self.synth_rf_level = None
         self.synth_options = None
         self.mac_base = (2 << 40) + (2 << 32)
+        self.shmkvpairs = None
 
     def __repr__(self):
         return "BankData (datahost=%s, dataport=%i, dest_ip=%s, dest_port=%i, " \
                "katcp_ip=%s, katcp_port=%i, synth=%s, synth_port=%s, synth_ref=%i, " \
-               "synth_ref_freq=%i, synth_vco_range=(%i,%i), synth_rf_level=%i, " \
-               "synth_options=(%i,%i,%i,%i), mac_base=%i)" \
+               "synth_ref_freq=%i, synth_vco_range=%s, synth_rf_level=%i, " \
+               "synth_options=%s, mac_base=%i, shmkvpairs=%s)" \
             % (self.datahost,
                self.dataport,
                self.dest_ip,
@@ -97,16 +147,29 @@ class BankData(object):
                self.synth_port,
                self.synth_ref,
                self.synth_ref_freq,
-               self.synth_vco_range[0],
-               self.synth_vco_range[1],
+               str(self.synth_vco_range),
                self.synth_rf_level,
-               self.synth_options[0],
-               self.synth_options[1],
-               self.synth_options[2],
-               self.synth_options[3],
-               self.mac_base)
+               str(self.synth_options),
+               self.mac_base,
+               str(self.shmkvpairs))
 
-class ModeData(object):
+    def load_config(self, config, bank):
+        self.datahost = config.get(bank, 'datahost').lstrip('"').rstrip('"')
+        self.dataport = config.getint(bank, 'dataport')
+        self.dest_ip = int(config.get(bank, 'dest_ip'), 0)
+        self.dest_port = config.getint(bank, 'dest_port')
+        self.katcp_ip = config.get(bank, 'katcp_ip').lstrip('"').rstrip('"')
+        self.katcp_port = config.getint(bank, 'katcp_port')
+        self.synth = config.get(bank, 'synth')
+        self.synth_port = config.get(bank, 'synth_port').lstrip('"').rstrip('"')
+        self.synth_ref = 1 if config.get(bank, 'synth_ref') == 'external' else 0
+        self.synth_ref_freq = config.getint(bank, 'synth_ref_freq')
+        self.synth_vco_range = [int(i) for i in config.get(bank, 'synth_vco_range').split(',')]
+        self.synth_rf_level = config.getint(bank, "synth_rf_level")
+        self.synth_options = [int(i) for i in config.get(bank, 'synth_options').split(',')]
+        self.shmkvpairs = self.read_kv_pairs(config, bank, 'shmkeys')
+
+class ModeData(ConfigData):
     """
     Container for all Mode specific data:
     acc_len           :
@@ -114,7 +177,6 @@ class ModeData(object):
     frequency         : The Valon frequency
     bof               : The ROACH bof file for this mode
     sg_period         :
-    obs_mode          : Key sets vegas_hpc modes
     reset_phase       : The sequence of commands,data that reset the roach
     arm_phase         : The sequence of commands,data that arm the roach
     postarm_phase     : The sequence of commands,data sent after arming
@@ -128,26 +190,53 @@ class ModeData(object):
         self.frequency = None
         self.bof = None
         self.sg_period = None
-        self.obs_mode = None
         self.reset_phase = []
         self.arm_phase = []
         self.postarm_phase = []
         self.master_slave_sels = AutoVivification()
+        self.shmkvpairs = None
 
     def __repr__(self):
         return "ModeData (acc_len=%i, filter_bw=%i, frequency=%f, bof=%s, " \
-            "sg_period=%i, obs_mode=%s, reset_phase=%s, arm_phase=%s, " \
-            "postarm_phase=%s, master_slave_sels=%s)" % \
+            "sg_period=%i, reset_phase=%s, arm_phase=%s, " \
+            "postarm_phase=%s, master_slave_sels=%s, shmkvpairs=%s)" % \
             (self.acc_len,
              self.filter_bw,
              self.frequency,
              self.bof,
              self.sg_period,
-             self.obs_mode,
              self.reset_phase,
              self.arm_phase,
              self.postarm_phase,
-             self.master_slave_sels)
+             self.master_slave_sels,
+             str(self.shmkvpairs))
+
+    def load_config(self, config, mode):
+        self.acc_len                    = config.getint(mode, 'acc_len')
+        self.filter_bw                  = config.getint(mode, 'filter_bw')
+        self.frequency                  = config.getfloat(mode, 'frequency')
+        self.bof                        = config.get(mode, 'bof_file')
+        self.sg_period                  = config.getint(mode, 'sg_period')
+        mssel                           = config.get(mode, 'master_slave_sel').split(',')
+        self.master_slave_sels[1][0][0] = int(mssel[0], 0)
+        self.master_slave_sels[1][0][1] = int(mssel[1], 0)
+        self.master_slave_sels[1][1][1] = int(mssel[2], 0)
+        self.master_slave_sels[0][0][0] = int(mssel[3], 0)
+        self.master_slave_sels[0][0][1] = int(mssel[4], 0)
+        self.master_slave_sels[0][1][1] = int(mssel[5], 0)
+
+        # reset, arm and postarm phases; for ease of use, they
+        # should be read, then the commands should be paired
+        # with their parameters, eg ["sg_sync","0x12",
+        # "wait","0.5", ...] should become [("sg_sync", "0x12"),
+        # ("wait", "0.5"), ...]
+        reset_phase     = config.get(mode, 'reset_phase').split(',')
+        arm_phase       = config.get(mode, 'arm_phase').split(',')
+        postarm_phase   = config.get(mode, 'postarm_phase').split(',')
+        self.reset_phase   = zip(reset_phase[0::2], reset_phase[1::2])
+        self.arm_phase     = zip(arm_phase[0::2], arm_phase[1::2])
+        self.postarm_phase = zip(postarm_phase[0::2], postarm_phase[1::2])
+        self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
 
 def print_doc(obj):
     print obj.__doc__
@@ -226,56 +315,21 @@ class Bank(object):
             self.fifo_name = config.get('DEFAULTS', 'fifo_name').lstrip('"').rstrip('"')
 
             # Get config info on this bank's ROACH2
-            self.roach_data.datahost = config.get(bank, 'datahost').lstrip('"').rstrip('"')
-            self.roach_data.dataport = config.getint(bank, 'dataport')
-            self.roach_data.dest_ip = int(config.get(bank, 'dest_ip'), 0)
-            self.roach_data.dest_port = config.getint(bank, 'dest_port')
-            self.roach_data.katcp_ip = config.get(bank, 'katcp_ip').lstrip('"').rstrip('"')
-            self.roach_data.katcp_port = config.getint(bank, 'katcp_port')
-            self.roach_data.synth = config.get(bank, 'synth')
-            self.roach_data.synth_port = config.get(bank, 'synth_port').lstrip('"').rstrip('"')
-            self.roach_data.synth_ref = 1 if config.get(bank, 'synth_ref') == 'external' else 0
-            self.roach_data.synth_ref_freq = config.getint(bank, 'synth_ref_freq')
-            self.roach_data.synth_vco_range = [int(i) for i in config.get(bank, 'synth_vco_range').split(',')]
-            self.roach_data.synth_rf_level = config.getint(bank, "synth_rf_level")
-            self.roach_data.synth_options = [int(i) for i in config.get(bank, 'synth_options').split(',')]
+            self.roach_data.load_config(config, self.bank_name)
 
             # Get config info on all modes
             modes = [s for s in config.sections() if 'MODE' in s]
 
             for mode in modes:
                 m = ModeData()
-                m.acc_len                    = config.getint(mode, 'acc_len')
-                m.filter_bw                  = config.getint(mode, 'filter_bw')
-                m.frequency                  = config.getfloat(mode, 'frequency')
-                m.bof                        = config.get(mode, 'bof_file')
-                m.sg_period                  = config.getint(mode, 'sg_period')
-                m.obs_mode                   = config.get(mode, 'obs_mode')
-                mssel                        = config.get(mode, 'master_slave_sel').split(',')
-                m.master_slave_sels[1][0][0] = int(mssel[0], 0)
-                m.master_slave_sels[1][0][1] = int(mssel[1], 0)
-                m.master_slave_sels[1][1][1] = int(mssel[2], 0)
-                m.master_slave_sels[0][0][0] = int(mssel[3], 0)
-                m.master_slave_sels[0][0][1] = int(mssel[4], 0)
-                m.master_slave_sels[0][1][1] = int(mssel[5], 0)
-
-                # reset, arm and postarm phases; for ease of use, they
-                # should be read, then the commands should be paired
-                # with their parameters, eg ["sg_sync","0x12",
-                # "wait","0.5", ...] should become [("sg_sync", "0x12"),
-                # ("wait", "0.5"), ...]
-                reset_phase     = config.get(mode, 'reset_phase').split(',')
-                arm_phase       = config.get(mode, 'arm_phase').split(',')
-                postarm_phase   = config.get(mode, 'postarm_phase').split(',')
-                m.reset_phase   = zip(reset_phase[0::2], reset_phase[1::2])
-                m.arm_phase     = zip(arm_phase[0::2], arm_phase[1::2])
-                m.postarm_phase = zip(postarm_phase[0::2], postarm_phase[1::2])
-
+                m.load_config(config, mode)
                 self.mode_data[mode] = m
+
         except ConfigParser.NoSectionError as e:
             print str(e)
             return str(e)
 
+        # Now that all the configuration data is loaded, set up some basic things: KATCP, Valon, etc.
         self.roach = katcp_wrapper.FpgaClient(self.roach_data.katcp_ip, self.roach_data.katcp_port)
         time.sleep(1)
 
@@ -295,6 +349,10 @@ class Bank(object):
         self.valon.set_vco_range(0, *self.roach_data.synth_vco_range)
         self.valon.set_rf_level(0, self.roach_data.synth_rf_level)
         self.valon.set_options(0, *self.roach_data.synth_options)
+
+        #load any shared-mem keys found in the BANK section:
+        if self.roach_data.shmkvpairs:
+            self.set_status(**self.roach_data.shmkvpairs)
 
         print "connecting to %s, port %i" % (self.roach_data.katcp_ip, self.roach_data.katcp_port)
         print self.roach_data
@@ -335,10 +393,13 @@ class Bank(object):
                     self.progdev()
                     self.net_config()
                     self.reset_roach()
-                    self.set_status(OBS_MODE = self.mode_data[mode].obs_mode)
                     self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
                     self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
-                    self.valon.set_frequency(0, self.mode_data[mode].frequency)
+                    self.valon.set_frequency(0, self.mode_data[mode].frequency / 1e6)
+
+                    #load any shared-mem keys found in the mode section:
+                    if self.mode_data[mode].shmkvpairs:
+                        self.set_status(**self.mode_data[mode].shmkvpairs)
 
                     return (True, 'New mode %s set!' % mode)
                 else:
