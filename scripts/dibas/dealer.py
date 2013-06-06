@@ -29,6 +29,9 @@
 import types
 import zmq
 
+def datetime_to_tuple(dt):
+    return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
+
 class ZMQJSONProxy(object):
     def __init__(self, ctx, obj_name, url):
         self._url = url

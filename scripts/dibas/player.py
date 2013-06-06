@@ -37,6 +37,7 @@ import time
 
 from vegas_utils import vegas_status
 from corr import katcp_wrapper
+from datetime import datetime, timedelta
 
 class AutoVivification(dict):
     """
@@ -195,11 +196,18 @@ class ModeData(ConfigData):
         self.postarm_phase = []
         self.master_slave_sels = AutoVivification()
         self.shmkvpairs = None
+        self.needed_arm_delay = None
+        self.cdd_mode = None
+        self.cdd_roach = None
+        self.cdd_roach_ips = []
+        self.cdd_hpcs = []
+        self.cdd_master_hpc = None
+
 
     def __repr__(self):
         return "ModeData (acc_len=%i, filter_bw=%i, frequency=%f, bof=%s, " \
             "sg_period=%i, reset_phase=%s, arm_phase=%s, " \
-            "postarm_phase=%s, master_slave_sels=%s, shmkvpairs=%s)" % \
+            "postarm_phase=%s, needed_arm_delay=%i, master_slave_sels=%s, shmkvpairs=%s)" % \
             (self.acc_len,
              self.filter_bw,
              self.frequency,
@@ -208,6 +216,7 @@ class ModeData(ConfigData):
              self.reset_phase,
              self.arm_phase,
              self.postarm_phase,
+             str(self.needed_arm_delay),
              self.master_slave_sels,
              str(self.shmkvpairs))
 
@@ -237,6 +246,19 @@ class ModeData(ConfigData):
         self.arm_phase     = zip(arm_phase[0::2], arm_phase[1::2])
         self.postarm_phase = zip(postarm_phase[0::2], postarm_phase[1::2])
         self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
+        arm_delay =  config.getint(mode, 'needed_arm_delay')
+        self.needed_arm_delay = timedelta(seconds = arm_delay)
+
+        # These are optional, for the Coherent Dedispersion Modes
+        self.cdd_mode = True;
+
+        try:
+            self.cdd_roach = config.get(mode, 'cdd_roach')
+            self.cdd_roach_ips = config.get(mode, 'cdd_roach_ips').split(',')
+            self.cdd_hpcs = config.get(mode, 'cdd_hpcs').split(',')
+            self.cdd_master_hpc = config.get(mode, 'cdd_master_hpc')
+        except ConfigParser.NoOptionError:
+            self.cdd_mode = False
 
 def print_doc(obj):
     print obj.__doc__
@@ -250,6 +272,7 @@ class Bank(object):
         self.bank_name = bank_name.upper()
         self.roach_data = BankData()
         self.mode_data = {}
+        self.bank_data = {}
         self.current_mode = None
         self.hpc_process = None
         self.vegas_devel_path = None
@@ -309,13 +332,24 @@ class Bank(object):
             config = ConfigParser.ConfigParser()
             config.readfp(open(filename))
 
+
             # Get config info for subprocess
             self.vegas_devel_path = config.get('DEFAULTS', 'vegas_devel_path').lstrip('"').rstrip('"')
             self.vegas_hpc = config.get('DEFAULTS', 'vegas-hpc').lstrip('"').rstrip('"')
             self.fifo_name = config.get('DEFAULTS', 'fifo_name').lstrip('"').rstrip('"')
 
-            # Get config info on this bank's ROACH2
-            self.roach_data.load_config(config, self.bank_name)
+            # Get all bank data and store it. This is needed by any mode
+            # where there is 1 ROACH and N Players & HPC programs
+            banks = [s for s in config.sections() if 'BANK' in s]
+
+            for bank in banks:
+                b = BankData()
+                b.load_config(config, bank)
+                self.bank_data[bank] = b
+
+            # Get config info on this bank's ROACH2. Normally there is 1
+            # ROACH per Player/HPC node, so this is it.
+            self.roach_data = self.bank_data[self.bank_name]
 
             # Get config info on all modes
             modes = [s for s in config.sections() if 'MODE' in s]
@@ -331,7 +365,7 @@ class Bank(object):
 
         # Now that all the configuration data is loaded, set up some basic things: KATCP, Valon, etc.
         # KATCP:
-        self.roach = katcp_wrapper.FpgaClient(self.roach_data.katcp_ip, self.roach_data.katcp_port)
+        self.roach = katcp_wrapper.FpgaClient(self.roach_data.katcp_ip, self.roach_data.katcp_port, timeout = 30.0)
         time.sleep(1) # It takes the KATCP interface a little while to get ready. It's used below
                       # by the Valon interface, so we must wait a little.
 
@@ -359,6 +393,9 @@ class Bank(object):
         print "connecting to %s, port %i" % (self.roach_data.katcp_ip, self.roach_data.katcp_port)
         print self.roach_data
         return "config file loaded."
+
+    def cdd_master(self):
+        return self.bank_name == self.mode_data[self.current_mode].cdd_master_hpc
 
     def set_mode(self, mode, force = False):
         """
@@ -390,14 +427,46 @@ class Bank(object):
                 if force or mode != self.current_mode:
                     self.current_mode = mode
                     print "New mode specified!"
-                    # self.roach.valon_frequency(self.mode_data[mode].frequency) ?? don't know yet.
-                    self.set_status(FPGACLK = self.mode_data[mode].frequency)
-                    self.progdev()
-                    self.net_config()
-                    self.reset_roach()
-                    self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
-                    self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
-                    self.valon.set_frequency(0, self.mode_data[mode].frequency / 1e6)
+
+                    # Two different kinds of mode: Coherent Dedispersion
+                    # (CDD) and everything else. CDD modes are
+                    # characterised by having only 1 ROACH sending data
+                    # to 8 different HPC servers. The ROACH has 8
+                    # network adapters for the purpose. Because of the
+                    # 1->8 arrangement, one of the Players is Master and
+                    # programs the ROACH. The others set up everything
+                    # except their ROACH; in fact the others deprogram
+                    # their ROACH so that the IP addresses may be used
+                    # in the one CDD ROACH.
+                    #
+                    # The other kind of mode has 1 ROACH -> 1 HPC
+                    # server, so each Player programs its ROACH.
+                    if self.mode_data[mode].cdd_mode:
+                        print "CoDD mode!!!!!"
+                        if self.cdd_master():
+                            print 'CoDD Master!!!!!'
+                            # If master, do all the roach stuff. Everyone else skip.
+                            print "Valon frequency:", self.mode_data[mode].frequency / 1e6
+                            self.valon.set_frequency(0, self.mode_data[mode].frequency / 1e6)
+                            self.progdev()
+                            self.net_config()  # TBF!!!! program the 8 network adapters.
+                            self.reset_roach() # TBF!!!! Must consider case where Master's roach is not THE ROACH.
+                            self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
+                            self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
+                        else:
+                            # Deprogram the roach. Every player will
+                            # deprogram its roach; only the master Player in
+                            # CDD mode will then program its roach.
+                            reply, informs = self.roach._request("progdev")
+                    else:
+                        self.valon.set_frequency(0, self.mode_data[mode].frequency / 1e6)
+                        self.progdev()
+                        self.net_config()
+                        self.reset_roach()
+                        self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
+                        self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
+
+                    self.set_status(FPGACLK = self.mode_data[mode].frequency / 8)
 
                     #load any shared-mem keys found in the mode section:
                     if self.mode_data[mode].shmkvpairs:
@@ -535,12 +604,207 @@ class Bank(object):
                 or data_port > 65535 or dest_port > 65535:
             raise Exception("Improperly formatted IP addresses and/or ports. "
                             "IP must be integer values or dotted quad strings. "
-                            "Ports must be integer values > 65535.")
+                            "Ports must be integer values < 65535.")
 
-        self.roach.tap_start("tap0", "gbe0", self.roach_data.mac_base + data_ip, data_ip, data_port)
-        self.roach.write_int('dest_ip', dest_ip)
-        self.roach.write_int('dest_port', dest_port)
+        def tap_data(ips):
+            rvals = []
+
+            for i in range(0, len(ips)):
+                tap = "tap%i" % i
+                gbe = "tGX8_tGv2%i" % i
+                ip = self._ip_string_to_int(ips[i])
+                mac = self.roach_data.mac_base + ip
+                port = self.roach_data.dataport
+                rvals.append((tap, gbe, mac, ip, port))
+            return rvals
+
+        if self.mode_data[self.current_mode].cdd_mode:
+            taps = tap_data(self.mode_data[self.current_mode].cdd_roach_ips)
+
+            for tap in taps:
+                self.roach.tap_start(*tap)
+
+            hpcs = self.mode_data[self.current_mode].cdd_hpcs
+
+            for i in range(0, len(hpcs)):
+                ip_reg = 'IP_%i' % i
+                pt_reg = 'PT_%i' % i
+                dest_ip = self.bank_data[hpcs[i]].dest_ip
+                dest_port = self.bank_data[hpcs[i]].dest_port
+                self.roach.write_int(ip_reg, dest_ip)
+                self.roach.write_int(pt_reg, dest_port)
+        else:
+            self.roach.tap_start("tap0", "gbe0", self.roach_data.mac_base + data_ip, data_ip, data_port)
+            self.roach.write_int('dest_ip', dest_ip)
+            self.roach.write_int('dest_port', dest_port)
         return 'ok'
+
+    def _wait_for_status(self, reg, expected, max_delay):
+        """
+        _wait_for_status(self, reg, expected, max_delay)
+
+        Waits for the shared memory status register 'reg' to read value
+        'expected'. Returns True if that value appears within
+        'max_delay' (milliseconds), False if not. 'wait' returns the
+        actual time waited (mS), within 100 mS.
+        """
+        value = ""
+        wait = timedelta()
+        increment = timedelta(microseconds=100000)
+
+        while wait < max_delay:
+            value = self.get_status(reg)
+
+            if value == expected:
+                return (True,wait)
+
+            time.sleep(0.1)
+            wait += increment
+
+        return (False,wait) #timed out
+
+    def start(self, starttime = None):
+        """
+        start(self, starttime = None)
+
+        starttime: a datetime object
+
+        --OR--
+
+        starttime: a tuple or list(for ease of JSON serialization) of
+        datetime compatible values: (year, month, day, hour, minute,
+        second, microsecond).
+
+        Sets up the system for a measurement and kicks it off at the
+        appropriate time, based on 'starttime'.  If 'starttime' is not
+        on a PPS boundary it is bumped up to the next PPS boundary.  If
+        'starttime' is not given, the earliest possible start time is
+        used.
+
+        start() will require a needed arm delay time, which is specified
+        in every mode section of the configuration file as
+        'needed_arm_delay'. During this delay it tells the HPC program
+        to start its net, accum and disk threads, and waits for the HPC
+        program to report that it is receiving data. It then calculates
+        the time it needs to sleep until just after the penultimate PPS
+        signal. At that time it wakes up and arms the ROACH. The ROACH
+        should then send the initial packet at that time.
+        """
+        if not self.current_mode:
+            raise Exception("No mode currently set!")
+
+        def round_second_up(the_datetime):
+            if the_datetime.microsecond != 0:
+                sec = the_datetime.second + 1
+                the_datetime = the_datetime.replace(second = sec).replace(microsecond = 0)
+            return the_datetime
+
+        now = datetime.now()
+        earliest_start = round_second_up(now + self.mode_data[self.current_mode].needed_arm_delay)
+
+        if starttime:
+            if type(starttime) == tuple or type(starttime) == list:
+                starttime = datetime(*starttime)
+
+            if type(starttime) != datatime:
+                raise Exception("starttime must be a datetime or datetime compatible tuple or list.")
+
+            # Force the start time to the next 1-second boundary. The
+            # ROACH is triggered by a 1PPS signal.
+            starttime = round_second_up(starttime)
+            # starttime must be 'needed_arm_delay' seconds from now.
+            if starttime < earliest_start:
+                raise Exception("Not enough time to arm ROACH.")
+        else: # No start time provided
+            starttime = earliest_start
+
+        # everything OK now, starttime is valid, go through the start procedure.
+        max_delay = self.mode_data[self.current_mode].needed_arm_delay - timedelta(microseconds = 1500000)
+        val = self.roach.read_int('status')
+
+        if val & 0x01:
+            self.reset_roach()
+
+        self.hpc_cmd('START')
+        status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
+
+        if not status:
+            self.hpc_cmd('STOP')
+            raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
+
+        print "start(): waited %s for HPC program to be ready." % str(wait)
+
+        # now sleep until arm_time
+        #        PPS        PPS
+        # ________|__________|_____
+        #          ^         ^
+        #       arm_time  start_time
+        arm_time = starttime - timedelta(microseconds = 900000)
+        now = datetime.now()
+
+        if now > arm_time:
+            self.hpc_cmd('STOP')
+            raise Exception("start(): deadline missed, arm time is in the past.")
+
+        tdelta = arm_time - now
+        sleep_time = tdelta.seconds + tdelta.microseconds / 1e6
+        time.sleep(sleep_time)
+        # We're now within a second of the desired start time. Arm:
+        self.arm_roach()
+
+
+    def stop(self):
+        self.hpc_cmd('STOP')
+
+    def exposure(self, x):
+        """
+        exposure(x)
+
+        x: Floating point value, integration time in seconds
+
+        Sets the integration time, in seconds.
+        """
+        self.set_status(EXPOSURE=x)
+        return (True, "EXPOSURE=%i" % x)
+
+    def nsubband(self, x):
+        """
+        nsubband(x)
+
+        x: The number of subbands, either 1 or 8
+
+        Sets the number of subbands.
+        """
+        if x in (1, 8):
+            self.set_status(NSUBBAND=x)
+            return (True, "NSUBBAND=%i" % x)
+        else:
+            return (False, "NSUBBAND must be set to 1 or 8")
+
+    def npol(self, x):
+        """
+        """
+        self.set_status(NPOL=x)
+        return (True, "NPOL=%i" % x)
+
+    def nchan(self, x):
+        """
+        """
+        self.set_status(NCHAN=x)
+        return (True, "NCHAN=%i" % x)
+
+    def chan_bw(self, x):
+        """
+        """
+        self.set_status(CHAN_BW=x)
+        return (True, "CHAN_BW=%i" % x)
+
+    def frequency(self, x):
+        """
+        """
+        self.valon.set_frequency(0, x / 1e6)
+        self.set_status(FPGACLK=x / 8)
+        return (True, "frequency=%i" % x)
 
     def reset_roach(self):
         """
@@ -551,7 +815,12 @@ class Bank(object):
         sequence of commands is obtained from the 'MODEX' section of the
         configuration file.
         """
-        self._execute_phase(self.mode_data[self.current_mode].reset_phase)
+
+        if self.mode_data[self.current_mode].cdd_mode:
+            if self.cdd_master():
+                self._execute_phase(self.mode_data[self.current_mode].reset_phase)
+        else:
+            self._execute_phase(self.mode_data[self.current_mode].reset_phase)
 
     def arm_roach(self):
         """
@@ -562,7 +831,11 @@ class Bank(object):
         sequence of commands is obtained from the 'MODEX' section of the
         configuration file.
         """
-        self._execute_phase(self.mode_data[self.current_mode].arm_phase)
+        if self.mode_data[self.current_mode].cdd_mode:
+            if self.cdd_master():
+                self._execute_phase(self.mode_data[self.current_mode].arm_phase)
+        else:
+            self._execute_phase(self.mode_data[self.current_mode].arm_phase)
 
     def disarm_roach(self):
         """
@@ -573,7 +846,11 @@ class Bank(object):
         sequence of commands is obtained from the 'MODEX' section of the
         configuration file.
         """
-        self._execute_phase(self.mode_data[self.current_mode].postarm_phase)
+        if self.mode_data[self.current_mode].cdd_mode:
+            if self.cdd_master():
+                self._execute_phase(self.mode_data[self.current_mode].postarm_phase)
+        else:
+            self._execute_phase(self.mode_data[self.current_mode].postarm_phase)
 
     def _execute_phase(self, phase):
         """
