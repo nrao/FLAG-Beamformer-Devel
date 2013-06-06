@@ -34,6 +34,7 @@ import signal
 import sys
 import traceback
 import time
+import os
 
 from vegas_utils import vegas_status
 from corr import katcp_wrapper
@@ -269,17 +270,22 @@ class Bank(object):
     """
 
     def __init__(self, bank_name):
+        self.dibas_dir = os.getenv('DIBAS_DIR')
+
+        if self.dibas_dir == None:
+            raise Exception("'DIBAS_DIR' is not set!")
+
         self.bank_name = bank_name.upper()
         self.roach_data = BankData()
         self.mode_data = {}
         self.bank_data = {}
         self.current_mode = None
         self.hpc_process = None
-        self.vegas_devel_path = None
+        self.exec_path = None
         self.vegas_hpc = None
         self.fifo_name = None
         self.status = vegas_status()
-        self.read_config_file('./dibas.conf')
+        self.read_config_file(self.dibas_dir + 'etc/config/dibas.conf')
 
     def hpc_cmd(self, cmd):
         """
@@ -296,7 +302,7 @@ class Bank(object):
         """
 
         self.stop_hpc()
-        sp_path = self.vegas_devel_path + '/src/vegas_hpc/bin/' + self.vegas_hpc
+        sp_path = self.dibas_dir + '/exec/x86_64-linux' + self.vegas_hpc
         self.hpc_process = subprocess.Popen((sp_path, ))
 
 
@@ -334,7 +340,7 @@ class Bank(object):
 
 
             # Get config info for subprocess
-            self.vegas_devel_path = config.get('DEFAULTS', 'vegas_devel_path').lstrip('"').rstrip('"')
+            self.exec_path = config.get('DEFAULTS', 'exec_path').lstrip('"').rstrip('"')
             self.vegas_hpc = config.get('DEFAULTS', 'vegas-hpc').lstrip('"').rstrip('"')
             self.fifo_name = config.get('DEFAULTS', 'fifo_name').lstrip('"').rstrip('"')
 
