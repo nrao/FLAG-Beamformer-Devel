@@ -34,6 +34,7 @@ import signal
 import sys
 import traceback
 import time
+import os
 
 from vegas_utils import vegas_status
 from corr import katcp_wrapper
@@ -132,12 +133,13 @@ class BankData(ConfigData):
         self.synth_options = None
         self.mac_base = (2 << 40) + (2 << 32)
         self.shmkvpairs = None
+        self.roach_kvpairs = None
 
     def __repr__(self):
         return "BankData (datahost=%s, dataport=%i, dest_ip=%s, dest_port=%i, " \
                "katcp_ip=%s, katcp_port=%i, synth=%s, synth_port=%s, synth_ref=%i, " \
                "synth_ref_freq=%i, synth_vco_range=%s, synth_rf_level=%i, " \
-               "synth_options=%s, mac_base=%i, shmkvpairs=%s)" \
+               "synth_options=%s, mac_base=%i, shmkvpairs=%s, roach_kvpairs=%s)" \
             % (self.datahost,
                self.dataport,
                self.dest_ip,
@@ -152,7 +154,8 @@ class BankData(ConfigData):
                self.synth_rf_level,
                str(self.synth_options),
                self.mac_base,
-               str(self.shmkvpairs))
+               str(self.shmkvpairs),
+               str(self.roach_kvpairs))
 
     def load_config(self, config, bank):
         self.datahost = config.get(bank, 'datahost').lstrip('"').rstrip('"')
@@ -169,6 +172,7 @@ class BankData(ConfigData):
         self.synth_rf_level = config.getint(bank, "synth_rf_level")
         self.synth_options = [int(i) for i in config.get(bank, 'synth_options').split(',')]
         self.shmkvpairs = self.read_kv_pairs(config, bank, 'shmkeys')
+        self.roach_kvpairs = self.read_kv_pairs(config, bank, 'roach_reg_keys')
 
 class ModeData(ConfigData):
     """
@@ -195,19 +199,21 @@ class ModeData(ConfigData):
         self.arm_phase = []
         self.postarm_phase = []
         self.master_slave_sels = AutoVivification()
-        self.shmkvpairs = None
         self.needed_arm_delay = None
         self.cdd_mode = None
         self.cdd_roach = None
         self.cdd_roach_ips = []
         self.cdd_hpcs = []
         self.cdd_master_hpc = None
+        self.shmkvpairs = None
+        self.roach_kvpairs = None        
 
 
     def __repr__(self):
         return "ModeData (acc_len=%i, filter_bw=%i, frequency=%f, bof=%s, " \
             "sg_period=%i, reset_phase=%s, arm_phase=%s, " \
-            "postarm_phase=%s, needed_arm_delay=%i, master_slave_sels=%s, shmkvpairs=%s)" % \
+            "postarm_phase=%s, needed_arm_delay=%i, master_slave_sels=%s, " \
+            "shmkvpairs=%s, roach_kvpairs=%s)" % \
             (self.acc_len,
              self.filter_bw,
              self.frequency,
@@ -218,14 +224,25 @@ class ModeData(ConfigData):
              self.postarm_phase,
              str(self.needed_arm_delay),
              self.master_slave_sels,
-             str(self.shmkvpairs))
+             str(self.shmkvpairs),
+             str(self.roach_kvpairs))
 
     def load_config(self, config, mode):
-        self.acc_len                    = config.getint(mode, 'acc_len')
+        try:
+            self.acc_len                    = config.getint(mode, 'acc_len')
+        except:
+            self.acc_len=None
         self.filter_bw                  = config.getint(mode, 'filter_bw')
         self.frequency                  = config.getfloat(mode, 'frequency')
         self.bof                        = config.get(mode, 'bof_file')
-        self.sg_period                  = config.getint(mode, 'sg_period')
+        # Get config info for subprocess
+        self.hpc_program   = config.get(mode, 'hpc_program').lstrip('"').rstrip('"')
+        self.hpc_fifo_name = config.get(mode, 'hpc_fifo_name').lstrip('"').rstrip('"')
+        
+        try:
+            self.sg_period                  = config.getint(mode, 'sg_period')
+        except:
+            self.sg_period=None
         mssel                           = config.get(mode, 'master_slave_sel').split(',')
         self.master_slave_sels[1][0][0] = int(mssel[0], 0)
         self.master_slave_sels[1][0][1] = int(mssel[1], 0)
@@ -246,6 +263,7 @@ class ModeData(ConfigData):
         self.arm_phase     = zip(arm_phase[0::2], arm_phase[1::2])
         self.postarm_phase = zip(postarm_phase[0::2], postarm_phase[1::2])
         self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
+        self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
         arm_delay =  config.getint(mode, 'needed_arm_delay')
         self.needed_arm_delay = timedelta(seconds = arm_delay)
 
@@ -259,6 +277,15 @@ class ModeData(ConfigData):
             self.cdd_master_hpc = config.get(mode, 'cdd_master_hpc')
         except ConfigParser.NoOptionError:
             self.cdd_mode = False
+        try:
+            self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
+        except:
+            pass
+        try:
+            self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
+        except:
+            pass
+
 
 def print_doc(obj):
     print obj.__doc__
@@ -269,38 +296,78 @@ class Bank(object):
     """
 
     def __init__(self, bank_name):
+        self.dibas_dir = os.getenv('DIBAS_DIR')
+
+        if self.dibas_dir == None:
+            raise Exception("'DIBAS_DIR' is not set!")
+
         self.bank_name = bank_name.upper()
         self.roach_data = BankData()
         self.mode_data = {}
         self.bank_data = {}
         self.current_mode = None
         self.hpc_process = None
-        self.vegas_devel_path = None
-        self.vegas_hpc = None
-        self.fifo_name = None
+        self.exec_path = None
+
+        self.check_shared_memory()
         self.status = vegas_status()
-        self.read_config_file('./dibas.conf')
+        self.read_config_file(self.dibas_dir + '/etc/config/dibas.conf')
 
     def hpc_cmd(self, cmd):
         """
         Opens the named pipe to the HPC program, sends 'cmd', and closes
         the pipe.
         """
-        fh = open(self.fifo_name, 'w')
+        
+        if self.current_mode is None:
+            raise Exception( "No current mode is selected" )
+            
+        if self.hpc_process is None:
+            raise Exception( "HPC program has not been started" )
+
+        fifo_name = self.mode_data[self.current_mode].hpc_fifo_name
+        if fifo_name is None:
+            raise Exception("Configuration error: no field hpc_fifo_name specified in "
+                            "MODE section of %s " % (self.current_mode))
+        
+        fh = open(fifo_name, 'w')
         fh.write(cmd)
         fh.close()
 
     def start_hpc(self):
         """
+        start_hpc()
         Starts the HPC program running. Stops any previously running instance.
         """
-
+        if self.current_mode is None:
+            raise Exception( "No current mode is selected" )
+            
         self.stop_hpc()
-        sp_path = self.vegas_devel_path + '/src/vegas_hpc/bin/' + self.vegas_hpc
+        hpc_program = self.mode_data[self.current_mode].hpc_program
+        if hpc_program is None:
+            raise Exception("Configuration error: no field hpc_program specified in "
+                            "MODE section of %s " % (self.current_mode))
+
+        sp_path = self.dibas_dir + '/exec/x86_64-linux/' + hpc_program
+        print sp_path
         self.hpc_process = subprocess.Popen((sp_path, ))
 
 
     def stop_hpc(self):
+        """
+        stop_hpc()
+        Stop the hpc program and make it exit.
+        To stop an observation use 'stop()' instead.
+        """
+        
+        if self.hpc_process is None:
+            return False # Nothing to do
+            
+        # First ask nicely
+        self.hpc_cmd('stop')
+        self.hpc_cmd('quit')
+        time.sleep(1)
+        # Kill if necessary
         if self.hpc_process and self.hpc_process.poll() == None: # running...
             self.hpc_process.send_signal(signal.SIGINT)
             time.sleep(1)
@@ -313,7 +380,59 @@ class Bank(object):
         else:
             killed = False
 
+        self.hpc_process = None
+        
         return killed
+
+    def check_shared_memory(self):
+        """
+        This method creates the status shared memory segment if necessary.
+        If the segment exists, the state of the status memory is not modified.
+        """
+        sts_path = self.dibas_dir + '/bin/init_status_memory'
+        sts_process = subprocess.Popen((sts_path,))
+        waits=0
+        # wait 10 seconds for the script to complete
+        ret = None
+        while waits < 5 and  ret == None: 
+            ret = sts_process.poll()
+            waits = waits+1
+            time.sleep(1)
+                
+        if ret is None or ret < 0:
+            raise Exception("Status memory buffer re-create failed " \
+                            " status = %s" % (ret))
+                            
+                
+    def reformat_data_buffers(self, mode):
+        """
+        Since the vegas and guppi HPC programs require different data buffer
+        layouts, remove and re-create the databuffers as appropriate for the
+        HPC program in use.
+        """
+        
+        if self.current_mode is None:
+            raise Exception( "No current mode is selected" )
+
+        fmt_path = self.dibas_dir + '/bin/re_create_data_buffers'
+
+        hpc_program = self.mode_data[self.current_mode].hpc_program
+        if hpc_program is None:
+            raise Exception("Configuration error: no field hpc_program specified in "
+                            "MODE section of %s " % (self.current_mode))
+
+        mem_fmt_process = subprocess.Popen((fmt_path,hpc_program))
+        waits=0
+        # wait 10 seconds for the script to complete
+        ret = None
+        while waits < 10 and  ret == None: 
+            ret = mem_fmt_process.poll()
+            waits = waits+1
+            time.sleep(1)
+                
+        if ret is None or ret < 0:
+            raise Exception("data buffer re-create failed %s when changing " \
+                            "to mode %s" % (ret, mode))
 
     def read_config_file(self, filename):
         """
@@ -331,12 +450,6 @@ class Bank(object):
             print "bank =", bank, "filename =", filename
             config = ConfigParser.ConfigParser()
             config.readfp(open(filename))
-
-
-            # Get config info for subprocess
-            self.vegas_devel_path = config.get('DEFAULTS', 'vegas_devel_path').lstrip('"').rstrip('"')
-            self.vegas_hpc = config.get('DEFAULTS', 'vegas-hpc').lstrip('"').rstrip('"')
-            self.fifo_name = config.get('DEFAULTS', 'fifo_name').lstrip('"').rstrip('"')
 
             # Get all bank data and store it. This is needed by any mode
             # where there is 1 ROACH and N Players & HPC programs
@@ -358,7 +471,7 @@ class Bank(object):
                 m = ModeData()
                 m.load_config(config, mode)
                 self.mode_data[mode] = m
-
+                
         except ConfigParser.NoSectionError as e:
             print str(e)
             return str(e)
@@ -389,6 +502,11 @@ class Bank(object):
         #load any shared-mem keys found in the BANK section:
         if self.roach_data.shmkvpairs:
             self.set_status(**self.roach_data.shmkvpairs)
+        #load any 'extra' register default settings for this bof also from the BANK section:
+        if self.roach_data.roach_kvpairs:
+            self.set_register(**self.roach_data.roach_kvpairs)
+        else:
+            print 'DEBUG no extra register settings'
 
         print "connecting to %s, port %i" % (self.roach_data.katcp_ip, self.roach_data.katcp_port)
         print self.roach_data
@@ -427,6 +545,10 @@ class Bank(object):
                 if force or mode != self.current_mode:
                     self.current_mode = mode
                     print "New mode specified!"
+                    if self.hpc_process is not None:
+                        print "stopping HPC program"
+                        self.stop_hpc()
+                    self.reformat_data_buffers(mode)
 
                     # Two different kinds of mode: Coherent Dedispersion
                     # (CDD) and everything else. CDD modes are
@@ -451,8 +573,10 @@ class Bank(object):
                             self.progdev()
                             self.net_config()  # TBF!!!! program the 8 network adapters.
                             self.reset_roach() # TBF!!!! Must consider case where Master's roach is not THE ROACH.
-                            self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
-                            self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
+                            if self.mode_data[mode].acc_len is not None:
+                                self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
+                            if self.mode_data[mode].sg_period is not None:
+                                self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
                         else:
                             # Deprogram the roach. Every player will
                             # deprogram its roach; only the master Player in
@@ -468,9 +592,14 @@ class Bank(object):
 
                     self.set_status(FPGACLK = self.mode_data[mode].frequency / 8)
 
-                    #load any shared-mem keys found in the mode section:
+                    #load any shared-mem keys found in the bank section:
                     if self.mode_data[mode].shmkvpairs:
                         self.set_status(**self.mode_data[mode].shmkvpairs)
+                    #load any Bank-based register settings from the BANK section:
+                    if self.mode_data[mode].roach_kvpairs:
+                        self.set_register(**self.mode_data[mode].roach_kvpairs)
+                    else:
+                        print 'DEBUG no extra Bank register settings'
 
                     return (True, 'New mode %s set!' % mode)
                 else:
@@ -531,6 +660,21 @@ class Bank(object):
         for k,v in kwargs.items():
             self.status.update(str(k), str(v))
         self.status.write()
+
+    def set_register(self, **kwargs):
+        """
+        set_register(self, **kwargs)
+
+        Updates the named roach registers with the values for the keys specified 
+        in the parameter list as keyword value pairs. ex:
+
+          set_register(FFT_SHIFT=0xaaaaaaaa, N_CHAN=6)
+
+        would set the FFT_SHIFT and N_CHAN registers.
+        """
+        for k,v in kwargs.items():
+            # print str(k), '<-', str(v), int(str(v),0)
+            self.roach.write_int(str(k), int(str(v),0))
 
     def progdev(self, bof = None):
         """
@@ -874,6 +1018,25 @@ class Bank(object):
             op = int(op, 0)
             self.roach.write_int('arm', op)
 
+        def ARM(op):
+            op = int(op, 0)
+            self.roach.write_int('ARM', op)
+
+        def write_reg(op):
+            """ write_reg(self,op)
+        
+            Perform a write operation to a named register. The config file syntax for this operator
+            should be:
+                arm_phase=write_reg,myregistername=2,wait,0.2,write_reg,anotherregistername=42 etc.
+            """
+            s = op.split('=')
+            if len(s) != 2 or len(s[0]) == 0 or len(s[1]) == 0:
+                print 'write_reg syntax error %s -- no value written to register' % str(op)
+            else:           
+                reg=s[0]    
+                val = int(s[1], 0)
+                self.roach.write_int(reg, val)
+
         def sg_sync(op):
             op = int(op, 0)
             self.roach.write_int('sg_sync', op)
@@ -881,8 +1044,9 @@ class Bank(object):
         def wait(op):
             op = float(op)
             time.sleep(op)
-
-        doit = {arm.__name__: arm, sg_sync.__name__: sg_sync, wait.__name__: wait}
+            
+        doit = {arm.__name__: arm, sg_sync.__name__: sg_sync, wait.__name__: wait, 
+                ARM.__name__:ARM,  write_reg.__name__:write_reg}
 
         for cmd, param in phase:
             doit[cmd](param)
