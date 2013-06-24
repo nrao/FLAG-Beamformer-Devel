@@ -32,7 +32,7 @@ import zmq
 def datetime_to_tuple(dt):
     return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
 
-class ZMQJSONProxy(object):
+class ZMQJSONProxyClient(object):
     def __init__(self, ctx, obj_name, url):
         self._url = url
         self._obj_name = obj_name
@@ -70,5 +70,6 @@ class ZMQJSONProxy(object):
             return None
 
 ctx = zmq.Context()
-bp = ZMQJSONProxy(ctx, 'bank', 'tcp://north:6667')
+bp = ZMQJSONProxyClient(ctx, 'bank', 'tcp://north:6667')
 bp.katcp = ZMQJSONProxy(ctx, 'katcp', 'tcp://north:6667')
+bp.valon = ZMQJSONProxyClient(ctx, 'valon', 'tcp://north:6667')
