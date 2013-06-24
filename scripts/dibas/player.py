@@ -285,7 +285,7 @@ class Bank(object):
         self.vegas_hpc = None
         self.fifo_name = None
         self.status = vegas_status()
-        self.read_config_file(self.dibas_dir + 'etc/config/dibas.conf')
+        self.read_config_file(self.dibas_dir + '/etc/config/dibas.conf')
 
     def hpc_cmd(self, cmd):
         """
@@ -302,7 +302,8 @@ class Bank(object):
         """
 
         self.stop_hpc()
-        sp_path = self.dibas_dir + '/exec/x86_64-linux' + self.vegas_hpc
+        sp_path = self.dibas_dir + '/exec/x86_64-linux/' + self.vegas_hpc
+        print sp_path
         self.hpc_process = subprocess.Popen((sp_path, ))
 
 
@@ -340,7 +341,6 @@ class Bank(object):
 
 
             # Get config info for subprocess
-            self.exec_path = config.get('DEFAULTS', 'exec_path').lstrip('"').rstrip('"')
             self.vegas_hpc = config.get('DEFAULTS', 'vegas-hpc').lstrip('"').rstrip('"')
             self.fifo_name = config.get('DEFAULTS', 'fifo_name').lstrip('"').rstrip('"')
 
