@@ -5,24 +5,46 @@ import binascii
 import player
 
 
-class VegasInternals:
+class VegasBackend:
     """
     A class which implements some of the VEGAS specific parameter calculations.
     """
     def __init__(self, theBank):
         """
         Creates an instance of the vegas internals.
-        VegasInternals( bank )
+        VegasBackend( bank )
         Where bank is the instance of the player's Bank.
         """
+        self.bank = theBank
+                
         self.nPhases = 0
         self.phase_start = []
         self.blanking = []
         self.sig_ref_state = []
         self.cal_state = []
         self.switch_period = None
-        self.bank = theBank
-
+        self.mode_number = None
+        self.frequency = None
+        self.numStokes = None
+        self.frequency_resolution = 0.0
+        self.setFilterBandwidth(800)
+        self.setPolarization("SELF")
+        self.setNumberChannels(1024)
+        self.nspectra = 1
+        self.mode_number = 1 
+        self.setIntegrationTime(10.0)
+        self.fpga_clock = None
+        self.status_dict = {}
+        
+        self.frequency = self.bank.mode_data[self.bank.current_mode].frequency
+        self.frequency = self.bank.mode_data[self.bank.current_mode].filter_bw
+        self.acc_len   = self.bank.mode_data[self.bank.current_mode].acc_len
+        
+        mode_number = 1
+        for i in range(14):
+            if "MODE%i" % i in self.bank.current_mode:
+                self.mode_number = i
+        
 
     ### Methods to set user or mode specified parameters
     ###        
@@ -62,6 +84,34 @@ class VegasInternals:
         self.cal_state.append(cal)
         self.sig_ref_state.append(sig_ref)
         
+    def show_switching_setup(self):
+        srline=""
+        clline=""
+        blline=""
+        calOnSym = "--------"
+        calOffSym= "________"
+        srSigSym = "--------"
+        srRefSym = "________"
+        blnkSym  = "^ %.3f "
+        noBlkSym = "        "
+        for i in range(self.nPhases):
+            if self.sig_ref_state[i]:
+                srline = srline +  srSigSym
+            else:
+                srline = srline +  srRefSym
+            if self.cal_state[i]:
+                clline = clline  +  calOnSym
+            else:
+                clline = clline  +  calOffSym
+            if self.blanking[i] > 0.0:
+                blline = blline  +  blnkSym % self.blanking[i]
+            else:
+                blline = blline  +  noBlkSym
+                
+        print "CAL    :", clline
+        print "SIG/REF:", srline 
+        print "BLANK  :", blline
+        
     def setBlankingkeys(self):
         """
         blank should be a list of blanking interval values in seconds
@@ -93,12 +143,6 @@ class VegasInternals:
         """
         for i in range(len(self.sig_ref_state)):
             self.set_status_str('_SSRF_%02d' % (i+1), str(self.sig_ref_state[i]))
-
-    def setFrequencyResolution(self, fres):
-        """
-        set by user
-        """
-        self.frequency_resolution = fres
         
     def setValonFrequency(self, vfreq):
         """
@@ -329,8 +373,13 @@ class VegasInternals:
 
     def chan_bw_dep(self):
         self.chan_bw = self.sampler_frequency / (self.nchan * 2)
+        self.frequency_resolution = abs(self.chan_bw)
         
 
+    def set_status_str(self, x, y):
+        """
+        """
+        self.status_dict[x] = y
     def set_state_table_keywords(self):
         """
         Gather status sets here
@@ -369,6 +418,8 @@ class VegasInternals:
         statusdata["OBSFREQ"  ] = DEFAULT_VALUE;
         statusdata["OBSNCHAN" ] = DEFAULT_VALUE;
         statusdata["OBS_MODE" ] = DEFAULT_VALUE;
+        statusdata["OBSSEVER" ] = DEFAULT_VALUE;
+        statusdata["OBSID"    ] = DEFAULT_VALUE;
         statusdata["PKTFMT"   ] = DEFAULT_VALUE;
 
         statusdata["SUB0FREQ" ] = DEFAULT_VALUE;
@@ -380,6 +431,10 @@ class VegasInternals:
         statusdata["SUB6FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB7FREQ" ] = DEFAULT_VALUE;
         statusdata["SWVER"    ] = DEFAULT_VALUE;
+        
+        # add in the generated keywords from the setup
+        for x,y in self.status_dict.items():
+            statusdata[x] = y
         
         statusdata["BW_MODE"  ] = "HBW" ##??
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
@@ -402,64 +457,93 @@ class VegasInternals:
         statusdata["SUB7FREQ" ] = self.frequency / 2
         
         statusdata["BASE_BW"  ] = self.filter_bandwidth # From MODE
-        statusdata["BANKNAM"  ] = self.bank_name
+        statusdata["BANKNAM"  ] = self.bank.bank_name
         statusdata["MODENUM"  ] = str(self.mode_number) # from MODE
         statusdata["NOISESRC" ] = "OFF"  # TBD??
         statusdata["NUMPHASE" ] = str(self.nPhases)
         statusdata["SWPERIOD" ] = str(self.switch_period)
         statusdata["SWMASTER" ] = "VEGAS" # TBD
         statusdata["POLARIZE" ] = self.polarization
-        statusdata["_MCRPIX1" ] = str(self.nchan/2 + 1)
+        statusdata["CRPIX1"   ] = str(self.nchan/2 + 1)
         statusdata["SWPERINT" ] = str(int(self.requested_integration_time/self.sw_period))
         statusdata["NMSTOKES" ] = str(self.numStokes)
         
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
             statusdata["_MCDL_%02d" % (i+1)] = str(self.chan_bw)
-        
-        for i in statusdata.keys():
-            self.set_status_str(i, statusdata[i])
-        
-        pass
-                    
-    def set_status_str(self, x, y):
-        """
-        Interface to set_status() method of Bank
-        """
-        if self.bank is None:
-            print "%s = %s" % (x,y)
+            statusdata["_MFQR_%02d" % (i+1)] = str(self.frequency_resolution)
             
             
-    def testCase1(self):
-        """
-        An example test case FWIW.
-        """
-        # A few things which should come from the conf file via the bank
-        self.bank_name='BankH'
-        self.mode_number = 1 ## get this from bank?
-        self.acc_len = 256 ## from MODE config
 
-        self.clear_switching_states()                
-        self.set_switching_period(0.005)
-        self.add_switching_state(0.0, 1, 1, 0.0)
-        self.add_switching_state(0.25, 1, 0, 0.0)
-        self.add_switching_state(0.5, 0, 1, 0.0)
-        self.add_switching_state(0.75, 0, 0, 0.0)
-
-        self.setValonFrequency(1E9)
-        self.setPolarization('SELF')
-        self.setNumberChannels(1024) # mode 1
-        self.setFilterBandwidth(800E6)
-        self.setIntegrationTime(0.005*4)
+        if self.bank is not None:
+            self.bank.set_status(**statusdata)
+        else:
+            for i in statusdata.keys():
+                print "%s = %s" % (i, statusdata[i])
         
-        # call dependency methods and update shared memory
-        self.prepare()
+            
+def testCase1():
+    """
+    An example test case FWIW.
+    """
+    b = VegasBackend(None)
+    # A few things which should come from the conf file via the bank
+    b.bank_name='BankH'
+    b.mode_number = 1 ## get this from bank?
+    b.acc_len = 256 ## from MODE config
+
+    b.clear_switching_states()                
+    b.set_switching_period(0.005)
+    b.add_switching_state(0.0,  SWbits.SIG, SWbits.CALON, 0.0)
+    b.add_switching_state(0.25, SWbits.SIG, SWbits.CALOFF, 0.0)
+    b.add_switching_state(0.5,  SWbits.REF, SWbits.CALON, 0.0)
+    b.add_switching_state(0.75, SWbits.REF, SWbits.CALOFF, 0.0)
+
+    b.setValonFrequency(1E9)
+    b.setPolarization('SELF')
+    b.setNumberChannels(1024) # mode 1
+    b.setFilterBandwidth(800E6)
+    b.setIntegrationTime(0.005*4)
+    
+    # call dependency methods and update shared memory
+    b.prepare()
+        
+def testCase2():
+    """
+    An example test case from configtool setup.
+    """
+    b = VegasBackend(None)
+    # A few things which should come from the conf file via the bank
+    b.bank_name='BankH'
+    b.mode_number = 1 ## get this from bank?
+    b.acc_len = 256 ## from MODE config
+
+    b.clear_switching_states()                
+    b.set_switching_period(0.1)
+    b.add_switching_state(0.0,  SWbits.SIG, SWbits.CALON, 0.002)
+    b.add_switching_state(0.25, SWbits.SIG, SWbits.CALOFF, 0.002)
+    b.add_switching_state(0.5,  SWbits.REF, SWbits.CALON, 0.002)
+    b.add_switching_state(0.75, SWbits.REF, SWbits.CALOFF, 0.002)
+
+    b.setValonFrequency(1E9)    # config file
+    b.setPolarization('SELF')
+    b.setNumberChannels(1024)   # mode 1 (config file)
+    b.setFilterBandwidth(800E6) # config file?
+    b.setIntegrationTime(10.0)
+        
+    # call dependency methods and update shared memory
+    b.prepare()
 
             
 class SWbits:
     """
     A class to hold and encode the bits of a single phase of a switching signal generator phase
     """
+    
+    SIG=1
+    REF=0
+    CALON=1
+    CALOFF=0
     
     def __init__(self, duration, sr1, sr2, cal, blank):
         self.duration = duration
@@ -500,6 +584,5 @@ if __name__ == "__main__":
     sw=SWbits(0xA, 0, 0, 0, 0)
     print binascii.hexlify(sw.get_as_word())
     print " "
-    s=VegasInternals(None)
-    s.testCase1()
-    
+    testCase1()
+    testCase2()
