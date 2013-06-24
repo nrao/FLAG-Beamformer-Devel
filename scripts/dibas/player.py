@@ -39,6 +39,8 @@ import os
 from vegas_utils import vegas_status
 from corr import katcp_wrapper
 from datetime import datetime, timedelta
+import VegasBackend
+import GuppiBackend
 
 class AutoVivification(dict):
     """
@@ -95,11 +97,20 @@ class ConfigData(object):
         try:
             # get the keys, stripping out any spaces
             keys = [key.lstrip().rstrip() for key in config.get(section, kvkey).split(',')]
-            # now iterate over the keys, obtaining the values. Store in dictionary.
-            kvpairs = {key: config.get(section, key) for key in keys}
-            return kvpairs
         except ConfigParser.NoOptionError:
             return {}
+
+        # now iterate over the keys, obtaining the values. Store in dictionary.
+        kvpairs = {}
+        for key in keys:
+            try:
+                val=config.get(section, key)
+                kvpairs[key]=val
+            except:
+                print 'Warning no such key %s found, but was specified in the keys list of section %s' % (key,section)
+
+        return kvpairs
+
 
 class BankData(ConfigData):
     """
@@ -133,12 +144,13 @@ class BankData(ConfigData):
         self.synth_options = None
         self.mac_base = (2 << 40) + (2 << 32)
         self.shmkvpairs = None
+        self.roach_kvpairs = None
 
     def __repr__(self):
         return "BankData (datahost=%s, dataport=%i, dest_ip=%s, dest_port=%i, " \
                "katcp_ip=%s, katcp_port=%i, synth=%s, synth_port=%s, synth_ref=%i, " \
                "synth_ref_freq=%i, synth_vco_range=%s, synth_rf_level=%i, " \
-               "synth_options=%s, mac_base=%i, shmkvpairs=%s)" \
+               "synth_options=%s, mac_base=%i, shmkvpairs=%s, roach_kvpairs=%s)" \
             % (self.datahost,
                self.dataport,
                self.dest_ip,
@@ -153,7 +165,8 @@ class BankData(ConfigData):
                self.synth_rf_level,
                str(self.synth_options),
                self.mac_base,
-               str(self.shmkvpairs))
+               str(self.shmkvpairs),
+               str(self.roach_kvpairs))
 
     def load_config(self, config, bank):
         self.datahost = config.get(bank, 'datahost').lstrip('"').rstrip('"')
@@ -170,6 +183,7 @@ class BankData(ConfigData):
         self.synth_rf_level = config.getint(bank, "synth_rf_level")
         self.synth_options = [int(i) for i in config.get(bank, 'synth_options').split(',')]
         self.shmkvpairs = self.read_kv_pairs(config, bank, 'shmkeys')
+        self.roach_kvpairs = self.read_kv_pairs(config, bank, 'roach_reg_keys')
 
 class ModeData(ConfigData):
     """
@@ -196,19 +210,21 @@ class ModeData(ConfigData):
         self.arm_phase = []
         self.postarm_phase = []
         self.master_slave_sels = AutoVivification()
-        self.shmkvpairs = None
         self.needed_arm_delay = None
         self.cdd_mode = None
         self.cdd_roach = None
         self.cdd_roach_ips = []
         self.cdd_hpcs = []
         self.cdd_master_hpc = None
+        self.shmkvpairs = None
+        self.roach_kvpairs = None
 
 
     def __repr__(self):
         return "ModeData (acc_len=%i, filter_bw=%i, frequency=%f, bof=%s, " \
             "sg_period=%i, reset_phase=%s, arm_phase=%s, " \
-            "postarm_phase=%s, needed_arm_delay=%i, master_slave_sels=%s, shmkvpairs=%s)" % \
+            "postarm_phase=%s, needed_arm_delay=%i, master_slave_sels=%s, " \
+            "shmkvpairs=%s, roach_kvpairs=%s)" % \
             (self.acc_len,
              self.filter_bw,
              self.frequency,
@@ -219,14 +235,26 @@ class ModeData(ConfigData):
              self.postarm_phase,
              str(self.needed_arm_delay),
              self.master_slave_sels,
-             str(self.shmkvpairs))
+             str(self.shmkvpairs),
+             str(self.roach_kvpairs))
 
     def load_config(self, config, mode):
-        self.acc_len                    = config.getint(mode, 'acc_len')
+        try:
+            self.acc_len                    = config.getint(mode, 'acc_len')
+        except:
+            self.acc_len=None
         self.filter_bw                  = config.getint(mode, 'filter_bw')
         self.frequency                  = config.getfloat(mode, 'frequency')
         self.bof                        = config.get(mode, 'bof_file')
-        self.sg_period                  = config.getint(mode, 'sg_period')
+        # Get config info for subprocess
+        self.hpc_program   = config.get(mode, 'hpc_program').lstrip('"').rstrip('"')
+        self.hpc_fifo_name = config.get(mode, 'hpc_fifo_name').lstrip('"').rstrip('"')
+        self.backend_type  = config.get(mode, 'BACKEND')
+
+        try:
+            self.sg_period                  = config.getint(mode, 'sg_period')
+        except:
+            self.sg_period=None
         mssel                           = config.get(mode, 'master_slave_sel').split(',')
         self.master_slave_sels[1][0][0] = int(mssel[0], 0)
         self.master_slave_sels[1][0][1] = int(mssel[1], 0)
@@ -247,6 +275,7 @@ class ModeData(ConfigData):
         self.arm_phase     = zip(arm_phase[0::2], arm_phase[1::2])
         self.postarm_phase = zip(postarm_phase[0::2], postarm_phase[1::2])
         self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
+        self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
         arm_delay =  config.getint(mode, 'needed_arm_delay')
         self.needed_arm_delay = timedelta(seconds = arm_delay)
 
@@ -260,6 +289,23 @@ class ModeData(ConfigData):
             self.cdd_master_hpc = config.get(mode, 'cdd_master_hpc')
         except ConfigParser.NoOptionError:
             self.cdd_mode = False
+
+        try:
+            self.gigabit_interface_name = config.get(mode, 'gigabit_interface_name')
+            self.dest_ip_register_name = config.get(mode, 'dest_ip_register_name')
+            self.dest_port_register_name = config.get(mode, 'dest_port_register_name')
+        except:
+            raise Exception("""One or more of gigabit_interface_name, dest_ip_register_name,
+                               or dest_port_register_name is not defined in the mode section""")
+        try:
+            self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
+        except:
+            pass
+        try:
+            self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
+        except:
+            pass
+
 
 def print_doc(obj):
     print obj.__doc__
@@ -282,32 +328,75 @@ class Bank(object):
         self.current_mode = None
         self.hpc_process = None
         self.exec_path = None
-        self.vegas_hpc = None
-        self.fifo_name = None
+        self.check_shared_memory()
         self.status = vegas_status()
         self.read_config_file(self.dibas_dir + '/etc/config/dibas.conf')
+        self.scan_number = 1
+        self.backend = None
+
+    def __del__(self):
+        """
+        Perform cleanup activities for a Bank object.
+        """
+        # Stop the HPC program if it is running
+        if self.hpc_process is not None:
+            self.stop_hpc()
 
     def hpc_cmd(self, cmd):
         """
         Opens the named pipe to the HPC program, sends 'cmd', and closes
         the pipe.
         """
-        fh = open(self.fifo_name, 'w')
+
+        if self.current_mode is None:
+            raise Exception( "No current mode is selected" )
+
+        if self.hpc_process is None:
+            raise Exception( "HPC program has not been started" )
+
+        fifo_name = self.mode_data[self.current_mode].hpc_fifo_name
+        if fifo_name is None:
+            raise Exception("Configuration error: no field hpc_fifo_name specified in "
+                            "MODE section of %s " % (self.current_mode))
+
+        fh = open(fifo_name, 'w')
         fh.write(cmd)
         fh.close()
 
     def start_hpc(self):
         """
+        start_hpc()
         Starts the HPC program running. Stops any previously running instance.
         """
+        if self.current_mode is None:
+            raise Exception( "No current mode is selected" )
 
         self.stop_hpc()
-        sp_path = self.dibas_dir + '/exec/x86_64-linux/' + self.vegas_hpc
+        hpc_program = self.mode_data[self.current_mode].hpc_program
+        if hpc_program is None:
+            raise Exception("Configuration error: no field hpc_program specified in "
+                            "MODE section of %s " % (self.current_mode))
+
+        sp_path = self.dibas_dir + '/exec/x86_64-linux/' + hpc_program
         print sp_path
         self.hpc_process = subprocess.Popen((sp_path, ))
 
 
     def stop_hpc(self):
+        """
+        stop_hpc()
+        Stop the hpc program and make it exit.
+        To stop an observation use 'stop()' instead.
+        """
+
+        if self.hpc_process is None:
+            return False # Nothing to do
+
+        # First ask nicely
+        self.hpc_cmd('stop')
+        self.hpc_cmd('quit')
+        time.sleep(1)
+        # Kill if necessary
         if self.hpc_process and self.hpc_process.poll() == None: # running...
             self.hpc_process.send_signal(signal.SIGINT)
             time.sleep(1)
@@ -320,7 +409,59 @@ class Bank(object):
         else:
             killed = False
 
+        self.hpc_process = None
+
         return killed
+
+    def check_shared_memory(self):
+        """
+        This method creates the status shared memory segment if necessary.
+        If the segment exists, the state of the status memory is not modified.
+        """
+        sts_path = self.dibas_dir + '/bin/init_status_memory'
+        sts_process = subprocess.Popen((sts_path,))
+        waits=0
+        # wait 10 seconds for the script to complete
+        ret = None
+        while waits < 5 and  ret == None:
+            ret = sts_process.poll()
+            waits = waits+1
+            time.sleep(1)
+
+        if ret is None or ret < 0:
+            raise Exception("Status memory buffer re-create failed " \
+                            " status = %s" % (ret))
+
+
+    def reformat_data_buffers(self, mode):
+        """
+        Since the vegas and guppi HPC programs require different data buffer
+        layouts, remove and re-create the databuffers as appropriate for the
+        HPC program in use.
+        """
+
+        if self.current_mode is None:
+            raise Exception( "No current mode is selected" )
+
+        fmt_path = self.dibas_dir + '/bin/re_create_data_buffers'
+
+        hpc_program = self.mode_data[self.current_mode].hpc_program
+        if hpc_program is None:
+            raise Exception("Configuration error: no field hpc_program specified in "
+                            "MODE section of %s " % (self.current_mode))
+
+        mem_fmt_process = subprocess.Popen((fmt_path,hpc_program))
+        waits=0
+        # wait 10 seconds for the script to complete
+        ret = None
+        while waits < 10 and  ret == None:
+            ret = mem_fmt_process.poll()
+            waits = waits+1
+            time.sleep(1)
+
+        if ret is None or ret < 0:
+            raise Exception("data buffer re-create failed %s when changing " \
+                            "to mode %s" % (ret, mode))
 
     def read_config_file(self, filename):
         """
@@ -338,11 +479,6 @@ class Bank(object):
             print "bank =", bank, "filename =", filename
             config = ConfigParser.ConfigParser()
             config.readfp(open(filename))
-
-
-            # Get config info for subprocess
-            self.vegas_hpc = config.get('DEFAULTS', 'vegas-hpc').lstrip('"').rstrip('"')
-            self.fifo_name = config.get('DEFAULTS', 'fifo_name').lstrip('"').rstrip('"')
 
             # Get all bank data and store it. This is needed by any mode
             # where there is 1 ROACH and N Players & HPC programs
@@ -395,6 +531,15 @@ class Bank(object):
         #load any shared-mem keys found in the BANK section:
         if self.roach_data.shmkvpairs:
             self.set_status(**self.roach_data.shmkvpairs)
+        else:
+            pass
+            #print 'DEBUG no extra status memory setting in Bank section'
+        #load any 'extra' register default settings for this bof also from the BANK section:
+        if self.roach_data.roach_kvpairs:
+            self.set_register(**self.roach_data.roach_kvpairs)
+        else:
+            pass
+            #print 'DEBUG no extra register settings in Bank section'
 
         print "connecting to %s, port %i" % (self.roach_data.katcp_ip, self.roach_data.katcp_port)
         print self.roach_data
@@ -402,6 +547,23 @@ class Bank(object):
 
     def cdd_master(self):
         return self.bank_name == self.mode_data[self.current_mode].cdd_master_hpc
+
+    def set_scan_number(self, num):
+        """
+        set_scan_number(scan_number)
+
+        Sets the scan number to the value specified
+        """
+        self.scan_number = num
+        self.set_status(SCANNUM=num)
+
+    def increment_scan_number(self):
+        """
+        increment_scan_number()
+        Increments the current scan number
+        """
+        self.scan_number = self.scan_number+1
+        self.set_scan_number(self.scan_number)
 
     def set_mode(self, mode, force = False):
         """
@@ -433,6 +595,11 @@ class Bank(object):
                 if force or mode != self.current_mode:
                     self.current_mode = mode
                     print "New mode specified!"
+                    if self.hpc_process is not None:
+                        print "stopping HPC program"
+                        self.stop_hpc()
+                    #self.reformat_data_buffers(mode)
+                    print 'Not reformatting buffers'
 
                     # Two different kinds of mode: Coherent Dedispersion
                     # (CDD) and everything else. CDD modes are
@@ -447,6 +614,20 @@ class Bank(object):
                     #
                     # The other kind of mode has 1 ROACH -> 1 HPC
                     # server, so each Player programs its ROACH.
+
+                    # based upon the mode's backend config setting, create the appropriate
+                    # parameter calculator 'backend'
+                    if self.backend is not None:
+                        del(self.backend)
+                        self.backend = None
+
+                    if self.mode_data[mode].backend_type in ["VEGAS", "vegas"]:
+                        self.backend = VegasBackend.VegasBackend(self)
+                    elif self.mode_data[mode].backend_type in ["GUPPI", "guppi"]:
+                        self.backend = GuppiBackend.GuppiBackend(self)
+                    else:
+                        Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
+
                     if self.mode_data[mode].cdd_mode:
                         print "CoDD mode!!!!!"
                         if self.cdd_master():
@@ -457,8 +638,10 @@ class Bank(object):
                             self.progdev()
                             self.net_config()  # TBF!!!! program the 8 network adapters.
                             self.reset_roach() # TBF!!!! Must consider case where Master's roach is not THE ROACH.
-                            self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
-                            self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
+                            if self.mode_data[mode].acc_len is not None:
+                                self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
+                            if self.mode_data[mode].sg_period is not None:
+                                self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
                         else:
                             # Deprogram the roach. Every player will
                             # deprogram its roach; only the master Player in
@@ -469,14 +652,20 @@ class Bank(object):
                         self.progdev()
                         self.net_config()
                         self.reset_roach()
-                        self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
-                        self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
+                        print "NOT setting acc_len or sg_period due to name conflicts (Vegas bof vs Guppi Incoherent bof)"
+                        #self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
+                        #self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
 
                     self.set_status(FPGACLK = self.mode_data[mode].frequency / 8)
 
-                    #load any shared-mem keys found in the mode section:
+                    #load any shared-mem keys found in the bank section:
                     if self.mode_data[mode].shmkvpairs:
                         self.set_status(**self.mode_data[mode].shmkvpairs)
+                    #load any Bank-based register settings from the BANK section:
+                    if self.mode_data[mode].roach_kvpairs:
+                        self.set_register(**self.mode_data[mode].roach_kvpairs)
+                    else:
+                        print 'DEBUG no extra Bank register settings'
 
                     return (True, 'New mode %s set!' % mode)
                 else:
@@ -537,6 +726,22 @@ class Bank(object):
         for k,v in kwargs.items():
             self.status.update(str(k), str(v))
         self.status.write()
+
+    def set_register(self, **kwargs):
+        """
+        set_register(self, **kwargs)
+
+        Updates the named roach registers with the values for the keys specified
+        in the parameter list as keyword value pairs. ex:
+
+          set_register(FFT_SHIFT=0xaaaaaaaa, N_CHAN=6)
+
+        would set the FFT_SHIFT and N_CHAN registers.
+        Note: Only integer values are supported.
+        """
+        for k,v in kwargs.items():
+            # print str(k), '<-', str(v), int(str(v),0)
+            self.roach.write_int(str(k), int(str(v),0))
 
     def progdev(self, bof = None):
         """
@@ -612,20 +817,25 @@ class Bank(object):
                             "IP must be integer values or dotted quad strings. "
                             "Ports must be integer values < 65535.")
 
-        def tap_data(ips):
+        def tap_data(ips, gigbit_name):
             rvals = []
 
             for i in range(0, len(ips)):
                 tap = "tap%i" % i
-                gbe = "tGX8_tGv2%i" % i
+                gbe = gigbit_name + '%i' % i
+                # gbe = "tGX1_tGv2%i" % i
                 ip = self._ip_string_to_int(ips[i])
                 mac = self.roach_data.mac_base + ip
                 port = self.roach_data.dataport
                 rvals.append((tap, gbe, mac, ip, port))
             return rvals
 
+        gigbit_name = self.mode_data[self.current_mode].gigabit_interface_name
+        dest_ip_register_name = self.mode_data[self.current_mode].dest_ip_register_name
+        dest_port_register_name = self.mode_data[self.current_mode].dest_port_register_name
+
         if self.mode_data[self.current_mode].cdd_mode:
-            taps = tap_data(self.mode_data[self.current_mode].cdd_roach_ips)
+            taps = tap_data(self.mode_data[self.current_mode].cdd_roach_ips, gigbit_name)
 
             for tap in taps:
                 self.roach.tap_start(*tap)
@@ -633,17 +843,28 @@ class Bank(object):
             hpcs = self.mode_data[self.current_mode].cdd_hpcs
 
             for i in range(0, len(hpcs)):
-                ip_reg = 'IP_%i' % i
-                pt_reg = 'PT_%i' % i
+                ip_reg = dest_ip_register_name + '%i' % i
+                pt_reg = dest_port_register_name + '%i' % i
                 dest_ip = self.bank_data[hpcs[i]].dest_ip
                 dest_port = self.bank_data[hpcs[i]].dest_port
                 self.roach.write_int(ip_reg, dest_ip)
                 self.roach.write_int(pt_reg, dest_port)
         else:
-            self.roach.tap_start("tap0", "gbe0", self.roach_data.mac_base + data_ip, data_ip, data_port)
-            self.roach.write_int('dest_ip', dest_ip)
-            self.roach.write_int('dest_port', dest_port)
+            self.roach.tap_start("tap0", gigbit_name, self.roach_data.mac_base + data_ip, data_ip, data_port)
+            #self.roach.tap_start("tap0", "gbe0", self.roach_data.mac_base + data_ip, data_ip, data_port)
+            self.roach.write_int(dest_ip_register_name, dest_ip)
+            self.roach.write_int(dest_port_register_name, dest_port)
         return 'ok'
+
+    def write_hpc_ip_register(self, dest_ip, dest_port):
+        """
+        write the destination IP and destination Port to the appropriate registers
+        """
+        interface_name = self.mode_data[self.current_mode].gigabit_interface_name
+        dest_ip_name   = self.mode_data[self.current_mode].dest_ip_reg_name
+        dest_port_name = self.mode_data[self.current_mode].dest_port_name
+        self.roach.write_int(dest_ip_name,   dest_ip)
+        self.roach.write_int(dest_port_name, dest_port)
 
     def _wait_for_status(self, reg, expected, max_delay):
         """
@@ -726,10 +947,12 @@ class Bank(object):
 
         # everything OK now, starttime is valid, go through the start procedure.
         max_delay = self.mode_data[self.current_mode].needed_arm_delay - timedelta(microseconds = 1500000)
-        val = self.roach.read_int('status')
 
-        if val & 0x01:
-            self.reset_roach()
+        # The CODD bof's don't have a status register
+        if not self.cdd_mode:
+            val = self.roach.read_int('status')
+            if val & 0x01:
+                self.reset_roach()
 
         self.hpc_cmd('START')
         status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
@@ -803,6 +1026,7 @@ class Bank(object):
         """
         """
         self.set_status(CHAN_BW=x)
+        self.vegas.chan_bw_dep(x)
         return (True, "CHAN_BW=%i" % x)
 
     def frequency(self, x):
@@ -811,6 +1035,35 @@ class Bank(object):
         self.valon.set_frequency(0, x / 1e6)
         self.set_status(FPGACLK=x / 8)
         return (True, "frequency=%i" % x)
+
+    def set_observer(self, person):
+        self.set_status(OBSERVER=person)
+
+    def set_obsid(self, id):
+        self.set_status(OBSID=id)
+
+    def set_param(self, kvpairs):
+        """
+        A pass-thru method which conveys a backend specific parameter to the mode's parameter engine.
+
+        Example usage:
+        set_param(exposure=x,switch_period=1.0, ...)
+        """
+
+        if self.backend is not None:
+            self.backend.set_param(kvpairs)
+        else:
+            Exception("Cannot set parameters until a mode is selected")
+
+    def prepare(self):
+        """
+        Perform calculations for the current set of parameter settings
+        """
+        if self.backend is not None:
+            self.backend.prepare()
+        else:
+            Exception("Cannot prepare until a mode is selected")
+
 
     def reset_roach(self):
         """
@@ -880,6 +1133,21 @@ class Bank(object):
             op = int(op, 0)
             self.roach.write_int('arm', op)
 
+        def write_reg(op):
+            """ write_reg(self,op)
+
+            Perform a write operation to a named register. The config file syntax for this operator
+            should be:
+                arm_phase=write_reg,myregistername=2,wait,0.2,write_reg,anotherregistername=42 etc.
+            """
+            s = op.split('=')
+            if len(s) != 2 or len(s[0]) == 0 or len(s[1]) == 0:
+                print 'write_reg syntax error %s -- no value written to register' % str(op)
+            else:
+                reg=s[0]
+                val = int(s[1], 0)
+                self.roach.write_int(reg, val)
+
         def sg_sync(op):
             op = int(op, 0)
             self.roach.write_int('sg_sync', op)
@@ -888,7 +1156,8 @@ class Bank(object):
             op = float(op)
             time.sleep(op)
 
-        doit = {arm.__name__: arm, sg_sync.__name__: sg_sync, wait.__name__: wait}
+        doit = {arm.__name__: arm, sg_sync.__name__: sg_sync, wait.__name__: wait,
+                write_reg.__name__:write_reg}
 
         for cmd, param in phase:
             doit[cmd](param)
@@ -914,6 +1183,26 @@ class Bank(object):
             return ip
         else:
             raise Exception("IP address must be a dotted quad string, or an integer value.")
+
+
+def _testCaseVegas1():
+
+    # Not sure why I can't import SWbits from VegasBackend ???
+    SIG=1
+    REF=0
+    CALON=1
+    CALOFF=0
+
+    b=Bank('BANKH')
+    print "Setting Mode1"
+    b.set_mode('MODE1')
+    b.backend.set_switching_period(10.0)
+    b.backend.add_switching_state(0.0,  SIG, CALON, 0.0)
+    b.backend.add_switching_state(0.25, SIG, CALOFF, 0.0)
+    b.backend.add_switching_state(0.5,  REF, CALON, 0.0)
+    b.backend.add_switching_state(0.75, REF, CALOFF, 0.0)
+    b.backend.prepare()
+
 
 
 def dispatch(f_data, f_dict):
