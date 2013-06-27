@@ -22,13 +22,13 @@ class GuppiCODDBackend(Backend):
                  
         self.setObsMode('COHERENT_SEARCH')
         self.max_databuf_size = 128 # in MBytes
-        self.scale_p0 = 128
-        self.scale_p1 = 128
-        self.setBandwidth(100)
+        self.scale_p0 = 1
+        self.scale_p1 = 1
+        self.setBandwidth(800)
         self.dm = 0.0
-        self.rf_frequency = 350.0
+        self.rf_frequency = 2000.0
         self.nchan = 64 # Needs to be a config value?
-        self.integration_time = 1 # TBD JJB
+        self.integration_time =40.96E-6 # TBD JJB
         dibas_dir = os.getenv("DIBAS_DIR")
         if dibas_dir is not None:
             self.pardir = dibas_dir + '/etc/config'
@@ -134,9 +134,9 @@ class GuppiCODDBackend(Backend):
         """
         self.obsnchan = self.hw_nchan
         
-        chan_bw = self.bandwidth / self.hw_nchan
-        if self.bandwidth < 800:
-            chan_bw = -1.0 * chan_bw
+        chan_bw = self.bandwidth / float(self.hw_nchan)
+        #if self.bandwidth < 800:
+        #    chan_bw = -1.0 * chan_bw
         self.chan_bw = chan_bw
         
     def ds_time_dep(self):
@@ -145,7 +145,7 @@ class GuppiCODDBackend(Backend):
         """
         
         if 'SEARCH' in self.obs_mode:
-            dst = self.integration_time * self.bandwidth / self.nchan
+            dst = self.integration_time * self.bandwidth * 1E6 / self.nchan
             power_of_two = 2 ** int(math.log(dst)/math.log(2))
             self.ds_time = power_of_two
         else:
@@ -162,7 +162,7 @@ class GuppiCODDBackend(Backend):
         Can't find direct evidence for this, but seemed logical ...
         """
         if 'COHERENT' in self.obs_mode:
-            self.hw_nchan = self.nchan / 8 # number of nodes
+            self.hw_nchan = self.nchan # number of nodes
         else:
             self.hw_nchan = self.nchan
                 
@@ -173,9 +173,9 @@ class GuppiCODDBackend(Backend):
         Also see fft_params_dep
         """
         if 'COHERENT' in self.obs_mode and self.nchan in [128, 512]:
-            self.overlap = 12
+            self.pfb_overlap = 12
         else:
-            self.overlap = 4
+            self.pfb_overlap = 4
             
     def pol_type_dep(self):
         """
@@ -183,11 +183,16 @@ class GuppiCODDBackend(Backend):
         Depends upon a synthetic mode name having FAST4K for that mode, otherwise 
         non-4k coherent mode is assumed. (Is FAST4K  ever coherent?)
         """
-       
-        if 'FAST4K' in self.bank.current_mode:
-            self.pol_type = 'AA+BB'
-        else:
+        self.npol = 4
+        self.nrcvr = self.npol/2
+        if 'COHERENT' in self.obs_mode:
             self.pol_type = 'AABBCRCI'
+        elif 'FAST4K' in self.obs_mode:
+            self.pol_type = 'AA+BB'
+            self.npol = 1
+            self.nrcvr = 1
+        else:
+            self.pol_type = 'IQUV'
             
     def node_bandwidth_dep(self):
         """
@@ -202,7 +207,7 @@ class GuppiCODDBackend(Backend):
         """ 
         Calculates the TBIN status keyword
         """
-        self.tbin = self.acc_len * self.hw_nchan / self.bandwidth
+        self.tbin = float(self.acc_len * self.hw_nchan) / (self.bandwidth*1E6)
         
     def tfold_dep(self):
         if 'COHERENT' == self.obs_mode:
@@ -240,6 +245,8 @@ class GuppiCODDBackend(Backend):
         statusdata['TBIN'    ] = self.tbin
         statusdata['DATADIR' ] = self.datadir
         statusdata['POL_TYPE'] = self.pol_type
+        statusdata['NPOL'    ] = self.npol
+        statusdata['NRCVR'   ] = self.nrcvr
         statusdata['SCALE0'  ] = '1.0'
         statusdata['SCALE1'  ] = '1.0'
         statusdata['SCALE2'  ] = '1.0'
@@ -252,9 +259,12 @@ class GuppiCODDBackend(Backend):
             statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
             
         statusdata['CHAN_DM' ] = self.dm
+        statusdata['CHAN_BW' ] = self.chan_bw
         statusdata['FFTLEN'  ] = self.fft_len
         statusdata['OVERLAP' ] = self.overlap
+        statusdata['PFB_OVER'] = self.pfb_overlap
         statusdata['BLOCSIZE'] = self.blocsize
+        statusdata['DS_TIME' ] = self.ds_time
         
         self.bank.set_status(**statusdata)
         
@@ -275,11 +285,11 @@ class GuppiCODDBackend(Backend):
                                                              self.dm, 
                                                              self.max_databuf_size)
             self.fft_len = fftlen
-            self.pfb_overlap = overlap_r
+            self.overlap = overlap_r
             self.blocsize = blocsize
         else:
             self.fft_len = 16384
-            self.pfb_overlap = 512
+            self.overlap = 0
             self.blocsize = 33554432 # defaults
                 
     # Straight out of guppi2_utils.py massaged to fit in:            
