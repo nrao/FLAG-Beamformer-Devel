@@ -3,9 +3,10 @@ import struct
 import ctypes
 import binascii 
 import player
+from Backend import Backend
 
 
-class VegasBackend:
+class VegasBackend(Backend):
     """
     A class which implements some of the VEGAS specific parameter calculations.
     """
@@ -15,14 +16,8 @@ class VegasBackend:
         VegasBackend( bank )
         Where bank is the instance of the player's Bank.
         """
-        self.bank = theBank
-                
-        self.nPhases = 0
-        self.phase_start = []
-        self.blanking = []
-        self.sig_ref_state = []
-        self.cal_state = []
-        self.switch_period = None
+        Backend.__init__(self, theBank)
+        
         self.mode_number = None
         self.frequency = None
         self.numStokes = None
@@ -44,113 +39,22 @@ class VegasBackend:
         for i in range(14):
             if "MODE%i" % i in self.bank.current_mode:
                 self.mode_number = i
+                
+        # setup the parameter dictionary/methods        
+        self.params["polarization"] = self.setPolarization
+        self.params["nchan"]        = self.setNumberChannels
+        self.params["exposure"]     = self.setIntegrationTime
+        self.params["filter_bw"]    = self.setFilterBandwidth
+        self.params["num_spectra"]    = self.setNumberSpectra
+        self.params["acc_len"]    = self.setAccLen 
         
-
     ### Methods to set user or mode specified parameters
     ###        
-
-    def set_switching_period(self, period):
-        """
-        sets the period in seconds of the requested switching period
-        """
-        self.switch_period = period
-        
-    def clear_switching_states(self):
-        """
-        resets/delets the switching_states
-        """
-        self.nPhases = 0
-        self.phase_start = []
-        self.blanking = []
-        self.cal_state = []
-        self.sig_ref_state = []
-        
-    def add_switching_state(self, start, sig_ref, cal, blank=0.0):
-        """
-        add_state(start, sig_ref, cal, blank=0.0):
-        Add a description of one switching phase.
-        Where:
-            phase_start is the fraction of the switching period where this phase should begin in the range (0..1)
-            sig_ref is 1 for SIG,    0 for REF
-            cal     is 1 for CAL ON, 0 for CAL OFF
-            blank   is the requested blanking at the beginning of the phase in seconds
-        """
-        if start in self.phase_start:
-            raise Exception("switching phase start of %f already specified" % (start))
-            
-        self.nPhases = self.nPhases+1
-        self.phase_start.append(start)
-        self.blanking.append(blank)
-        self.cal_state.append(cal)
-        self.sig_ref_state.append(sig_ref)
-        
-    def show_switching_setup(self):
-        srline=""
-        clline=""
-        blline=""
-        calOnSym = "--------"
-        calOffSym= "________"
-        srSigSym = "--------"
-        srRefSym = "________"
-        blnkSym  = "^ %.3f "
-        noBlkSym = "        "
-        for i in range(self.nPhases):
-            if self.sig_ref_state[i]:
-                srline = srline +  srSigSym
-            else:
-                srline = srline +  srRefSym
-            if self.cal_state[i]:
-                clline = clline  +  calOnSym
-            else:
-                clline = clline  +  calOffSym
-            if self.blanking[i] > 0.0:
-                blline = blline  +  blnkSym % self.blanking[i]
-            else:
-                blline = blline  +  noBlkSym
-                
-        print "CAL    :", clline
-        print "SIG/REF:", srline 
-        print "BLANK  :", blline
-        
-    def setBlankingkeys(self):
-        """
-        blank should be a list of blanking interval values in seconds
-        """
-        for i in range(len(self.blanking)):
-            self.set_status_str('_SBLK_%02d' % (i+1), str(self.blanking[i]))
-    
-    def setCalStatekeys(self):
-        """
-        calstate should be a list of integers with 
-        1 indicating cal ON 
-        0 indicating cal OFF
-        """
-        for i in range(len(self.cal_state)):
-            self.set_status_str('_SCAL_%02d' % (i+1), str(self.cal_state[i]))
-        
-    def setPhaseStartkeys(self):
-        """
-        phstart is a list of switch period fractions in the range 0..1
-        """
-        for i in range(len(self.phase_start)):
-            self.set_status_str('_SPHS_%02d' % (i+1), str(self.phase_start[i]))
-
-    def setSigRefStatekeys(self):
-        """
-        srstate is a list of integers where
-        1 indicates REF
-        0 indicates SIG
-        """
-        for i in range(len(self.sig_ref_state)):
-            self.set_status_str('_SSRF_%02d' % (i+1), str(self.sig_ref_state[i]))
-        
-    def setValonFrequency(self, vfreq):
-        """
-        reflects the value of the valon clock, read from the Bank Mode section
-        of the config file.
-        """
-        self.frequency = vfreq
-        
+                    
+    def setAccLen(self, acclen):
+        self.acc_len = acclen
+             
+                                   
     def setPolarization(self, polar):
         """
         setPolarization(x)
@@ -200,6 +104,8 @@ class VegasBackend:
         self.setPhaseStartkeys()
         self.setSigRefStatekeys()
         self.set_state_table_keywords()
+        self.bank.set_register(acc_len=self.acc_len)
+        
                 
     # Algorithmic dependency methods, not normally called by a users
 
@@ -378,8 +284,10 @@ class VegasBackend:
 
     def set_status_str(self, x, y):
         """
+        Add/update an item to the status memory keyword list
         """
         self.status_dict[x] = y
+        
     def set_state_table_keywords(self):
         """
         Gather status sets here

@@ -41,6 +41,7 @@ from corr import katcp_wrapper
 from datetime import datetime, timedelta
 import VegasBackend
 import GuppiBackend
+import GuppiCODDBackend
 
 class AutoVivification(dict):
     """
@@ -621,43 +622,50 @@ class Bank(object):
                         del(self.backend)
                         self.backend = None
 
-                    if self.mode_data[mode].backend_type in ["VEGAS", "vegas"]:
+                    backend_type = self.mode_data[mode].backend_type.upper()
+                    if backend_type in ["VEGAS"]:
                         self.backend = VegasBackend.VegasBackend(self)
-                    elif self.mode_data[mode].backend_type in ["GUPPI", "guppi"]:
-                        self.backend = GuppiBackend.GuppiBackend(self)
+                    elif backend_type in ["GUPPI"]:
+                        if self.mode_data[mode].cdd_mode:
+                            self.backend = GuppiCODDBackend.GuppiCODDBackend(self)
+                        else:
+                            self.backend = GuppiBackend.GuppiBackend(self)
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
+
+                    f = self.mode_data[mode].frequency / 1e6
 
                     if self.mode_data[mode].cdd_mode:
                         print "CoDD mode!!!!!"
                         if self.cdd_master():
                             print 'CoDD Master!!!!!'
                             # If master, do all the roach stuff. Everyone else skip.
-                            print "Valon frequency:", self.mode_data[mode].frequency / 1e6
-                            self.valon.set_frequency(0, self.mode_data[mode].frequency / 1e6)
+                            print "Valon frequency:", f
+                            self.valon.set_frequency(0, f)
                             self.progdev()
                             self.net_config()  # TBF!!!! program the 8 network adapters.
                             self.reset_roach() # TBF!!!! Must consider case where Master's roach is not THE ROACH.
-                            if self.mode_data[mode].acc_len is not None:
-                                self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
-                            if self.mode_data[mode].sg_period is not None:
-                                self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
+                            print 'BUG: Not setting acc_len or sg_period due to naming conflicts'
+                            #if self.mode_data[mode].acc_len is not None:
+                            #    self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
+                            #if self.mode_data[mode].sg_period is not None:
+                            #    self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
                         else:
                             # Deprogram the roach. Every player will
                             # deprogram its roach; only the master Player in
                             # CDD mode will then program its roach.
                             reply, informs = self.roach._request("progdev")
                     else:
-                        self.valon.set_frequency(0, self.mode_data[mode].frequency / 1e6)
+                        self.valon.set_frequency(0, f)
                         self.progdev()
                         self.net_config()
                         self.reset_roach()
                         print "NOT setting acc_len or sg_period due to name conflicts (Vegas bof vs Guppi Incoherent bof)"
                         #self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
                         #self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
+                    self.set_param(frequency=f)
 
                     self.set_status(FPGACLK = self.mode_data[mode].frequency / 8)
-
                     #load any shared-mem keys found in the bank section:
                     if self.mode_data[mode].shmkvpairs:
                         self.set_status(**self.mode_data[mode].shmkvpairs)
@@ -1042,18 +1050,20 @@ class Bank(object):
     def set_obsid(self, id):
         self.set_status(OBSID=id)
 
-    def set_param(self, kvpairs):
+
+    def set_param(self, **kvpairs):
         """
-        A pass-thru method which conveys a backend specific parameter to the mode's parameter engine.
+        A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
 
         Example usage:
         set_param(exposure=x,switch_period=1.0, ...)
         """
 
         if self.backend is not None:
-            self.backend.set_param(kvpairs)
+            for k,v in kvpairs.items():
+                self.backend.set_param(str(k), v)
         else:
-            Exception("Cannot set parameters until a mode is selected")
+            raise Exception("Cannot set parameters until a mode is selected")
 
     def prepare(self):
         """
@@ -1062,8 +1072,7 @@ class Bank(object):
         if self.backend is not None:
             self.backend.prepare()
         else:
-            Exception("Cannot prepare until a mode is selected")
-
+            raise Exception("Cannot prepare until a mode is selected")
 
     def reset_roach(self):
         """
