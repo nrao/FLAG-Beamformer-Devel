@@ -58,7 +58,7 @@ class GuppiBackend(Backend):
         self.params["nbin"]           = self.set_nbin      
         self.params["obs_frequency"]  = self.set_obs_frequency
         self.params["obs_mode"]       = self.set_obs_mode
-        self.params["overlap"]        = self.set_overlap
+        #self.params["overlap"]        = self.set_overlap
         self.params["only_i"      ]   = self.set_only_i
         self.params["offset_i"    ]   = self.set_offset_I
         self.params["offset_q"    ]   = self.set_offset_Q
@@ -90,10 +90,13 @@ class GuppiBackend(Backend):
         Other modes should have this set to zero.
         """
         pass
-        
-    def set_overlap(self, over):
-        self.overlap = over
-        
+
+    def set_par_file(self, file):
+        """
+        Sets the pulsar profile ephemeris file
+        """
+        self.parfile = file
+                        
     def set_nbin(self, nbin):
         """
         For cal and fold modes, this sets the number of bins in a pulse profile.
@@ -195,7 +198,7 @@ class GuppiBackend(Backend):
         """
         Controls whether to 'record only summed polarizations' mode. Zero indicates that
         full stokes data should be recorded. One means to record only summed polarizations.  
-        This will be set to one when using the 'FAST4K' observing mode.
+        This will be set to zero when using the 'FAST4K' observing mode.
         """
         self.only_i = only_i
 
@@ -208,10 +211,12 @@ class GuppiBackend(Backend):
         self.acc_len_dep()
         self.chan_bw_dep()
         self.ds_time_dep()
+        self.ds_freq_dep()
         self.pfb_overlap_dep()
         self.pol_type_dep()
         self.tbin_dep()
         self.only_I_dep()
+        self.packet_format_dep()
         self.npol_dep()
         self.tfold_dep()
         self.node_bandwidth_dep()
@@ -238,7 +243,7 @@ class GuppiBackend(Backend):
     def chan_bw_dep(self):
         """
         Calculates the CHAN_BW status keyword
-        Result is bandwidth of each PFM channel in MHz
+        Result is bandwidth of each channel in MHz
         """
         self.obsnchan = self.hw_nchan
         
@@ -262,9 +267,15 @@ class GuppiBackend(Backend):
             
     def ds_freq_dep(self):
         """
-        Calculate the DS_FREQ status keyword
+        Calculate the DS_FREQ status keyword.
+        This is used only when an observer wants to reduce the number of channels
+        in software, while using a higher number of hardware channels in SEARCH
+        or COHERENT_SEARCH modes.
         """
-        self.ds_freq = self.hw_nchan / self.nchan
+        if self.obs_mode.upper() in ["SEARCH", "COHERENT_SEARCH"]:
+            self.ds_freq = self.hw_nchan / self.nchan
+        else:
+            self.ds_freq = 1
         
     def hw_nchan_dep(self):
         """
@@ -281,15 +292,12 @@ class GuppiBackend(Backend):
         Randy/Jason indicated that the new guppi designs will have 12 taps in all modes.
         """
         self.pfb_overlap = 12
-        #if 'COHERENT' in self.obs_mode and self.nchan in [128, 512]:
-        #    self.pfb_overlap = 12
-        #else:
-        #    self.pfb_overlap = 4
             
     def pol_type_dep(self):
         """
         Calculates the POL_TYPE status keyword.
-        Depends upon a synthetic parameter 'obs_mode' TBD
+        Depends upon a synthetic mode name having FAST4K for that mode, otherwise 
+        non-4k coherent mode is assumed.        
         """
         if 'COHERENT' in self.obs_mode:
             self.pol_type = 'AABBCRCI'
@@ -302,11 +310,11 @@ class GuppiBackend(Backend):
         """
         Calculates the number of polarizations to be recorded.
         Most cases it is all four, except in FAST4K, or when the user
-        has indicated they only want 1 stokes product (i.e. only_i is set)
+        has indicated they only want 1 stokes product)
         """
         self.npol = 4
         if 'FAST4K' in self.bank.current_mode.upper():
-            self.npol = 1
+            self.npol   = 1
         elif self.only_i:
             self.npol = 1
             
@@ -331,18 +339,25 @@ class GuppiBackend(Backend):
             
     
         
-    def only_I_dep(self):
+    def packet_format_dep(self):
         """
-        Calculates the ONLY_I and PKTFMT status keywords
-        """
-        # Not the best way to handle this, but if the mode name has 'FAST4K'
-        # in the name, assume FAST4K mode ...
+        Calculates the PKTFMT status keyword
+        """    
         if 'FAST4K' in self.bank.current_mode.upper():
-            self.only_i = 1
             self.packet_format = 'FAST4K'
         else:
-            # user setting is used for only_i
             self.packet_format = '1SFA'
+        
+        
+    def only_I_dep(self):
+        """
+        Calculates the ONLY_I status keyword
+        """
+        # Note this requires that the config mode name contains 'FAST4K' in the name
+        if 'FAST4K' in self.bank.current_mode.upper():
+            self.only_i = 0
+        elif self.obs_mode.upper() not in ["SEARCH", "COHERENT_SEARCH"]:
+            self.only_i = 0
 
     def set_status_keys(self):
         """
@@ -391,7 +406,7 @@ class GuppiBackend(Backend):
         
     def set_registers(self):
         regs = {}
-        
+        self.bank.valon.set_frequency(0, self.bandwidth)
         regs['ACC_LENGTH'] = self.acc_length
         regs['SCALE_I']    = int(self.scale_i*65536)
         regs['SCALE_Q']    = int(self.scale_q*65536)
@@ -401,6 +416,8 @@ class GuppiBackend(Backend):
         regs['OFFSET_Q']   = int(self.offset_q*65536)
         regs['OFFSET_U']   = int(self.offset_u*65536)
         regs['OFFSET_V']   = int(self.offset_v*65536)
+        #regs['FFT_SHIFT'] = 0xaaaaaaaa (Set by config file)
+        
         self.bank.set_register(**regs)
                 
     def fft_params_dep(self):
