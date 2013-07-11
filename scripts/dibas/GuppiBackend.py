@@ -4,6 +4,7 @@ import ctypes
 import binascii 
 import player
 import math
+import time
 from Backend import Backend
 import os
 
@@ -224,7 +225,68 @@ class GuppiBackend(Backend):
         self.set_registers()
         self.set_status_keys()
     
-                
+        
+    def _start(self):
+        """
+        An incoherent mode start routine.
+        """
+        if self.bank.hpc_process is None:
+            self.bank.start_hpc()
+            time.sleep(5)
+        self.bank.hpc_cmd("start")
+        time.sleep(3)
+        self.bank.arm_roach()
+        self.scan_running = True
+        while self.scan_running:
+            time.sleep(3)
+            if self.bank.hpc_process is None:
+                self.scan_running = False
+                Exception("HPC Process was stopped or failed");
+            if self.bank.get_status('DISKSTAT') == "exiting":
+                self.scan_running = False
+            elif self.bank.get_status('NETSTAT') == "exiting":
+                self.scan_running = False
+            elif self.check_keypress() == True:
+                print 'User terminated scan'            
+                self.bank.hpc_cmd('stop')
+                self.scan_running = False
+        print "Scan Completed"
+        
+        # Something should increment the scan number at the end of a scan to
+        # avoid the 'existing file' error.
+        self.bank.increment_scan_number()
+
+    def check_keypress(self):
+        """                                                                        
+        Detect a user interrupt
+        """
+        import termios, fcntl, sys, os
+        fd = sys.stdin.fileno()
+
+        oldterm = termios.tcgetattr(fd)
+        newattr = termios.tcgetattr(fd)
+        newattr[3] = newattr[3] & ~termios.ICANON & ~termios.ECHO
+        termios.tcsetattr(fd, termios.TCSANOW, newattr)
+
+        oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
+        got_keypress = False
+        try:
+            c = sys.stdin.read(1)
+            print "Got character", repr(c)
+            if c == 'q':
+                self.scan_running = False
+                got_keypress = True
+        except IOError:
+            got_keypress = False
+                    
+        finally:
+            termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
+            fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
+        return got_keypress       
+        
+        
+        
     # Algorithmic dependency methods, not normally called by users
     
     def acc_len_dep(self):
@@ -364,44 +426,44 @@ class GuppiBackend(Backend):
         Collect the status keywords
         """
         statusdata = {}
-        statusdata['PKTFMT'  ] = self.packet_format
         statusdata['ACC_LEN' ] = self.acc_len
+        statusdata['BLOCSIZE'] = self.blocsize
+        statusdata['CHAN_DM' ] = self.dm
+        statusdata['CHAN_BW' ] = self.chan_bw
+        #statusdata['DATADIR' ] = self.datadir
+        statusdata['DS_TIME' ] = self.ds_time
+                
+        statusdata['FFTLEN'  ] = self.fft_len
         
-        # The node's obsfrequency can be calculated as:
-        # obsfreq = rf_center - bw/2.0 - chan_bw/2.0 + (i-1.0+0.5)*node_bw
-
-        statusdata['OBSFREQ' ] = self.rf_frequency
-        statusdata['OBSBW'   ] = self.node_bandwidth
-        statusdata['OBSNCHAN'] = repr(self.node_nchan)
-        statusdata['OBS_MODE'] = self.obs_mode
-        statusdata['TBIN'    ] = self.tbin
-        statusdata['DATADIR' ] = self.datadir
-        statusdata['POL_TYPE'] = self.pol_type
         statusdata['NPOL'    ] = self.npol
         statusdata['NRCVR'   ] = self.nrcvr
         statusdata['NBIN'    ] = self.nbin
         statusdata['NBITS'   ] = 8
-        statusdata['TFOLD'   ] = self.tfold
-        statusdata['DS_TIME' ] = self.ds_time
-        statusdata['SCALE0'  ] = '1.0'
-        statusdata['SCALE1'  ] = '1.0'
-        statusdata['SCALE2'  ] = '1.0'
-        statusdata['SCALE3'  ] = '1.0'
+        
+        statusdata['OBSFREQ' ] = self.rf_frequency
+        statusdata['OBSBW'   ] = self.node_bandwidth
+        statusdata['OBSNCHAN'] = repr(self.node_nchan)
+        statusdata['OBS_MODE'] = self.obs_mode
         statusdata['OFFSET0' ] = '0.0'
         statusdata['OFFSET1' ] = '0.0'
         statusdata['OFFSET2' ] = '0.0'
         statusdata['OFFSET3' ] = '0.0'
         statusdata['ONLY_I'  ] = self.only_i
+        statusdata['OVERLAP' ] = self.overlap        
+        
+        statusdata['POL_TYPE'] = self.pol_type
+        statusdata['PFB_OVER'] = self.pfb_overlap
         if self.parfile is not None:
             statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
-            
-        statusdata['CHAN_DM' ] = self.dm
-        statusdata['CHAN_BW' ] = self.chan_bw
-        statusdata['FFTLEN'  ] = self.fft_len
-        statusdata['OVERLAP' ] = self.overlap
-        statusdata['PFB_OVER'] = self.pfb_overlap
-        statusdata['BLOCSIZE'] = self.blocsize
-        
+        statusdata['PKTFMT'  ] = self.packet_format
+
+        statusdata['SCALE0'  ] = '1.0'
+        statusdata['SCALE1'  ] = '1.0'
+        statusdata['SCALE2'  ] = '1.0'
+        statusdata['SCALE3'  ] = '1.0'
+        statusdata['TBIN'    ] = self.tbin
+        statusdata['TFOLD'   ] = self.tfold
+                   
         self.bank.set_status(**statusdata)
         
     def set_registers(self):

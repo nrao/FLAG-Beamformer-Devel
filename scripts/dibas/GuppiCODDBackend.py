@@ -4,6 +4,7 @@ import ctypes
 import binascii 
 import player
 import math
+import time
 from Backend import Backend
 import os
 
@@ -26,15 +27,20 @@ class GuppiCODDBackend(Backend):
         self.scale_p0 = 1
         self.scale_p1 = 1
         self.only_i = 0
-        self.set_bandwidth(800)
+        self.set_bandwidth(1500)
         self.dm = 0.0
-        self.rf_frequency = 2000.0
+        self.rf_frequency = 750.0
         self.overlap = 0
         self.tfold = 1.0
         self.nbin = 256
         # Most all receivers are dual polarization
         self.nrcvr = 2
-        self.nchan = 64 # Needs to be a config value?
+        self.nchan = 8 # Needs to be a config value?
+        self.num_nodes = 8
+        
+        bank_names = {'A' : 0, 'B' : 1, 'C' : 2, 'D' : 3, 'E' : 4, 'F' : 5, 'G' : 6, 'H' : 7 }
+        self.node_number = bank_names[self.bank.bank_name[-1]]
+               
         self.integration_time =40.96E-6 # TBD JJB
         dibas_dir = os.getenv("DIBAS_DIR")
         if dibas_dir is not None:
@@ -140,7 +146,7 @@ class GuppiCODDBackend(Backend):
         Sets the bandwidth in MHz. This value should match the valon output frequency.
         (The sampling rate being twice the valon frequency.)
         """    
-        if  abs(bandwidth) > 200 and abs(bandwidth) < 2000:
+        if  abs(bandwidth) > 199 and abs(bandwidth) < 2000:
             self.bandwidth = bandwidth
         else:
             raise Exception("Bandwidth of %d MHz is not a legal bandwidth setting" % (bandwidth))
@@ -166,8 +172,8 @@ class GuppiCODDBackend(Backend):
 
         self.hw_nchan_dep()
         self.acc_len_dep()
+        self.node_bandwidth_dep()        
         self.chan_bw_dep()
-        self.node_bandwidth_dep()
         self.ds_time_dep()
         self.ds_freq_dep()
         self.pfb_overlap_dep()
@@ -177,10 +183,71 @@ class GuppiCODDBackend(Backend):
         self.packet_format_dep()
         self.npol_dep()        
         self.tfold_dep()
+        self.node_rf_frequency_dep()
         self.fft_params_dep()
         
         self.set_status_keys()
         self.set_registers()
+        
+    def _start(self):
+        """
+        An coherent mode start routine.
+        """
+        if self.bank.hpc_process is None:
+            self.bank.start_hpc()
+            time.sleep(5)
+        self.bank.hpc_cmd("start")
+        time.sleep(3)
+        self.bank.arm_roach()
+        scan_running = True
+        while scan_running:
+            time.sleep(3)
+            if self.bank.hpc_process is None:
+                scan_running = False
+                Exception("HPC Process was stopped or failed");
+            if self.bank.get_status('DISKSTAT') == "exiting":
+                scan_running = False
+            elif self.bank.get_status('NETSTAT') == "exiting":
+                scan_running = False
+            elif self.check_keypress() == True:
+                print 'User terminated scan'            
+                self.bank.hpc_cmd('stop')
+        print "Scan Completed"
+        
+        # Something should increment the scan number at the end of a scan to
+        # avoid the 'existing file' error.
+        self.bank.increment_scan_number()
+        
+    def check_keypress(self):
+        """                                                                        
+        Detect a user interrupt
+        """
+        import termios, fcntl, sys, os
+        fd = sys.stdin.fileno()
+
+        oldterm = termios.tcgetattr(fd)
+        newattr = termios.tcgetattr(fd)
+        newattr[3] = newattr[3] & ~termios.ICANON & ~termios.ECHO
+        termios.tcsetattr(fd, termios.TCSANOW, newattr)
+
+        oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
+        got_keypress = False
+        try:
+            c = sys.stdin.read(1)
+            print "Got character", repr(c)
+            if c == 'q':
+                self.scan_running = False
+                got_keypress = True
+        except IOError:
+            got_keypress = False
+                    
+        finally:
+            termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
+            fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
+        return got_keypress       
+        
+        
                 
     # Algorithmic dependency methods, not normally called by users
 
@@ -197,7 +264,7 @@ class GuppiCODDBackend(Backend):
         """
         self.obsnchan = self.hw_nchan
         
-        chan_bw = self.bandwidth / float(self.hw_nchan)
+        chan_bw = self.node_bandwidth / float(self.hw_nchan)
         self.chan_bw = chan_bw
         
     def ds_time_dep(self):
@@ -205,8 +272,8 @@ class GuppiCODDBackend(Backend):
         Calculate the down-sampling time status keyword
         """       
         if 'SEARCH' in self.obs_mode.upper():
-            dst = self.integration_time * self.bandwidth * 1E6 / self.nchan
-            power_of_two = 2 ** int(math.log(dst)/math.log(2))
+            dst = self.integration_time * self.node_bandwidth * 1E6 / self.nchan
+            power_of_two = 2 ** int(math.log(dst)/math.log(2) + 0.5)
             self.ds_time = power_of_two
         else:
             self.ds_time = 1
@@ -268,7 +335,7 @@ class GuppiCODDBackend(Backend):
         Calculations the bandwidth seen by this HPC node
         """
         if 'COHERENT' in self.obs_mode:
-            self.node_bandwidth = self.bandwidth / 8
+            self.node_bandwidth = self.bandwidth / self.num_nodes
         else:
             self.node_bandwidth = self.bandwidth
             
@@ -303,63 +370,39 @@ class GuppiCODDBackend(Backend):
         elif self.obs_mode.upper() not in ["SEARCH", "COHERENT_SEARCH"]:
             self.only_i = 0
 
-    def set_status_keys(self):
+    def node_bandwidth_dep(self):
         """
-        Collect the status keywords
+        Calculates the bandwidth seen by this HPC node
         """
-        statusdata = {}
+        self.node_bandwidth =  self.bandwidth/self.num_nodes
+                   
+    def node_rf_frequency_dep(self):
+        """
+        The band is divided amoung the various nodes like so:
+         ^       ^^       ^^     ctr freq    ^^
+         |       ||       ||        ^        ||
+         +-------++-------++-----------------++--------- ...
+             c0       c1            c2             c3
         
-        statusdata['PKTFMT'  ] = self.packet_format
-        statusdata['ACC_LEN' ] = self.acc_len
-        #node_rf = rf - bw/2.0 - chan_bw/2.0 + (i-1.0+0.5)*node_bw
-        
-        statusdata['OBSFREQ' ] = self.rf_frequency
-        statusdata['OBSBW'   ] = self.node_bandwidth
-        statusdata['OBSNCHAN'] = repr(self.hw_nchan)
-        statusdata['OBS_MODE'] = self.obs_mode
-        statusdata['TBIN'    ] = self.tbin
-        statusdata['DATADIR' ] = self.datadir
-        statusdata['POL_TYPE'] = self.pol_type
-        statusdata['NPOL'    ] = self.npol
-        statusdata['NRCVR'   ] = self.nrcvr
-        statusdata['SCALE0'  ] = '1.0'
-        statusdata['SCALE1'  ] = '1.0'
-        statusdata['SCALE2'  ] = '1.0'
-        statusdata['SCALE3'  ] = '1.0'
-        statusdata['OFFSET0' ] = '0.0'
-        statusdata['OFFSET1' ] = '0.0'
-        statusdata['OFFSET2' ] = '0.0'
-        statusdata['OFFSET3' ] = '0.0'
-        if self.parfile is not None:
-            statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
-            
-        statusdata['CHAN_DM' ] = self.dm
-        statusdata['CHAN_BW' ] = self.chan_bw
-        statusdata['FFTLEN'  ] = self.fft_len
-        statusdata['OVERLAP' ] = self.overlap
-        statusdata['PFB_OVER'] = self.pfb_overlap
-        statusdata['BLOCSIZE'] = self.blocsize
-        statusdata['DS_TIME' ] = self.ds_time
-        
-        self.bank.set_status(**statusdata)
-        
-    def set_registers(self):
-        self.bank.valon.set_frequency(0, self.bandwidth)
-        regs = {}
-        regs['SCALE_P0'] = int(self.scale_p0 * 65536)
-        regs['SCALE_P1'] = int(self.scale_p1 * 65536)
-        regs['N_CHAN'   ] = int(math.log(self.nchan)/math.log(2))
-        #regs['FFT_SHIFT'] = 0xaaaaaaaa (Set by config file)
-        
-        self.bank.set_register(**regs)
-                
+         So to mark each node's ctr freq c0...cn:
+
+         where:
+             rf_frequency is the center band center at the rx
+             total_bandwidth is the number of nodes * bandwidth of each node
+             chan_bw is the calculated number from the node_bandwidth and
+             number of node channels
+        """ 
+        i = self.node_number       
+        self.node_rf_frequency = self.rf_frequency - self.bandwidth/2.0 - \
+                  self.chan_bw/2.0 + (i-1.0+0.5)*self.node_bandwidth
+                                         
     def fft_params_dep(self):
         """
         Calculate the OVERLAP, FFTLEN, and BLOCSIZE status keywords
         """
         if 'COHERENT' in self.obs_mode:
-            (fftlen, overlap_r, blocsize) = self.fft_size_params(self.rf_frequency, 
-                                                             self.bandwidth, 
+            (fftlen, overlap_r, blocsize) = self.fft_size_params(self.node_rf_frequency, 
+                                                             self.node_bandwidth, 
                                                              self.nchan, 
                                                              self.dm, 
                                                              self.max_databuf_size)
@@ -370,13 +413,73 @@ class GuppiCODDBackend(Backend):
             self.fft_len = 16384
             self.overlap = 0
             self.blocsize = 33554432 # defaults
+
+
+    def set_status_keys(self):
+        """
+        Collect and set the status memory keywords
+        """
+        statusdata = {}
+        statusdata['ACC_LEN' ] = self.acc_len        
+        statusdata['BLOCSIZE'] = self.blocsize
+        statusdata['BANKNUM' ] = self.node_number
+        statusdata['CHAN_DM' ] = self.dm
+        statusdata['CHAN_BW' ] = self.chan_bw
+        
+        statusdata['DS_TIME' ] = self.ds_time
+        statusdata['FFTLEN'  ] = self.fft_len  
+        statusdata['NPOL'    ] = self.npol
+        statusdata['NRCVR'   ] = self.nrcvr
+        statusdata['NBIN'    ] = self.nbin
+        statusdata['NBITS'   ] = 8
+        
+        statusdata['OBSFREQ' ] = self.node_rf_frequency
+        statusdata['OBSBW'   ] = self.node_bandwidth
+        statusdata['OBSNCHAN'] = repr(self.hw_nchan)
+        statusdata['OBS_MODE'] = self.obs_mode
+        statusdata['OFFSET0' ] = '0.0'
+        statusdata['OFFSET1' ] = '0.0'
+        statusdata['OFFSET2' ] = '0.0'
+        statusdata['OFFSET3' ] = '0.0'
+        statusdata['ONLY_I'  ] = self.only_i        
+        statusdata['OVERLAP' ] = self.overlap
+        
+        if self.parfile is not None:
+            statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
+        statusdata['PFB_OVER'] = self.pfb_overlap                     
+        statusdata['PKTFMT'  ] = self.packet_format
+        statusdata['POL_TYPE'] = self.pol_type
+        
+        statusdata['SCALE0'  ] = '1.0'
+        statusdata['SCALE1'  ] = '1.0'
+        statusdata['SCALE2'  ] = '1.0'
+        statusdata['SCALE3'  ] = '1.0'
+               
+        statusdata['TBIN'    ] = self.tbin
+        statusdata['TFOLD'   ] = self.tfold
+        
+        self.bank.set_status(**statusdata)
+        
+    def set_registers(self):
+        """
+        Set the coherent design registers
+        """
+        self.bank.valon.set_frequency(0, self.bandwidth)
+        regs = {}
+        regs['SCALE_P0'] = int(self.scale_p0 * 65536)
+        regs['SCALE_P1'] = int(self.scale_p1 * 65536)
+        regs['N_CHAN'   ] = int(math.log(self.nchan*self.num_nodes)/math.log(2))
+        #regs['FFT_SHIFT'] = 0xaaaaaaaa (Set by config file)
+        
+        self.bank.set_register(**regs)
+                
                 
     # Straight out of guppi2_utils.py massaged to fit in:            
     def fft_size_params(self,rf,bw,nchan,dm,max_databuf_mb=128):
         """
         fft_size_params(rf,bw,nchan,dm,max_databuf_mb=128):
             Returns a tuple of size parameters (fftlen, overlap, blocsize)
-            given the input rf (center of band), bw, nchan, 
+            given the input rf (center of band) in MHz, bw, nchan, 
             DM, and optional max databuf size in MB.
         """
         # Overlap needs to be rounded to a integer number of packets
