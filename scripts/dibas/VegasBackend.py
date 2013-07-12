@@ -1,92 +1,112 @@
 
 import struct
 import ctypes
-import binascii 
+import binascii
 import player
 from Backend import Backend
+from vegas_ssg import SwitchingSignals
 
+
+class SWbits:
+    """
+    A class to hold and encode the bits of a single phase of a switching signal generator phase
+    """
+    SIG=1
+    REF=0
+    CALON=1
+    CALOFF=0
 
 class VegasBackend(Backend):
     """
     A class which implements some of the VEGAS specific parameter calculations.
     """
-    def __init__(self, theBank):
+    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
         """
         Creates an instance of the vegas internals.
-        VegasBackend( bank )
-        Where bank is the instance of the player's Bank.
+
+        VegasBackend(theBank, theMode, theRoach = None, theValon = None)
+
+        Where:
+
+        theBank: Instance of specific bank configuration data BankData.
+        theMode: Instance of specific mode configuration data ModeData.
+        theRoach: Instance of katcp_wrapper
+        theValon: instance of ValonKATCP
+        unit_test: Set to true to unit test. Will not attempt to talk to
+        roach, shared memory, etc.
         """
-        Backend.__init__(self, theBank)
-        
-        self.mode_number = None
-        self.frequency = None
-        self.numStokes = None
+
+        # mode_number may be treated as a constant; the Player will
+        # delete this backend object and create a new one on mode
+        # change.
+        Backend.__init__(self, theBank, theMode, theRoach , theValon, unit_test)
+
+        # In VEGAS mode, i_am_master means this particular backend
+        # controls the switching signals. (self.bank is from base class.)
+        self.i_am_master = self.bank.i_am_master
+
+        # Parameters:
+        self.setPolarization('SELF')
+        self.setNumberChannels(self.mode.nchan)
+        self.requested_integration_time = None
+        self.setFilterBandwidth(self.mode.filter_bw)
+        self.setAccLen(self.mode.acc_len)
+        self.setValonFrequency(self.mode.frequency)
+
+        # dependent values, computed from Parameters:
+        self.nspectra = None
         self.frequency_resolution = 0.0
-        self.setFilterBandwidth(800)
-        self.setPolarization("SELF")
-        self.setNumberChannels(1024)
-        self.nspectra = 1
-        self.mode_number = 1 
-        self.setIntegrationTime(10.0)
         self.fpga_clock = None
-        self.status_dict = {}
-        
-        self.frequency = self.bank.mode_data[self.bank.current_mode].frequency
-        self.frequency = self.bank.mode_data[self.bank.current_mode].filter_bw
-        self.acc_len   = self.bank.mode_data[self.bank.current_mode].acc_len
-        
-        mode_number = 1
-        for i in range(14):
-            if "MODE%i" % i in self.bank.current_mode:
-                self.mode_number = i
-                
-        # setup the parameter dictionary/methods        
+
+        # setup the parameter dictionary/methods
         self.params["polarization"] = self.setPolarization
         self.params["nchan"]        = self.setNumberChannels
         self.params["exposure"]     = self.setIntegrationTime
         self.params["filter_bw"]    = self.setFilterBandwidth
-        self.params["num_spectra"]    = self.setNumberSpectra
-        self.params["acc_len"]    = self.setAccLen 
-        
+        self.params["num_spectra"]  = self.setNumberSpectra
+        self.params["acc_len"]      = self.setAccLen
+
+        # the status memory key/value pair dictionary
+        self.sskeys = {}
+        # the switching signals builder
+        self.ss = SwitchingSignals(self.frequency, self.nchan)
+
     ### Methods to set user or mode specified parameters
-    ###        
-                    
+    ###
+
+    def setFilterBandwidth(self, fbw):
+        self.filter_bw = fbw
+
     def setAccLen(self, acclen):
         self.acc_len = acclen
-             
-                                   
+
+
     def setPolarization(self, polar):
         """
         setPolarization(x)
         where x is a string 'CROSS', 'SELF1', 'SELF2', or 'SELF'
         """
-        self.polarization = polar
-        if polar == "CROSS":
-            self.numStokes = 4
-        elif polar == "SELF1":
-            self.numStokes = 1
-        elif polar == "SELF2":
-            self.numStokes = 1
-        elif polar == "SELF":
-            self.numStokes = 2
-        else:
+
+        try:
+            self.num_stokes = {'CROSS': 4, 'SELF1': 1, 'SELF2': 1, 'SELF': 2}[polar]
+            self.polarization = polar
+        except KeyError:
             raise Exception("polarization string must be one of: CROSS, SELF1, SELF2, or SELF")
-                                                                                      
+
     def setNumberChannels(self, nchan):
         self.nchan = nchan
-        
+
     def setADCsnap(self, snap):
         self.adc_snap = snap
-        
+
     def setNumberSpectra(self, nspectra):
         self.nspectra = nspectra
-        
+
     def setFilterBandwidth(self, bw):
         self.filter_bandwidth = bw
-        
+
     def setIntegrationTime(self, int_time):
         self.requested_integration_time = int_time
-
 
     def prepare(self):
         """
@@ -94,29 +114,37 @@ class VegasBackend(Backend):
         """
         # calculate the fpga_clock and sampler frequency
         self.sampler_frequency_dep()
-        self.chan_bw_dep()        
-        # calculate the phase_durations and blanking in terms of clocks
-        self.phase_duration_dep()
-        self.calculate_switching()
-        # Now set the appropriate status memory keywords
-        self.setBlankingkeys()
-        self.setCalStatekeys()
-        self.setPhaseStartkeys()
-        self.setSigRefStatekeys()
+        self.chan_bw_dep()
+
+        # Switching Signals info. Switching signals should have been
+        # specified prior to prepare():
+        self.setSSKeys()
+
+        # now update all the status keywords needed for this mode:
         self.set_state_table_keywords()
-        self.bank.set_register(acc_len=self.acc_len)
-        
-                
+
+        # set the roach registers:
+        if self.roach:
+            self.bank.set_register(acc_len=self.acc_len)
+            # write the switching signal specification to the roach:
+            self.bank.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
+
     # Algorithmic dependency methods, not normally called by a users
+
+    def chan_bw_dep(self):
+        self.chan_bw = self.sampler_frequency / (self.nchan * 2)
+        self.frequency_resolution = abs(self.chan_bw)
 
     def sampler_frequency_dep(self):
         """
         Computes the effective frequency of the A/D sampler based on mode
         """
-        if None in [self.mode_number, self.frequency]:
-            raise Exception("mode_number or frequency not set")
-        
-        if self.mode_number < 13:
+
+        # extract mode number from mode name, which is expected to be
+        # 'MODEx' where 'x' is the number we want:
+        mode = int(self.mode.mode[4:])
+
+        if mode < 13:
             self.sampler_frequency = self.frequency * 2
             self.nsubband = 1
         else:
@@ -124,170 +152,207 @@ class VegasBackend(Backend):
             self.nsubband = 8
         # calculate the fpga frequency
         self.fpga_clock = self.frequency / 8
-        
-           
-    def phase_duration_dep(self):
+
+
+    def clear_switching_states(self):
         """
-        Implements a portion of the calculations for switching
-        requires: nchan, fpga_clock, phase_start, switch_period and blanking
-        produces: clocks_per_granule, clocks_per_accumulation, s_per_accumulation,
-                  s_per_granule, requested_phase_start, requested_blanking,
-                  actual_blanking, phase_duration, actual_switch_period
+        resets/deletes the switching_states
         """
-    
-        if None in [self.nchan, self.fpga_clock, self.phase_start, self.switch_period, self.blanking]:
-            raise Exception("one of nchan, fpga_clock, phase_start, switch_period or blanking is not set")
-            
-        # Calculate some intermediate required values
-        self.clocks_per_granule = self.nchan / 8
-        self.clocks_per_accumulation = self.acc_len * self.clocks_per_granule
-        self.s_per_accumulation = self.clocks_per_accumulation / self.fpga_clock
-        self.s_per_granule = self.clocks_per_granule / self.fpga_clock
+        self.ss.clear_phases()
 
-        # now compute the phases in terms of seconds
-        self.requested_phase_start=[]
-        self.requested_blanking=[]
-        for i in range(0, self.nPhases):
-            self.requested_phase_start.append(self.switch_period * self.phase_start[i])
-            self.requested_blanking.append(self.blanking[i])
-                   
-        # now compute the phases in terms of SSG clocks
-        self.phase_duration = []
-        self.actual_blanking= []
-        total_duration = 0
-        for i in range(0, self.nPhases):
-            if i+1 == self.nPhases:
-                p_end = self.switch_period
-            else:
-                p_end = self.requested_phase_start[i+1]
-                
-            p_start = self.requested_phase_start[i]
-            self.phase_duration.append(int((p_end - p_start)/self.s_per_accumulation + 0.5)*self.acc_len)
-            self.actual_blanking.append(int(self.requested_blanking[i]/self.s_per_accumulation + 0.5) * self.acc_len) 
-            total_duration += self.phase_duration[i]
-            
-        # The real switch period based on clock ticks        
-        self.actual_switch_period = total_duration
-        
-
-    def calculate_switching(self):
+    def add_switching_state(self, duration, blank = False, cal = False, sig = False):
         """
-        Calculate the switching for the SSG
+        add_switching_state(duration, blank, cal, sig):
+
+        Add a description of one switching phase.
+        Where:
+            duration is the length of this phase in seconds,
+            blank is the state of the blanking signal (True = blank, False = no blank)
+            cal is the state of the cal signal (True = cal, False = no cal)
+            sig is the state of the sig_ref signal (True = ref, false = sig)
+
+        Example to set up a 8 phase signal (4-phase if blanking is not
+        considered) with blanking, cal, and sig/ref, total of 400 mS:
+          be = Backend(None) # no real backend needed for example
+          be.clear_switching_states()
+          be.add_switching_state(0.01, blank = True, cal = True, sig = True)
+          be.add_switching_state(0.09, cal = True, sig = True)
+          be.add_switching_state(0.01, blank = True, cal = True)
+          be.add_switching_state(0.09, cal = True)
+          be.add_switching_state(0.01, blank = True, sig = True)
+          be.add_switching_state(0.09, sig = True)
+          be.add_switching_state(0.01, blank = True)
+          be.add_switching_state(0.09)
+        """
+        self.ss.add_phase(dur = duration, bl = blank, cal = cal, sr1 = sig)
+
+    def set_gbt_ss(self, period, ss_list):
+        """
+        set_gbt_ss(period, ss_list):
+
+        adds a complete GBT style switching signal description.
+
+        period: The complete period length of the switching signal.
+        ss_list: A list of GBT phase components. Each component is a tuple:
+        (phase_start, sig_ref, cal, blanking_time)
+        There is one of these tuples per GBT style phase.
+
+        Example:
+        b.set_gbt_ss(period = 0.1,
+                     ss_list = ((0.0, SWbits.SIG, SWbits.CALON, 0.025),
+                                (0.25, SWbits.SIG, SWbits.CALOFF, 0.025),
+                                (0.5, SWbits.REF, SWbits.CALON, 0.025),
+                                (0.75, SWbits.REF, SWbits.CALOFF, 0.025))
+                    )
+
         """
 
-        if self.nPhases < 1:
-            raise Exception("No switching phases have been specified. See add_state() method")
-        
-        switching_source = "internal"
-        
-        # now create the state vectors for the switching signal generator (SSG) 
-        self.switchbitlist = []      
-        if self.nPhases == 1:
-            # Set S/R and CAL states to those specified, one phase, no blanking
-            swbits = SWbits(self.phase_duration[0],
-                            self.sig_ref_state[0], 
-                            0, 
-                            self.cal_state[0],
-                            0)
-            self.switchbitlist.append(swbits)
-            self.sw_period = self.requested_integration_time
-        else:
-            # Create a 2 entrys for each switching state to account for blanking
-            self.sw_period = self.switch_period
-            tot_duration = 0
-            for i in range(0, self.nPhases):
-                # Blanking on
-                swbits = SWbits(self.actual_blanking[i],
-                                self.sig_ref_state[i], 
-                                0, 
-                                self.cal_state[i],
-                                1)
-                self.switchbitlist.append(swbits)
-                tot_duration = tot_duration + self.actual_blanking[i]
-                
-                # Blanking off, stealing the blanking time from the phase duration
-                swbits = SWbits(self.phase_duration[i] - self.actual_blanking[i],
-                                self.sig_ref_state[i], 
-                                0, 
-                                self.cal_state[i],
-                                0)
-                self.switchbitlist.append(swbits)                 
-                tot_duration = tot_duration + self.phase_duration[i]
-        # debug code        
-        for ssb in self.switchbitlist:
-            print "DEBUG ", binascii.hexlify(ssb.get_as_word())
+        self.nPhases = len(ss_list)
 
-
-                                
-        self.setEcal(self.cal_state)
-        self.setIcal(self.cal_state)
-        self.setEsigRef1(self.sig_ref_state)
-        self.setIsigRef1(self.sig_ref_state)
-        # sig ref 2 always zero
-        notused=[]
         for i in range(self.nPhases):
-            notused.append(0)
-        self.setEsigRef2(notused)
-        self.setIsigRef2(notused)
-                                                                         
-                                                                                      
-    def setEcal(self, ecals):
+            this_start = ss_list[i][0]
+            next_start = 1.0 if i + 1 == self.nPhases else ss_list[i + 1][0]
+            duration = next_start * period - this_start * period
+            blt = ss_list[i][3]
+            nblt = duration - blt
+            self.add_switching_state(blt, sig = ss_list[i][1], cal = ss_list[i][2], blank = True)
+            self.add_switching_state(nblt, sig = ss_list[i][1], cal = ss_list[i][2], blank = False)
+
+    def show_switching_setup(self):
+        srline=""
+        clline=""
+        blline=""
+        calOnSym = "--------"
+        calOffSym= "________"
+        srSigSym = "--------"
+        srRefSym = "________"
+        blnkSym  = "^ %.3f "
+        noBlkSym = "        "
+
+        states = self.ss.gbt_phase_starts()
+        print states
+
+        for i in range(len(states['phase-starts'])):
+            if states['sig/ref'][i]:
+                srline = srline +  srSigSym
+            else:
+                srline = srline +  srRefSym
+            if states['cal'][i]:
+                clline = clline  +  calOnSym
+            else:
+                clline = clline  +  calOffSym
+            if states['blanking'][i] > 0.0:
+                blline = blline  +  blnkSym % states['blanking'][i]
+            else:
+                blline = blline  +  noBlkSym
+
+        print "CAL    :", clline
+        print "SIG/REF:", srline
+        print "BLANK  :", blline
+
+
+    def setSSKeys(self):
+        self.sskeys.clear()
+        states = self.ss.gbt_phase_starts()
+        cal = states['cal']
+        sig_ref_1 = states['sig/ref']
+        self.nPhases = len(sig_ref_1)
+        empty_list = [0 for i in range(self.nPhases)] # For sig_ref_2, or I or E as appropriate
+
+        for i in range(len(states['blanking'])):
+            self.set_status_str('_SBLK_%02d' % (i+1), states['blanking'][i])
+
+        for i in range(len(cal)):
+            self.set_status_str('_SCAL_%02d' % (i+1), cal[i])
+
+        for i in range(len(states['phase-starts'])):
+            self.set_status_str('_SPHS_%02d' % (i+1), states['phase-starts'][i])
+
+        for i in range(len(sig_ref_1)):
+            self.set_status_str('_SSRF_%02d' % (i+1), sig_ref_1[i])
+
+        master = self.i_am_master # TBF! Make sure this exists...
+        self.setEcal(empty_list if master else cal)
+        self.setEsigRef1(empty_list if master else sig_ref_1)
+        self.setEsigRef2(empty_list)
+        self.setIcal(cal if master else empty_list)
+        self.setIsigRef1(sig_ref_1 if master else empty_list)
+        self.setIsigRef2(empty_list)
+        # self.sskeys now populated, and will be written with other status keys/vals.
+
+    def setEcal(self, cals):
         """
-        ecals is a list of integers where
+        External CAL
+
+        cals is a list of integers where
         1 indicates the external cal is ON
         0 indicates the external cal is OFF
         """
-        for i in range(len(ecals)):
-            self.set_status_str('_AECL_%02d' % (i+1), str(ecals[i]))
+        for i in range(len(cals)):
+            self.set_status_str('_AECL_%02d' % (i+1), cals[i])
 
-    def setEsigRef1(self, esr):
+    def setEsigRef1(self, sr):
         """
-        esr is a list of integers where
+        External Sig/Ref 1
+
+        sr is a list of integers where
         1 indicates REF
         0 indicates SIG
-        """        
-        for i in range(len(esr)):
-            self.set_status_str('_AESA_%02d' % (i+1), str(esr[i]))
+        """
+        for i in range(len(sr)):
+            self.set_status_str('_AESA_%02d' % (i+1), sr[i])
 
-    def setEsigRef2(self, esr):
+    def setEsigRef2(self, sr):
         """
-        Same as above
-        """
-        for i in range(len(esr)):
-            self.set_status_str('_AESB_%02d' % (i+1), str(esr[i]))
+        External Sig/Ref 2
 
-    def setIcal(self, icals):
+        sr is a list of integers where
+        1 indicates REF
+        0 indicates SIG
         """
-        Same as Ical above
-        """
-        for i in range(len(icals)):
-            self.set_status_str('_AICL_%02d' % (i+1), str(icals[i]))
+        for i in range(len(sr)):
+            self.set_status_str('_AESB_%02d' % (i+1), sr[i])
 
-    def setIsigRef1(self, isr):
+    def setIcal(self, cals):
         """
-        Same as for IsigRef1 above
-        """
-        for i in range(len(isr)):
-            self.set_status_str('_AISA_%02d' % (i+1), str(isr[i]))
+        Internal CAL
 
-    def setIsigRef2(self, isr):
+        cals is a list of integers where
+        1 indicates the external cal is ON
+        0 indicates the external cal is OFF
         """
-        Same as for IsigRef2 above
-        """
-        for i in range(len(isr)):
-            self.set_status_str('_AISB_%02d' % (i+1), str(isr[i]))
+        for i in range(len(cals)):
+            self.set_status_str('_AICL_%02d' % (i+1), cals[i])
 
-    def chan_bw_dep(self):
-        self.chan_bw = self.sampler_frequency / (self.nchan * 2)
-        self.frequency_resolution = abs(self.chan_bw)
-        
+    def setIsigRef1(self, sr):
+        """
+        Internal Sig/Ref 1
+
+        sr is a list of integers where
+        1 indicates REF
+        0 indicates SIG
+        """
+        for i in range(len(sr)):
+            self.set_status_str('_AISA_%02d' % (i+1), sr[i])
+
+    def setIsigRef2(self, sr):
+        """
+        Internal Sig/Ref 2
+
+        sr is a list of integers where
+        1 indicates REF
+        0 indicates SIG
+        """
+        for i in range(len(sr)):
+            self.set_status_str('_AISB_%02d' % (i+1), sr[i])
+
 
     def set_status_str(self, x, y):
         """
         Add/update an item to the status memory keyword list
         """
-        self.status_dict[x] = y
-        
+        self.sskeys[x] = str(y)
+
     def set_state_table_keywords(self):
         """
         Gather status sets here
@@ -339,11 +404,11 @@ class VegasBackend(Backend):
         statusdata["SUB6FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB7FREQ" ] = DEFAULT_VALUE;
         statusdata["SWVER"    ] = DEFAULT_VALUE;
-        
+
         # add in the generated keywords from the setup
-        for x,y in self.status_dict.items():
+        for x,y in self.sskeys.items():
             statusdata[x] = y
-        
+
         statusdata["BW_MODE"  ] = "HBW" ##??
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
         statusdata["EFSAMPFR" ] = str(self.sampler_frequency)
@@ -354,7 +419,7 @@ class VegasBackend(Backend):
         statusdata["PKTFMT"   ] = "SPEAD"
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
-        statusdata["NSUBBAND" ] = self.nsubband        
+        statusdata["NSUBBAND" ] = self.nsubband
         statusdata["SUB0FREQ" ] = self.frequency / 2
         statusdata["SUB1FREQ" ] = self.frequency / 2
         statusdata["SUB2FREQ" ] = self.frequency / 2
@@ -363,134 +428,225 @@ class VegasBackend(Backend):
         statusdata["SUB5FREQ" ] = self.frequency / 2
         statusdata["SUB6FREQ" ] = self.frequency / 2
         statusdata["SUB7FREQ" ] = self.frequency / 2
-        
+
         statusdata["BASE_BW"  ] = self.filter_bandwidth # From MODE
-        statusdata["BANKNAM"  ] = self.bank.bank_name
-        statusdata["MODENUM"  ] = str(self.mode_number) # from MODE
+        statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'
+        statusdata["MODENUM"  ] = str(self.mode.mode) # from MODE
         statusdata["NOISESRC" ] = "OFF"  # TBD??
         statusdata["NUMPHASE" ] = str(self.nPhases)
-        statusdata["SWPERIOD" ] = str(self.switch_period)
+        statusdata["SWPERIOD" ] = str(self.ss.total_duration())
         statusdata["SWMASTER" ] = "VEGAS" # TBD
         statusdata["POLARIZE" ] = self.polarization
         statusdata["CRPIX1"   ] = str(self.nchan/2 + 1)
-        statusdata["SWPERINT" ] = str(int(self.requested_integration_time/self.sw_period))
-        statusdata["NMSTOKES" ] = str(self.numStokes)
-        
+        statusdata["SWPERINT" ] = str(int(self.requested_integration_time / self.ss.total_duration()))
+        statusdata["NMSTOKES" ] = str(self.num_stokes)
+
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
             statusdata["_MCDL_%02d" % (i+1)] = str(self.chan_bw)
             statusdata["_MFQR_%02d" % (i+1)] = str(self.frequency_resolution)
-            
-            
 
         if self.bank is not None:
-            self.bank.set_status(**statusdata)
+            self.set_status(**statusdata)
         else:
             for i in statusdata.keys():
                 print "%s = %s" % (i, statusdata[i])
-        
-            
+
+
+    def start(self, starttime = None):
+        """
+        start(self, starttime = None)
+
+        starttime: a datetime object
+
+        --OR--
+
+        starttime: a tuple or list(for ease of JSON serialization) of
+        datetime compatible values: (year, month, day, hour, minute,
+        second, microsecond).
+
+        Sets up the system for a measurement and kicks it off at the
+        appropriate time, based on 'starttime'.  If 'starttime' is not
+        on a PPS boundary it is bumped up to the next PPS boundary.  If
+        'starttime' is not given, the earliest possible start time is
+        used.
+
+        start() will require a needed arm delay time, which is specified
+        in every mode section of the configuration file as
+        'needed_arm_delay'. During this delay it tells the HPC program
+        to start its net, accum and disk threads, and waits for the HPC
+        program to report that it is receiving data. It then calculates
+        the time it needs to sleep until just after the penultimate PPS
+        signal. At that time it wakes up and arms the ROACH. The ROACH
+        should then send the initial packet at that time.
+        """
+        def round_second_up(the_datetime):
+            if the_datetime.microsecond != 0:
+                sec = the_datetime.second + 1
+                the_datetime = the_datetime.replace(second = sec).replace(microsecond = 0)
+            return the_datetime
+
+        now = datetime.now()
+        earliest_start = round_second_up(now + self.mode.needed_arm_delay)
+
+        if starttime:
+            if type(starttime) == tuple or type(starttime) == list:
+                starttime = datetime(*starttime)
+
+            if type(starttime) != datatime:
+                raise Exception("starttime must be a datetime or datetime compatible tuple or list.")
+
+            # Force the start time to the next 1-second boundary. The
+            # ROACH is triggered by a 1PPS signal.
+            starttime = round_second_up(starttime)
+            # starttime must be 'needed_arm_delay' seconds from now.
+            if starttime < earliest_start:
+                raise Exception("Not enough time to arm ROACH.")
+        else: # No start time provided
+            starttime = earliest_start
+
+        # everything OK now, starttime is valid, go through the start procedure.
+        max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
+
+        # The CODD bof's don't have a status register
+        if not self.cdd_mode:
+            val = self.roach.read_int('status')
+            if val & 0x01:
+                self.reset_roach()
+
+        self.hpc_cmd('START')
+        status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
+
+        if not status:
+            self.hpc_cmd('STOP')
+            raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
+
+        print "start(): waited %s for HPC program to be ready." % str(wait)
+
+        # now sleep until arm_time
+        #        PPS        PPS
+        # ________|__________|_____
+        #          ^         ^
+        #       arm_time  start_time
+        arm_time = starttime - timedelta(microseconds = 900000)
+        now = datetime.now()
+
+        if now > arm_time:
+            self.hpc_cmd('STOP')
+            raise Exception("start(): deadline missed, arm time is in the past.")
+
+        tdelta = arm_time - now
+        sleep_time = tdelta.seconds + tdelta.microseconds / 1e6
+        time.sleep(sleep_time)
+        # We're now within a second of the desired start time. Arm:
+        self.arm_roach()
+
+
+######################################################################
+# TBF: Make these work!
+
 def testCase1():
     """
     An example test case FWIW.
     """
-    b = VegasBackend(None)
+    global be
+
+    be = VegasBackend(None)
     # A few things which should come from the conf file via the bank
-    b.bank_name='BankH'
-    b.mode_number = 1 ## get this from bank?
-    b.acc_len = 256 ## from MODE config
+    # b.bank_name='BankH'
+    be.mode = 1 ## get this from bank when bank is not None
+    be.acc_len = 768 ## from MODE config
 
-    b.clear_switching_states()                
-    b.set_switching_period(0.005)
-    b.add_switching_state(0.0,  SWbits.SIG, SWbits.CALON, 0.0)
-    b.add_switching_state(0.25, SWbits.SIG, SWbits.CALOFF, 0.0)
-    b.add_switching_state(0.5,  SWbits.REF, SWbits.CALON, 0.0)
-    b.add_switching_state(0.75, SWbits.REF, SWbits.CALOFF, 0.0)
+    be.clear_switching_states()
+    ssg_duration = 0.025
+    be.set_gbt_ss(ssg_duration,
+                  ((0.0, SWbits.SIG, SWbits.CALON, 0.0),
+                   (0.25, SWbits.SIG, SWbits.CALOFF, 0.0),
+                   (0.5, SWbits.REF, SWbits.CALON, 0.0),
+                   (0.75, SWbits.REF, SWbits.CALOFF, 0.0))
+                  )
 
-    b.setValonFrequency(1E9)
-    b.setPolarization('SELF')
-    b.setNumberChannels(1024) # mode 1
-    b.setFilterBandwidth(800E6)
-    b.setIntegrationTime(0.005*4)
-    
+    be.setValonFrequency(1E9)
+    be.setPolarization('SELF')
+    be.setNumberChannels(1024) # mode 1
+    be.setFilterBandwidth(800E6)
+    be.setIntegrationTime(ssg_duration)
+
     # call dependency methods and update shared memory
-    b.prepare()
-        
+    be.prepare()
+
 def testCase2():
     """
     An example test case from configtool setup.
     """
-    b = VegasBackend(None)
+
+    global be
+
+    config = ConfigParser.ConfigParser()
+    config.readfp(open("dibas.conf"))
+    b = BankData()
+    b.load_config(config, "BANKA")
+    m = ModeData()
+    m.load_config(config, "MODE1")
+
+    be = VegasBackend(b, m, None, None, unit_test = True)
     # A few things which should come from the conf file via the bank
-    b.bank_name='BankH'
-    b.mode_number = 1 ## get this from bank?
-    b.acc_len = 256 ## from MODE config
+#    be.mode = 1 ## get this from bank?
+#    be.acc_len = 768 ## from MODE config
 
-    b.clear_switching_states()                
-    b.set_switching_period(0.1)
-    b.add_switching_state(0.0,  SWbits.SIG, SWbits.CALON, 0.002)
-    b.add_switching_state(0.25, SWbits.SIG, SWbits.CALOFF, 0.002)
-    b.add_switching_state(0.5,  SWbits.REF, SWbits.CALON, 0.002)
-    b.add_switching_state(0.75, SWbits.REF, SWbits.CALOFF, 0.002)
+    be.clear_switching_states()
+    ssg_duration = 0.1
+    be.set_gbt_ss(ssg_duration,
+                  ((0.0, SWbits.SIG, SWbits.CALON, 0.002),
+                   (0.25, SWbits.SIG, SWbits.CALOFF, 0.002),
+                   (0.5, SWbits.REF, SWbits.CALON, 0.002),
+                   (0.75, SWbits.REF, SWbits.CALOFF, 0.002))
+                  )
 
-    b.setValonFrequency(1E9)    # config file
-    b.setPolarization('SELF')
-    b.setNumberChannels(1024)   # mode 1 (config file)
-    b.setFilterBandwidth(800E6) # config file?
-    b.setIntegrationTime(10.0)
-        
+    be.setValonFrequency(1E9)    # config file
+    be.setPolarization('SELF')
+    be.setNumberChannels(1024)   # mode 1 (config file)
+    be.setFilterBandwidth(800E6) # config file?
+    be.setIntegrationTime(ssg_duration)
+
     # call dependency methods and update shared memory
-    b.prepare()
+    be.prepare()
 
-            
-class SWbits:
-    """
-    A class to hold and encode the bits of a single phase of a switching signal generator phase
-    """
-    
-    SIG=1
-    REF=0
-    CALON=1
-    CALOFF=0
-    
-    def __init__(self, duration, sr1, sr2, cal, blank):
-        self.duration = duration
-        self.sig_ref1 = sr1
-        self.sig_ref2 = sr2
-        self.cal      = cal
-        self.blanking = blank
-        self.asr      = 0
-        self.word = ctypes.create_string_buffer(4)
-        
-    def get_as_word(self):
-        """
-        Format into a big-endian number
-        """
-        
-        # Python doesn't have bit fields, so first form the native numeric form
-        word = (self.duration & 0x7ffffff) * 0x2**5 + \
-               self.asr      * 0x2**4   + \
-               self.sig_ref2 * 0x2**3   + \
-               self.sig_ref1 * 0x2**2   + \
-               self.cal      * 0x2**1   + \
-               self.blanking * 0x2**0
-               
-        # now pack it into a binary buffer in big-endian form
-        struct.pack_into('>I', self.word, 0, word)
-        return self.word
-                                         
-         
 
-        
+def testCase3():
+    """
+    Example of how to set up a VEGAS-style 8-phase switching signal of
+    duration 400mS, CAL on for 200 mS then off, and sig/ref switching
+    every 100 mS. Blanking occurs on every phase transition of CAL and
+    sig/ref.
+    """
+    global be
+    be = VegasBackend(None)
+    be.mode = 1 ## get this from bank?
+    be.acc_len = 768 ## from MODE config
+
+    be.setValonFrequency(1E9)    # config file
+    be.setPolarization('SELF')
+    be.setNumberChannels(1024)   # mode 1 (config file)
+    be.setFilterBandwidth(800E6) # config file?
+    be.setIntegrationTime(0.4)
+
+    be.clear_switching_states()
+    be.add_switching_state(0.01, blank = True,  cal = True,  sig = True)
+    be.add_switching_state(0.09, blank = False, cal = True,  sig = True)
+    be.add_switching_state(0.01, blank = True,  cal = True,  sig = False)
+    be.add_switching_state(0.09, blank = False, cal = True,  sig = False)
+    be.add_switching_state(0.01, blank = True,  cal = False, sig = True)
+    be.add_switching_state(0.09, blank = False, cal = False, sig = True)
+    be.add_switching_state(0.01, blank = True,  cal = False, sig = False)
+    be.add_switching_state(0.09, blank = False, cal = False, sig = False)
+
+    # # call dependency methods and update shared memory
+    be.prepare()
+
+
 if __name__ == "__main__":
-    sw=SWbits(0xA, 1, 0, 1, 0)
-    print binascii.hexlify(sw.get_as_word())
-    sw=SWbits(0xA, 1, 0, 0, 0)
-    print binascii.hexlify(sw.get_as_word())
-    sw=SWbits(0xA, 0, 0, 1, 0)
-    print binascii.hexlify(sw.get_as_word())
-    sw=SWbits(0xA, 0, 0, 0, 0)
-    print binascii.hexlify(sw.get_as_word())
-    print " "
-    testCase1()
+
+    # testCase1()
     testCase2()
+    # testCase3()

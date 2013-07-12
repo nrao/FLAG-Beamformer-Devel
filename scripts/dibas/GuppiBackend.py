@@ -1,7 +1,7 @@
 
 import struct
 import ctypes
-import binascii 
+import binascii
 import player
 import math
 import time
@@ -13,19 +13,19 @@ class GuppiBackend(Backend):
     A class which implements some of the GUPPI specific parameter calculations.
     This class is specific to the Incoherent BOF designs.
     """
-    def __init__(self, theBank):
+    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
         """
         Creates an instance of the vegas internals.
         GuppiBackend( bank )
         Where bank is the instance of the player's Bank.
         """
-        Backend.__init__(self, theBank)
+        Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
         # The default switching in the Backend ctor is a static SIG, NOCAL, and no blanking
-        
+
         # defaults
-        self.obs_mode = 'SEARCH' 
+        self.obs_mode = 'SEARCH'
         self.max_databuf_size = 128 # in MBytes [Not sure where this ties in. Value from the manager]
-        self.nchan = 64 # BOF specific. Needs to be a config value, perhaps 'bof_channels'
+        self.nchan = self.mode.nchan
         self.integration_time = 40.96E-6
         self.overlap = 0
         self.scale_i = 1
@@ -45,18 +45,18 @@ class GuppiBackend(Backend):
         self.dm = 0.0
         # Almost all receivers are dual polarization
         self.nrcvr = 2
-        
+
         dibas_dir = os.getenv("DIBAS_DIR")
         if dibas_dir is not None:
            self.pardir = dibas_dir + '/etc/config'
         else:
             self.pardir = '/tmp'
-        self.parfile = 'example.par' 
+        self.parfile = 'example.par'
         self.datadir = '/lustre/gbtdata/JUNK' # Needs integration with projectid
 
         self.params["bandwidth"]      = self.set_bandwidth
-        self.params["integration_time"] = self.set_integration_time  
-        self.params["nbin"]           = self.set_nbin      
+        self.params["integration_time"] = self.set_integration_time
+        self.params["nbin"]           = self.set_nbin
         self.params["obs_frequency"]  = self.set_obs_frequency
         self.params["obs_mode"]       = self.set_obs_mode
         #self.params["overlap"]        = self.set_overlap
@@ -64,27 +64,27 @@ class GuppiBackend(Backend):
         self.params["offset_i"    ]   = self.set_offset_I
         self.params["offset_q"    ]   = self.set_offset_Q
         self.params["offset_u"    ]   = self.set_offset_U
-        self.params["offset_v"    ]   = self.set_offset_V        
+        self.params["offset_v"    ]   = self.set_offset_V
         self.params["scale_i"     ]   = self.set_scale_I
         self.params["scale_q"     ]   = self.set_scale_Q
         self.params["scale_u"     ]   = self.set_scale_U
         self.params["scale_v"     ]   = self.set_scale_V
         self.params["tfold"       ]   = self.set_tfold
         self.fft_params_dep()
-        
+
     ### Methods to set user or mode specified parameters
     ### Not sure how these map for GUPPI
-        
+
     def set_bandwidth(self, bandwidth):
         """
         Sets the bandwidth in MHz. This value should match the valon output frequency.
         (The sampling rate being twice the valon frequency.)
-        """    
+        """
         if  abs(bandwidth) > 200 and abs(bandwidth) < 2000:
             self.bandwidth = bandwidth
         else:
             raise Exception("Bandwidth of %d MHz is not a legal bandwidth setting" % (bandwidth))
-              
+
     def set_chan_dm(self, dm):
         """
         Sets the dispersion measure for coherent search modes.
@@ -97,14 +97,14 @@ class GuppiBackend(Backend):
         Sets the pulsar profile ephemeris file
         """
         self.parfile = file
-                        
+
     def set_nbin(self, nbin):
         """
         For cal and fold modes, this sets the number of bins in a pulse profile.
         Ignored in other modes.
         """
         self.nbin = nbin
-        
+
     def set_obs_mode(self, mode):
         """
         Sets the observing mode.
@@ -114,17 +114,17 @@ class GuppiBackend(Backend):
         # only incoherent modes. Coherent modes handled by GuppiCODDBackend class.
         legalmodes = ["SEARCH", "FOLD", "CAL", "RAW"]
         m = mode.upper()
-        if m in legalmodes: 
+        if m in legalmodes:
             self.obs_mode = m
         else:
             raise Exception("set_obs_mode: mode must be one of %s" % str(legalmodes))
-        
+
     def set_obs_frequency(self, f):
         """
         Sets the center frequency of the observing band.
         """
         self.rf_frequency = f
-                                          
+
     def set_integration_time(self, integ_time):
         """
         Sets the integration time. The actual value used may be adjusted to make the interval
@@ -138,67 +138,67 @@ class GuppiBackend(Backend):
         Range is 0.0 through 65535.99998.
         """
         self.scale_i = v
-        
+
     def set_scale_Q(self, v):
         """
         Sets the hardware scaling factor for the Q stokes parameter.
         Range is 0.0 through 65535.99998.
-        """    
+        """
         self.scale_q = v
 
     def set_scale_U(self, v):
         """
         Sets the hardware scaling factor for the U stokes parameter.
         Range is 0.0 through 65535.99998.
-        """        
+        """
         self.scale_u = v
 
     def set_scale_V(self, v):
         """
         Sets the hardware scaling factor for the V stokes parameter.
         Range is 0.0 through 65535.99998.
-        """       
+        """
         self.scale_v = v
-        
+
     def set_offset_I(self, v):
         """
         Sets the hardware offset factor for the I stokes parameter.
         Range is 0.0 through 65535.99998.
-        """        
+        """
         self.offset_i = v
 
     def set_offset_Q(self, v):
         """
         Sets the hardware offset factor for the I stokes parameter.
         Range is 0.0 through 65535.99998.
-        """           
+        """
         self.offset_q = v
 
     def set_offset_U(self, v):
         """
         Sets the hardware offset factor for the I stokes parameter.
         Range is 0.0 through 65535.99998.
-        """           
+        """
         self.offset_u = v
 
     def set_offset_V(self, v):
         """
         Sets the hardware offset factor for the I stokes parameter.
         Range is 0.0 through 65535.99998.
-        """           
+        """
         self.offset_v = v
-        
+
     def set_tfold(self, tf):
         """
         Sets the software integration time per profile for all folding and cal modes.
         This is ignored in other modes.
         """
         self.tfold = tf
-        
+
     def set_only_i(self, only_i):
         """
         Controls whether to 'record only summed polarizations' mode. Zero indicates that
-        full stokes data should be recorded. One means to record only summed polarizations.  
+        full stokes data should be recorded. One means to record only summed polarizations.
         This will be set to zero when using the 'FAST4K' observing mode.
         """
         self.only_i = only_i
@@ -221,11 +221,11 @@ class GuppiBackend(Backend):
         self.npol_dep()
         self.tfold_dep()
         self.node_bandwidth_dep()
-        
+
         self.set_registers()
         self.set_status_keys()
-    
-        
+
+
     def _start(self):
         """
         An incoherent mode start routine.
@@ -247,17 +247,17 @@ class GuppiBackend(Backend):
             elif self.bank.get_status('NETSTAT') == "exiting":
                 self.scan_running = False
             elif self.check_keypress() == True:
-                print 'User terminated scan'            
+                print 'User terminated scan'
                 self.bank.hpc_cmd('stop')
                 self.scan_running = False
         print "Scan Completed"
-        
+
         # Something should increment the scan number at the end of a scan to
         # avoid the 'existing file' error.
         self.bank.increment_scan_number()
 
     def check_keypress(self):
-        """                                                                        
+        """
         Detect a user interrupt
         """
         import termios, fcntl, sys, os
@@ -279,46 +279,46 @@ class GuppiBackend(Backend):
                 got_keypress = True
         except IOError:
             got_keypress = False
-                    
+
         finally:
             termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
             fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
-        return got_keypress       
-        
-        
-        
+        return got_keypress
+
+
+
     # Algorithmic dependency methods, not normally called by users
-    
+
     def acc_len_dep(self):
         """
         Calculates the hardware accumulation length.
         The register values must be in the range of 0 to 65535, in even powers of two, minus one.
         """
         acc_length = 2**int(math.log(int(self.integration_time * self.bandwidth * 1E6/self.hw_nchan + 0.5))/math.log(2))-1
-        
+
         if acc_length < 0 or acc_length > 65535:
             raise Exception("Hardware accumulation length too long. Reduce integration time or bandwidth.")
         else:
             self.acc_length = acc_length
             self.acc_len = self.acc_length+1
-            
+
     def chan_bw_dep(self):
         """
         Calculates the CHAN_BW status keyword
         Result is bandwidth of each channel in MHz
         """
         self.obsnchan = self.hw_nchan
-        
+
         chan_bw = self.bandwidth / float(self.hw_nchan)
         #if self.bandwidth < 800:
         #    chan_bw = -1.0 * chan_bw
         self.chan_bw = chan_bw
-        
+
     def ds_time_dep(self):
         """
         Calculate the down-sampling time status keyword
         """
-        
+
         #if 'SEARCH' in self.obs_mode:
         #    dst = self.integration_time * self.bandwidth * 1E6 / self.nchan
         #    power_of_two = 2 ** int(math.log(dst)/math.log(2))
@@ -326,7 +326,7 @@ class GuppiBackend(Backend):
         #else:
         # Paul indicated that in incoherent modes ds_time should always be 1
         self.ds_time = 1
-            
+
     def ds_freq_dep(self):
         """
         Calculate the DS_FREQ status keyword.
@@ -338,7 +338,7 @@ class GuppiBackend(Backend):
             self.ds_freq = self.hw_nchan / self.nchan
         else:
             self.ds_freq = 1
-        
+
     def hw_nchan_dep(self):
         """
         Can't find direct evidence for this, but seemed logical ...
@@ -348,26 +348,26 @@ class GuppiBackend(Backend):
         else:
             self.hw_nchan = self.nchan
         self.node_nchan = self.hw_nchan
-                
+
     def pfb_overlap_dep(self):
         """
         Randy/Jason indicated that the new guppi designs will have 12 taps in all modes.
         """
         self.pfb_overlap = 12
-            
+
     def pol_type_dep(self):
         """
         Calculates the POL_TYPE status keyword.
-        Depends upon a synthetic mode name having FAST4K for that mode, otherwise 
-        non-4k coherent mode is assumed.        
+        Depends upon a synthetic mode name having FAST4K for that mode, otherwise
+        non-4k coherent mode is assumed.
         """
         if 'COHERENT' in self.obs_mode:
             self.pol_type = 'AABBCRCI'
-        elif 'FAST4K' in self.bank.current_mode.upper():
+        elif 'FAST4K' in self.mode.mode.upper():
             self.pol_type = 'AA+BB'
         else:
             self.pol_type = 'IQUV'
-            
+
     def npol_dep(self):
         """
         Calculates the number of polarizations to be recorded.
@@ -375,11 +375,11 @@ class GuppiBackend(Backend):
         has indicated they only want 1 stokes product)
         """
         self.npol = 4
-        if 'FAST4K' in self.bank.current_mode.upper():
+        if 'FAST4K' in self.mode.mode.upper():
             self.npol   = 1
         elif self.only_i:
             self.npol = 1
-            
+
     def node_bandwidth_dep(self):
         """
         Calculations the bandwidth seen by this HPC node
@@ -388,35 +388,35 @@ class GuppiBackend(Backend):
             self.node_bandwidth = self.bandwidth / 8
         else:
             self.node_bandwidth = self.bandwidth
-            
+
     def tbin_dep(self):
-        """ 
+        """
         Calculates the TBIN status keyword
         """
         self.tbin = float(self.acc_len * self.hw_nchan) / (self.bandwidth*1E6)
-        
+
     def tfold_dep(self):
         if 'COHERENT' == self.obs_mode:
             self.fold_time = 1
-            
-    
-        
+
+
+
     def packet_format_dep(self):
         """
         Calculates the PKTFMT status keyword
-        """    
-        if 'FAST4K' in self.bank.current_mode.upper():
+        """
+        if 'FAST4K' in self.mode.mode.upper():
             self.packet_format = 'FAST4K'
         else:
             self.packet_format = '1SFA'
-        
-        
+
+
     def only_I_dep(self):
         """
         Calculates the ONLY_I status keyword
         """
         # Note this requires that the config mode name contains 'FAST4K' in the name
-        if 'FAST4K' in self.bank.current_mode.upper():
+        if 'FAST4K' in self.mode.mode.upper():
             self.only_i = 0
         elif self.obs_mode.upper() not in ["SEARCH", "COHERENT_SEARCH"]:
             self.only_i = 0
@@ -432,14 +432,14 @@ class GuppiBackend(Backend):
         statusdata['CHAN_BW' ] = self.chan_bw
         #statusdata['DATADIR' ] = self.datadir
         statusdata['DS_TIME' ] = self.ds_time
-                
+
         statusdata['FFTLEN'  ] = self.fft_len
-        
+
         statusdata['NPOL'    ] = self.npol
         statusdata['NRCVR'   ] = self.nrcvr
         statusdata['NBIN'    ] = self.nbin
         statusdata['NBITS'   ] = 8
-        
+
         statusdata['OBSFREQ' ] = self.rf_frequency
         statusdata['OBSBW'   ] = self.node_bandwidth
         statusdata['OBSNCHAN'] = repr(self.node_nchan)
@@ -449,8 +449,8 @@ class GuppiBackend(Backend):
         statusdata['OFFSET2' ] = '0.0'
         statusdata['OFFSET3' ] = '0.0'
         statusdata['ONLY_I'  ] = self.only_i
-        statusdata['OVERLAP' ] = self.overlap        
-        
+        statusdata['OVERLAP' ] = self.overlap
+
         statusdata['POL_TYPE'] = self.pol_type
         statusdata['PFB_OVER'] = self.pfb_overlap
         if self.parfile is not None:
@@ -463,12 +463,14 @@ class GuppiBackend(Backend):
         statusdata['SCALE3'  ] = '1.0'
         statusdata['TBIN'    ] = self.tbin
         statusdata['TFOLD'   ] = self.tfold
-                   
-        self.bank.set_status(**statusdata)
-        
+
+        self.set_status(**statusdata)
+
     def set_registers(self):
         regs = {}
-        self.bank.valon.set_frequency(0, self.bandwidth)
+
+        if not self.test_mode:
+            self.valon.set_frequency(0, self.bandwidth)
         regs['ACC_LENGTH'] = self.acc_length
         regs['SCALE_I']    = int(self.scale_i*65536)
         regs['SCALE_Q']    = int(self.scale_q*65536)
@@ -479,21 +481,19 @@ class GuppiBackend(Backend):
         regs['OFFSET_U']   = int(self.offset_u*65536)
         regs['OFFSET_V']   = int(self.offset_v*65536)
         #regs['FFT_SHIFT'] = 0xaaaaaaaa (Set by config file)
-        
-        self.bank.set_register(**regs)
-                
+
+        self.set_register(**regs)
+
     def fft_params_dep(self):
         """
         Calculate the FFTLEN, and BLOCSIZE status keywords
         """
         self.fft_len = 16384
         self.blocsize = 33554432 # defaults
-        
-        
+
+
     def net_config(self):
         """
         Configure the network interface, DEST_IP and DEST_PORT registers.
         """
-        pass      
-      
-                        
+        pass
