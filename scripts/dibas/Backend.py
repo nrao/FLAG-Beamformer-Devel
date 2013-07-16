@@ -3,6 +3,10 @@ import ctypes
 import binascii
 import player
 from vegas_utils import vegas_status
+import os
+import subprocess
+import time
+from datetime import datetime, timedelta
 
 ######################################################################
 # class Backend
@@ -56,15 +60,37 @@ class Backend:
             self.roach = theRoach
             self.valon = theValon
             self.status = vegas_status()
-
+        # This is already checked by player.py, we won't get here if not set
+        self.dibas_dir = os.getenv("DIBAS_DIR")
+        
+        self.dataroot  = os.getenv("DIBAS_DATA") # Example /lustre/gbtdata
+        if self.dataroot is None:
+            self.dataroot = "/tmp"
         self.mode = theMode
         self.bank = theBank
         self.hpc_process = None
         self.obs_mode = 'SEARCH'
         self.max_databuf_size = 128 # in MBytes
+        self.observer = "unknown"
+        self.projectid = "JUNK"
+        self.datadir = self.dataroot + "/" + self.projectid
 
         self.params = {}
         self.params["frequency"]      = self.setValonFrequency
+        self.params["observer"]       = self.setObserver
+        self.params["project_id"]     = self.setProjectId
+        
+        self.datahost = self.bank.datahost
+        self.dataport = self.bank.dataport
+        self.bof_file = self.mode.bof     
+        
+        self.progdev()
+        self.net_config()
+        
+        if self.mode.roach_kvpairs:
+            self.set_register(**self.mode.roach_kvpairs)
+        self.reset_roach()
+        
 
     def __del__(self):
         """
@@ -80,7 +106,7 @@ class Backend:
     def hpc_cmd(self, cmd):
         """
         Opens the named pipe to the HPC program, sends 'cmd', and closes
-        the pipe.
+        the pipe. This takes care to not block on the fifo.
         """
 
         if self.test_mode:
@@ -94,9 +120,15 @@ class Backend:
             raise Exception("Configuration error: no field hpc_fifo_name specified in "
                             "MODE section of %s " % (self.current_mode))
 
-        fh = open(fifo_name, 'w')
-        fh.write(cmd)
-        fh.close()
+        try:
+            fh = os.open(fifo_name, os.O_WRONLY | os.O_NONBLOCK)
+        except:
+            print "fifo open for hpc program failed"
+            return False
+            
+        os.write(fh, cmd + '\n')
+        os.close(fh)
+        return True
 
     def start_hpc(self):
         """
@@ -135,15 +167,18 @@ class Backend:
         self.hpc_cmd('stop')
         self.hpc_cmd('quit')
         time.sleep(1)
+        # Kill and reclaim child
+        self.hpc_process.communicate()
         # Kill if necessary
-        if self.hpc_process and self.hpc_process.poll() == None: # running...
-            self.hpc_process.send_signal(signal.SIGINT)
+        if self.hpc_process.poll() == None: 
+            # still running, try once more
+            self.hpc_process.communicate()
             time.sleep(1)
 
-            if self.hpc_process.poll() == 0:
+            if self.hpc_process.poll() is not None:
                 killed = True
             else:
-                self.hpc_process.kill()
+                self.hpc_process.communicate()
                 killed = True;
         else:
             killed = False
@@ -164,6 +199,21 @@ class Backend:
             for k in self.params.keys():
                 print k
 
+    # generic help method
+    def help_param(self, param):
+        if param in self.params.keys():
+            set_method=self.params[param]
+            print set_method.__doc__
+        else:
+            print 'No such parameter %s' % param
+            print 'Legal parameters in this mode are:'
+            for k in self.params.keys():
+                print k, ':'
+                if self.params[k].__doc__ is not None:
+                    print self.params[k].__doc__
+                else:
+                    print '        (No help for %s available)' % (k)
+                print
 
     def get_status(self, keys = None):
         """
@@ -275,6 +325,21 @@ class Backend:
         """
         self.frequency = vfreq
 
+    def setObserver(self, observer):
+        """
+        Sets the observer keyword in FITS headers and status memory.
+        """
+        self.observer = observer
+        
+    def setProjectId(self, project):
+        """
+        Sets the project id for the session. This becomes part of the directory
+        path for the backend data in the form:
+            $DIBAS_DATA/projectid/backend/
+        """
+        self.projectid = project
+        self.datadir = self.dataroot + "/" + self.projectid
+        
     def cdd_master(self):
         """
         Returns 'True' if this is a CoDD backend and it is master. False otherwise.
@@ -338,12 +403,14 @@ class Backend:
                             "IP must be integer values or dotted quad strings. "
                             "Ports must be integer values < 65535.")
 
-        gigbit_name = self.mode_data[self.current_mode].gigabit_interface_name
-        dest_ip_register_name = self.mode_data[self.current_mode].dest_ip_register_name
-        dest_port_register_name = self.mode_data[self.current_mode].dest_port_register_name
+        gigbit_name = self.mode.gigabit_interface_name
+        dest_ip_register_name = self.mode.dest_ip_register_name
+        dest_port_register_name = self.mode.dest_port_register_name
 
-        self.roach.tap_start("tap0", gigbit_name, self.bank_data.mac_base + data_ip, data_ip, data_port)
-        #self.roach.tap_start("tap0", "gbe0", self.bank_data.mac_base + data_ip, data_ip, data_port)
+        print "tap0", gigbit_name, self.bank.mac_base + data_ip, data_ip, data_port
+        
+        self.roach.tap_start("tap0", gigbit_name, self.bank.mac_base + data_ip, data_ip, data_port)
+        #self.roach.tap_start("tap0", "gbe0", self.bank.mac_base + data_ip, data_ip, data_port)
         self.roach.write_int(dest_ip_register_name, dest_ip)
         self.roach.write_int(dest_port_register_name, dest_port)
         return 'ok'
@@ -410,16 +477,6 @@ class Backend:
         self.hpc_cmd('STOP')
 
 
-    def set_param(self, **kvpairs):
-        """
-        A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
-
-        Example usage:
-        set_param(exposure=x,switch_period=1.0, ...)
-        """
-        for k,v in kvpairs.items():
-            self.backend.set_param(str(k), v)
-
     def prepare(self):
         """
         Perform calculations for the current set of parameter settings
@@ -457,6 +514,7 @@ class Backend:
 
         # All banks have roaches if they are incoherent, VEGAS, or coherent masters.
         if self.roach:
+            print 'arming roach', str(self.mode.arm_phase)
             self._execute_phase(self.mode.arm_phase)
 
     def disarm_roach(self):
@@ -498,41 +556,20 @@ class Backend:
             if self.test_mode:
                 print reg, "=", val
             else:
+                val=int(val,0)
                 self.roach.write_int(reg, val)
-
-        def arm(op):
-            op = int(op, 0)
-            write_to_roach('arm', op)
-
-        def write_reg(op):
-            """ write_reg(self,op)
-
-            Perform a write operation to a named register. The config file syntax for this operator
-            should be:
-                arm_phase=write_reg,myregistername=2,wait,0.2,write_reg,anotherregistername=42 etc.
-            """
-            s = op.split('=')
-            if len(s) != 2 or len(s[0]) == 0 or len(s[1]) == 0:
-                print 'write_reg syntax error %s -- no value written to register' % str(op)
-            else:
-                reg=s[0]
-                val = int(s[1], 0)
-                write_to_roach(reg, val)
-
-        def sg_sync(op):
-            op = int(op, 0)
-            write_to_roach(reg, val)
 
         def wait(op):
             op = float(op)
             time.sleep(op)
 
-        doit = {arm.__name__: arm, sg_sync.__name__: sg_sync, wait.__name__: wait,
-                write_reg.__name__:write_reg}
-
         for cmd, param in phase:
-            doit[cmd](param)
-
+            if cmd == 'wait':
+                print 'waiting', param
+                wait(param)
+            else:
+                print 'writing', cmd,'=',param
+                write_to_roach(cmd, param)
 
     def _ip_string_to_int(self, ip):
         """
@@ -554,3 +591,34 @@ class Backend:
             return ip
         else:
             raise Exception("IP address must be a dotted quad string, or an integer value.")
+            
+    def check_keypress(self, expected_ch):
+        """
+        Detect a user keystoke. If the keystroke matches the expected key,
+        this returns True, otherwise False
+        """
+        import termios, fcntl, sys, os
+        fd = sys.stdin.fileno()
+
+        oldterm = termios.tcgetattr(fd)
+        newattr = termios.tcgetattr(fd)
+        newattr[3] = newattr[3] & ~termios.ICANON & ~termios.ECHO
+        termios.tcsetattr(fd, termios.TCSANOW, newattr)
+
+        oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
+        got_keypress = False
+        try:
+            c = sys.stdin.read(1)
+            #print "Got character", repr(c)
+            if c == expected_ch:
+                got_keypress = True
+        except IOError:
+            got_keypress = False
+
+        finally:
+            termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
+            fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
+        return got_keypress
+
+

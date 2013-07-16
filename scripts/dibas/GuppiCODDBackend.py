@@ -20,12 +20,15 @@ class GuppiCODDBackend(Backend):
         Where bank is the instance of the player's Bank.
         """
         Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
+        # This needs to happen on construction so that status monitors can
+        # change their data buffer format.
+        self.set_status(BACKEND="GUPPI")
         # The default switching in the Backend ctor is a static SIG, NOCAL, and no blanking
-        self.set_obs_mode(self.mode.shmkvpairs['OBS_MODE'])
+            
         self.max_databuf_size = 128 # in MBytes
-        self.scale_p0 = int(self.mode.roach_kvpairs['SCALE_P0'])
-        self.scale_p1 = int(self.mode.roach_kvpairs['SCALE_P1'])
-        self.only_i = int(self.mode.shmkvpairs['ONLY_I'])
+        self.scale_p0 = 1.0
+        self.scale_p1 = 1.0
+        self.only_i = 0
         self.set_bandwidth(1500)
         self.dm = 0.0
         self.rf_frequency = 750.0
@@ -34,14 +37,14 @@ class GuppiCODDBackend(Backend):
         self.nbin = 256
         # Most all receivers are dual polarization
         self.nrcvr = 2
-        self.nchan = 8 # Needs to be a config value?
+        self.nchan = 8 # Needs to be a config value!!!!!!
         self.num_nodes = 8
 
         bank_names = {'A' : 0, 'B' : 1, 'C' : 2, 'D' : 3, 'E' : 4, 'F' : 5, 'G' : 6, 'H' : 7 }
         self.node_number = bank_names[self.bank.name[-1]]
 
         self.integration_time =40.96E-6 # TBD JJB
-        dibas_dir = os.getenv("DIBAS_DIR")
+
         if dibas_dir is not None:
             self.pardir = dibas_dir + '/etc/config'
         else:
@@ -63,7 +66,18 @@ class GuppiCODDBackend(Backend):
         self.params["scale_p0"]       = self.set_scale_P0
         self.params["scale_p1"]       = self.set_scale_P1
         self.params["tfold"       ]   = self.set_tfold
-        # Is this fixed for a given mode? config value?
+        self.params["only_i"  ]       = self.set_only_i
+        
+        # Fill-in defaults if they exist
+        if 'OBS_MODE' in self.mode.shmkvpairs.keys():
+            self.set_param('obs_mode',   int(self.mode.shmkvpairs['OBS_MODE']))
+        if 'ONLY_I' in self.mode.shmkvpairs.keys():
+            self.set_param('only_i',   int(self.mode.shmkvpairs['ONLY_I']))
+        
+        if 'SCALE_P0' in self.mode.roach_kvpairs.keys():
+            self.set_param('scale_p0', int(self.mode.roach_kvpairs['SCALE_P0']))
+        if 'SCALE_P1' in self.mode.roach_kvpairs.keys():    
+            self.set_param('scale_p1', int(self.mode.roach_kvpairs['SCALE_P1']))
 
     def cdd_master(self):
         """
@@ -193,63 +207,31 @@ class GuppiCODDBackend(Backend):
         self.set_status_keys()
         self.set_registers()
 
-    def _start(self):
+    def start(self):
         """
         An coherent mode start routine.
         """
-        if self.bank.hpc_process is None:
-            self.bank.start_hpc()
+        if self.hpc_process is None:
+            self.start_hpc()
             time.sleep(5)
-        self.bank.hpc_cmd("start")
+        self.hpc_cmd("start")
         time.sleep(3)
-        self.bank.arm_roach()
+        self.arm_roach()
         scan_running = True
+
         while scan_running:
             time.sleep(3)
-            if self.bank.hpc_process is None:
+            if self.hpc_process is None:
                 scan_running = False
                 Exception("HPC Process was stopped or failed");
-            if self.bank.get_status('DISKSTAT') == "exiting":
+            if self.get_status('DISKSTAT') == "exiting":
                 scan_running = False
             elif self.bank.get_status('NETSTAT') == "exiting":
                 scan_running = False
-            elif self.check_keypress() == True:
+            elif self.check_keypress('q') == True:
                 print 'User terminated scan'
-                self.bank.hpc_cmd('stop')
-        print "Scan Completed"
+                self.hpc_cmd('stop')
 
-        # Something should increment the scan number at the end of a scan to
-        # avoid the 'existing file' error.
-        self.bank.increment_scan_number()
-
-    def check_keypress(self):
-        """
-        Detect a user interrupt
-        """
-        import termios, fcntl, sys, os
-        fd = sys.stdin.fileno()
-
-        oldterm = termios.tcgetattr(fd)
-        newattr = termios.tcgetattr(fd)
-        newattr[3] = newattr[3] & ~termios.ICANON & ~termios.ECHO
-        termios.tcsetattr(fd, termios.TCSANOW, newattr)
-
-        oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
-        got_keypress = False
-        try:
-            c = sys.stdin.read(1)
-            print "Got character", repr(c)
-            if c == 'q':
-                self.scan_running = False
-                got_keypress = True
-        except IOError:
-            got_keypress = False
-
-        finally:
-            termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
-            fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
-        return got_keypress
 
 
 
@@ -429,6 +411,8 @@ class GuppiCODDBackend(Backend):
         statusdata['BANKNUM' ] = self.node_number
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
+        statusdata['DATADIR' ] = self.dataroot
+        statusdata['PROJID'  ] = self.projectid        
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len

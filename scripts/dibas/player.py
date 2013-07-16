@@ -209,6 +209,40 @@ class Bank(object):
         """
         self.scan_number = self.scan_number+1
         self.set_scan_number(self.scan_number)
+        
+    def set_status(self, **kwargs):
+        """
+        set_status(self, **kwargs)
+
+        Updates the values for the keys specified in the parameter list
+        as keyword value pairs. So:
+
+          set_status(PROJID='JUNK', OBS_MODE='HBW')
+
+        would set those two parameters.
+        """
+        if self.backend is not None:
+            self.backend.set_status(**kwargs)
+
+    def get_status(self, keys = None):
+        """
+        get_status(keys=None)
+
+        Returns the specified key's value, or the values of several
+        keys, or the entire contents of the shared memory status buffer.
+
+        'keys' == None: The entire buffer is returned, as a
+        dictionary containing the key/value pairs.
+
+        'keys' is a list of keys, which are strings: returns a dictionary
+        containing the requested subset of key/value pairs.
+
+        'keys' is a single string: a single value will be looked up and
+        returned using 'keys' as the single key.
+        """
+        if self.backend is not None:
+            self.backend.get_status(keys)
+        
 
     def set_mode(self, mode, force = False):
         """
@@ -240,10 +274,7 @@ class Bank(object):
                 if force or mode != self.current_mode:
                     self.current_mode = mode
                     print "New mode specified!"
-                    if self.hpc_process is not None:
-                        print "stopping HPC program"
-                        self.stop_hpc()
-                    #self.reformat_data_buffers(mode)
+                    self.reformat_data_buffers(mode)
                     print 'Not reformatting buffers'
 
                     # Two different kinds of mode: Coherent Dedispersion
@@ -285,50 +316,7 @@ class Bank(object):
                                                                      self.valon)
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
-
-                    # set by backend: f = self.mode_data[mode].frequency / 1e6
-
-                    # All this handle in backend:
-                    # if self.mode_data[mode].cdd_mode:
-                    #     print "CoDD mode!!!!!"
-                    #     if self.cdd_master():
-                    #         print 'CoDD Master!!!!!'
-                    #         # If master, do all the roach stuff. Everyone else skip.
-                    #         print "Valon frequency:", f
-                    #         self.valon.set_frequency(0, f)
-                    #         self.progdev()
-                    #         self.net_config()  # TBF!!!! program the 8 network adapters.
-                    #         self.reset_roach() # TBF!!!! Must consider case where Master's roach is not THE ROACH.
-                    #         print 'BUG: Not setting acc_len or sg_period due to naming conflicts'
-                    #         #if self.mode_data[mode].acc_len is not None:
-                    #         #    self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
-                    #         #if self.mode_data[mode].sg_period is not None:
-                    #         #    self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
-                    #     else:
-                    #         # Deprogram the roach. Every player will
-                    #         # deprogram its roach; only the master Player in
-                    #         # CDD mode will then program its roach.
-                    #         reply, informs = self.roach._request("progdev")
-                    # else:
-                    #     self.valon.set_frequency(0, f)
-                    #     self.progdev()
-                    #     self.net_config()
-                    #     self.reset_roach()
-                    #     print "NOT setting acc_len or sg_period due to name conflicts (Vegas bof vs Guppi Incoherent bof)"
-                    #     #self.roach.write_int('acc_len', self.mode_data[mode].acc_len - 1)
-                    #     #self.roach.write_int('sg_period', self.mode_data[mode].sg_period)
-                    # self.set_param(frequency=f)
-
-                    # self.set_status(FPGACLK = self.mode_data[mode].frequency / 8)
-                    # #load any shared-mem keys found in the bank section:
-                    # if self.mode_data[mode].shmkvpairs:
-                    #     self.set_status(**self.mode_data[mode].shmkvpairs)
-                    # #load any Bank-based register settings from the BANK section:
-                    # if self.mode_data[mode].roach_kvpairs:
-                    #     self.set_register(**self.mode_data[mode].roach_kvpairs)
-                    # else:
-                    #     print 'DEBUG no extra Bank register settings'
-
+                        
                     return (True, 'New mode %s set!' % mode)
                 else:
                     return (False, 'Mode %s is already set! Use \'force=True\' to force.' % mode)
@@ -354,6 +342,7 @@ class Bank(object):
 
         if self.backend:
             self.backend.start()
+            self.increment_scan_number()
 
     def exposure(self, x):
         """
@@ -428,6 +417,20 @@ class Bank(object):
                 self.backend.set_param(str(k), v)
         else:
             raise Exception("Cannot set parameters until a mode is selected")
+            
+    def help_param(self, name):
+        """
+        A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
+
+        Example usage:
+        help_param(exposure)
+        """
+
+        if self.backend is not None:
+            self.backend.help_param(name)
+        else:
+            raise Exception("Cannot set parameters until a mode is selected")
+            
 
     def prepare(self):
         """

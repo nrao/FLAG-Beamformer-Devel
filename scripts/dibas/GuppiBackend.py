@@ -20,6 +20,9 @@ class GuppiBackend(Backend):
         Where bank is the instance of the player's Bank.
         """
         Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
+        # This needs to happen on construct so that status monitors can
+        # switch their data buffer format
+        self.set_status(BACKEND="GUPPI")
         # The default switching in the Backend ctor is a static SIG, NOCAL, and no blanking
 
         # defaults
@@ -46,13 +49,12 @@ class GuppiBackend(Backend):
         # Almost all receivers are dual polarization
         self.nrcvr = 2
 
-        dibas_dir = os.getenv("DIBAS_DIR")
-        if dibas_dir is not None:
-           self.pardir = dibas_dir + '/etc/config'
+
+        if self.dibas_dir is not None:
+           self.pardir = self.dibas_dir + '/etc/config'
         else:
             self.pardir = '/tmp'
         self.parfile = 'example.par'
-        self.datadir = '/lustre/gbtdata/JUNK' # Needs integration with projectid
 
         self.params["bandwidth"]      = self.set_bandwidth
         self.params["integration_time"] = self.set_integration_time
@@ -71,7 +73,7 @@ class GuppiBackend(Backend):
         self.params["scale_v"     ]   = self.set_scale_V
         self.params["tfold"       ]   = self.set_tfold
         self.fft_params_dep()
-
+        
     ### Methods to set user or mode specified parameters
     ### Not sure how these map for GUPPI
 
@@ -226,65 +228,34 @@ class GuppiBackend(Backend):
         self.set_status_keys()
 
 
-    def _start(self):
+    def start(self):
         """
         An incoherent mode start routine.
         """
-        if self.bank.hpc_process is None:
-            self.bank.start_hpc()
+        if self.hpc_process is None:
+            self.start_hpc()
             time.sleep(5)
-        self.bank.hpc_cmd("start")
+        self.hpc_cmd("start")
         time.sleep(3)
-        self.bank.arm_roach()
+        self.arm_roach()
+        
         self.scan_running = True
         while self.scan_running:
             time.sleep(3)
-            if self.bank.hpc_process is None:
+            if self.hpc_process is None:
                 self.scan_running = False
                 Exception("HPC Process was stopped or failed");
-            if self.bank.get_status('DISKSTAT') == "exiting":
+            if self.get_status('DISKSTAT') == "exiting":
+                print "HPC Disk thread did not appear to start -- ending scan"
                 self.scan_running = False
-            elif self.bank.get_status('NETSTAT') == "exiting":
+            elif self.get_status('NETSTAT') == "exiting":
+                print "HPC Net thread did not appear to start -- ending scan"
                 self.scan_running = False
-            elif self.check_keypress() == True:
+            elif self.check_keypress('q') == True:
                 print 'User terminated scan'
-                self.bank.hpc_cmd('stop')
+                self.hpc_cmd('stop')
                 self.scan_running = False
         print "Scan Completed"
-
-        # Something should increment the scan number at the end of a scan to
-        # avoid the 'existing file' error.
-        self.bank.increment_scan_number()
-
-    def check_keypress(self):
-        """
-        Detect a user interrupt
-        """
-        import termios, fcntl, sys, os
-        fd = sys.stdin.fileno()
-
-        oldterm = termios.tcgetattr(fd)
-        newattr = termios.tcgetattr(fd)
-        newattr[3] = newattr[3] & ~termios.ICANON & ~termios.ECHO
-        termios.tcsetattr(fd, termios.TCSANOW, newattr)
-
-        oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
-        got_keypress = False
-        try:
-            c = sys.stdin.read(1)
-            print "Got character", repr(c)
-            if c == 'q':
-                self.scan_running = False
-                got_keypress = True
-        except IOError:
-            got_keypress = False
-
-        finally:
-            termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
-            fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
-        return got_keypress
-
 
 
     # Algorithmic dependency methods, not normally called by users
@@ -430,7 +401,8 @@ class GuppiBackend(Backend):
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
-        #statusdata['DATADIR' ] = self.datadir
+        statusdata['DATADIR' ] = self.dataroot
+        statusdata['PROJID'  ] = self.projectid
         statusdata['DS_TIME' ] = self.ds_time
 
         statusdata['FFTLEN'  ] = self.fft_len
@@ -492,8 +464,3 @@ class GuppiBackend(Backend):
         self.blocsize = 33554432 # defaults
 
 
-    def net_config(self):
-        """
-        Configure the network interface, DEST_IP and DEST_PORT registers.
-        """
-        pass

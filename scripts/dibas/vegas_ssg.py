@@ -178,7 +178,12 @@ class SwitchingSignals(object):
         Returns the total duration of all phases, in seconds.
         """
         granules = sum([p.duration() for p in self.phases])
-        return granules * self._sec_per_granule
+        # if no phases are specified or if there is only a single phase,
+        # don't return a zero sum. In these cases the duration doesn't mean anything.
+        if len(self.phases) > 1:
+            return granules * self._sec_per_granule
+        else:
+            return 1
 
     def add_phase(self, dur, bl = False, cal = False, sr1 = False, sr2 = False, asr = False):
         """

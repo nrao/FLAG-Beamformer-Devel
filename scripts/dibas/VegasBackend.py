@@ -5,6 +5,10 @@ import binascii
 import player
 from Backend import Backend
 from vegas_ssg import SwitchingSignals
+import subprocess
+import time
+from datetime import datetime, timedelta
+import os
 
 
 class SWbits:
@@ -40,7 +44,9 @@ class VegasBackend(Backend):
         # delete this backend object and create a new one on mode
         # change.
         Backend.__init__(self, theBank, theMode, theRoach , theValon, unit_test)
-
+        # Important to do this as soon as possible, so that status application
+        # can change its data buffer format
+        self.set_status(BACKEND='VEGAS')
         # In VEGAS mode, i_am_master means this particular backend
         # controls the switching signals. (self.bank is from base class.)
         self.i_am_master = self.bank.i_am_master
@@ -48,15 +54,16 @@ class VegasBackend(Backend):
         # Parameters:
         self.setPolarization('SELF')
         self.setNumberChannels(self.mode.nchan)
-        self.requested_integration_time = None
+        self.requested_integration_time = 1.0
         self.setFilterBandwidth(self.mode.filter_bw)
         self.setAccLen(self.mode.acc_len)
         self.setValonFrequency(self.mode.frequency)
 
         # dependent values, computed from Parameters:
-        self.nspectra = None
+        self.nspectra = 1
         self.frequency_resolution = 0.0
         self.fpga_clock = None
+        self.fits_writer_process = None
 
         # setup the parameter dictionary/methods
         self.params["polarization"] = self.setPolarization
@@ -70,7 +77,17 @@ class VegasBackend(Backend):
         self.sskeys = {}
         # the switching signals builder
         self.ss = SwitchingSignals(self.frequency, self.nchan)
+        self.start_hpc()
+        self.start_fits_writer()
 
+
+    def __del__(self):
+        """
+        Perform some cleanup tasks.
+        """
+        if self.fits_writer_process is not None:
+            self.stop_fits_writer()
+            
     ### Methods to set user or mode specified parameters
     ###
 
@@ -115,6 +132,7 @@ class VegasBackend(Backend):
         # calculate the fpga_clock and sampler frequency
         self.sampler_frequency_dep()
         self.chan_bw_dep()
+        self.obs_bw_dep()
 
         # Switching Signals info. Switching signals should have been
         # specified prior to prepare():
@@ -125,9 +143,9 @@ class VegasBackend(Backend):
 
         # set the roach registers:
         if self.roach:
-            self.bank.set_register(acc_len=self.acc_len)
+            self.set_register(acc_len=self.acc_len)
             # write the switching signal specification to the roach:
-            self.bank.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
+            self.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
 
     # Algorithmic dependency methods, not normally called by a users
 
@@ -345,7 +363,12 @@ class VegasBackend(Backend):
         """
         for i in range(len(sr)):
             self.set_status_str('_AISB_%02d' % (i+1), sr[i])
-
+            
+    def obs_bw_dep(self):
+        """
+        Observation bandwidth dependency
+        """   
+        self.obs_bw = self.chan_bw * self.nchan
 
     def set_status_str(self, x, y):
         """
@@ -371,7 +394,6 @@ class VegasBackend(Backend):
         statusdata["DATADIR"  ] = DEFAULT_VALUE;
         statusdata["DATAHOST" ] = DEFAULT_VALUE;
         statusdata["DATAPORT" ] = DEFAULT_VALUE;
-
         statusdata["EFSAMPFR" ] = DEFAULT_VALUE;
         statusdata["EXPOSURE" ] = DEFAULT_VALUE;
         statusdata["FILENUM"  ] = DEFAULT_VALUE;
@@ -409,13 +431,15 @@ class VegasBackend(Backend):
         for x,y in self.sskeys.items():
             statusdata[x] = y
 
-        statusdata["BW_MODE"  ] = "HBW" ##??
+        statusdata["BW_MODE"  ] = "high" # mode 1
+        statusdata["BOFFILE"  ] = str(self.bof_file)
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
         statusdata["EFSAMPFR" ] = str(self.sampler_frequency)
         statusdata["EXPOSURE" ] = str(self.requested_integration_time)
         statusdata["FPGACLK"  ] = str(self.fpga_clock)
         statusdata["OBSNCHAN" ] = str(self.nchan)
-        statusdata["OBS_MODE" ] = "HBW" ##??
+        statusdata["OBS_MODE" ] = "HBW" # mode 1
+        statusdata["OBSBW"    ] = self.obs_bw       
         statusdata["PKTFMT"   ] = "SPEAD"
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
@@ -440,6 +464,11 @@ class VegasBackend(Backend):
         statusdata["CRPIX1"   ] = str(self.nchan/2 + 1)
         statusdata["SWPERINT" ] = str(int(self.requested_integration_time / self.ss.total_duration()))
         statusdata["NMSTOKES" ] = str(self.num_stokes)
+        # should this get set by Backend?
+        statusdata["DATAHOST" ] = self.datahost;
+        statusdata["DATAPORT" ] = self.dataport;
+        statusdata['DATADIR' ]  = self.dataroot
+        statusdata['PROJID'  ]  = self.projectid        
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
@@ -485,6 +514,11 @@ class VegasBackend(Backend):
                 sec = the_datetime.second + 1
                 the_datetime = the_datetime.replace(second = sec).replace(microsecond = 0)
             return the_datetime
+            
+        if self.hpc_process is None:
+            self.start_hpc()
+        if self.fits_writer_process is None:
+            self.start_fits_writer()
 
         now = datetime.now()
         earliest_start = round_second_up(now + self.mode.needed_arm_delay)
@@ -504,21 +538,24 @@ class VegasBackend(Backend):
                 raise Exception("Not enough time to arm ROACH.")
         else: # No start time provided
             starttime = earliest_start
-
         # everything OK now, starttime is valid, go through the start procedure.
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
+        print now, starttime, max_delay
 
         # The CODD bof's don't have a status register
-        if not self.cdd_mode:
+        if not self.mode.cdd_mode:
             val = self.roach.read_int('status')
             if val & 0x01:
                 self.reset_roach()
 
         self.hpc_cmd('START')
+        self.fits_writer_cmd('START')
+
         status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
 
         if not status:
             self.hpc_cmd('STOP')
+            self.fits_writer_cmd('STOP')
             raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
 
         print "start(): waited %s for HPC program to be ready." % str(wait)
@@ -533,6 +570,7 @@ class VegasBackend(Backend):
 
         if now > arm_time:
             self.hpc_cmd('STOP')
+            self.fits_writer_cmd('STOP')
             raise Exception("start(): deadline missed, arm time is in the past.")
 
         tdelta = arm_time - now
@@ -540,8 +578,93 @@ class VegasBackend(Backend):
         time.sleep(sleep_time)
         # We're now within a second of the desired start time. Arm:
         self.arm_roach()
+        
+        scan_running = True
+
+        while scan_running:
+            time.sleep(3)
+            if self.hpc_process is None:
+                scan_running = False
+                Exception("HPC Process was stopped or failed");
+            if self.get_status('DISKSTAT') == "exiting":
+                scan_running = False
+            elif self.get_status('NETSTAT') == "exiting":
+                scan_running = False
+            elif self.check_keypress('q') == True:
+                print 'User terminated scan'
+                scan_running = False
+        self.hpc_cmd('stop')
+        self.fits_writer_cmd('stop')
+        
+
+    def start_fits_writer(self):
+        """
+        start_fits_writer()
+        Starts the fits writer program running. Stops any previously running instance.
+        """
+            
+        self.stop_fits_writer()
+        fits_writer_program = "vegasFitsWriter"
+
+        sp_path = self.dibas_dir + '/exec/x86_64-linux/' + fits_writer_program
+        self.fits_writer_process = subprocess.Popen((sp_path, ))
 
 
+    def stop_fits_writer(self):
+        """
+        stop_fits_writer()
+        Stops the fits writer program and make it exit.
+        To stop an observation use 'stop()' instead.
+        """
+        if self.fits_writer_process is None:
+            return False # Nothing to do
+        
+        # First ask nicely
+        self.fits_writer_cmd('stop')
+        self.fits_writer_cmd('quit')
+        time.sleep(1)
+        # Kill and reclaim child
+        self.fits_writer_process.communicate()
+        # Kill if necessary
+        if self.fits_writer_process.poll() == None: 
+            # still running, try once more
+            self.fits_writer_process.communicate()
+            time.sleep(1)
+
+            if self.fits_writer_process.poll() is not None:
+                killed = True
+            else:
+                self.fits_writer_process.communicate()
+                killed = True;
+        else:
+            killed = False
+        self.fits_writer_process = None
+        return killed
+
+    def fits_writer_cmd(self, cmd):
+        """
+        Opens the named pipe to the fits_writer_cmd program, sends 'cmd', and closes
+        the pipe. Takes care not to block on an unconnected fifo.
+        """
+        if self.test_mode:
+            return
+        
+        if self.fits_writer_process is None:
+            raise Exception( "Fits writer program has not been started" )
+
+        fifo_name = "/tmp/vegas_fits_control"
+ 
+        try:
+            fh = os.open("/tmp/vegas_fits_control", os.O_WRONLY | os.O_NONBLOCK)
+        except:
+            print "fifo open for fits writer program failed"
+            raise
+            return False
+            
+        os.write(fh, cmd + '\n')
+        os.close(fh)
+        return True
+                                
 ######################################################################
 # TBF: Make these work!
 
