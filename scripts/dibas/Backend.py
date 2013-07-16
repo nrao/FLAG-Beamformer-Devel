@@ -490,38 +490,19 @@ class Backend:
             else:
                 self.roach.write_int(reg, val)
 
-        def arm(op):
-            op = int(op, 0)
-            write_to_roach('arm', op)
-
-        def write_reg(op):
-            """ write_reg(self,op)
-
-            Perform a write operation to a named register. The config file syntax for this operator
-            should be:
-                arm_phase=write_reg,myregistername=2,wait,0.2,write_reg,anotherregistername=42 etc.
-            """
-            s = op.split('=')
-            if len(s) != 2 or len(s[0]) == 0 or len(s[1]) == 0:
-                print 'write_reg syntax error %s -- no value written to register' % str(op)
-            else:
-                reg=s[0]
-                val = int(s[1], 0)
-                write_to_roach(reg, val)
-
-        def sg_sync(op):
-            op = int(op, 0)
-            write_to_roach(reg, val)
-
         def wait(op):
             op = float(op)
             time.sleep(op)
 
-        doit = {arm.__name__: arm, sg_sync.__name__: sg_sync, wait.__name__: wait,
-                write_reg.__name__:write_reg}
-
         for cmd, param in phase:
-            doit[cmd](param)
+            if cmd == 'wait':
+                wait(param)
+            else:
+                # in this case 'cmd' is really a roach register, fished
+                # out of the config file, dependent on the mode it is
+                # intended. For example: 'arm' for VEGAS bofs, 'ARM' for
+                # GUPPI bofs, etc.
+                write_to_roach(cmd, val)
 
 
     def _ip_string_to_int(self, ip):
