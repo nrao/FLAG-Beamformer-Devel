@@ -28,9 +28,7 @@
 
 import threading
 import zmq
-from ZMQJSONProxy import ZMQJSONProxyServer
-from ZMQJSONProxy import ZMQJSONProxyClient
-from time import sleep
+from ZMQJSONProxy import ZMQJSONProxyServer, ZMQJSONProxyClient
 from nose import with_setup
 
 class Foo:
