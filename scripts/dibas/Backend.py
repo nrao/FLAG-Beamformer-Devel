@@ -502,7 +502,7 @@ class Backend:
                 # out of the config file, dependent on the mode it is
                 # intended. For example: 'arm' for VEGAS bofs, 'ARM' for
                 # GUPPI bofs, etc.
-                write_to_roach(cmd, val)
+                write_to_roach(cmd, param)
 
 
     def _ip_string_to_int(self, ip):
