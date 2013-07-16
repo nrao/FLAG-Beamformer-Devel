@@ -1,4 +1,5 @@
 import ConfigParser
+
 from VegasBackend import VegasBackend, SWbits
 from GuppiBackend import GuppiBackend
 from GuppiCODDBackend import GuppiCODDBackend
@@ -185,7 +186,7 @@ def test_GUPPI_INCO_64_backend():
 
     assert Equal(be.get_status('POL_TYPE'), 'IQUV')
     assert Equal(be.get_status('PFB_OVER'), 12)
-    assert Equal(be.get_status('PARFILE'), '/tmp/example.par')
+    assert Equal(be.get_status('PARFILE'), './etc/config/example.par')
     assert Equal(be.get_status('PKTFMT'), '1SFA')
 
     assert Equal(be.get_status('SCALE0'), 1.0)
@@ -239,7 +240,7 @@ def test_GUPPI_CODD_64_backend():
     assert Equal(be.get_status('OBS_MODE'), 'COHERENT_SEARCH')
     assert Equal(be.get_status('OBSFREQ'), '1043.75')
     assert Equal(be.get_status('PFB_OVER'), '12')
-    assert Equal(be.get_status('PARFILE'), '/tmp/example.par')
+    assert Equal(be.get_status('PARFILE'), './etc/config/example.par')
     assert Equal(be.get_status('OBSBW'), '100.0')
     assert Equal(be.get_status('DS_TIME'), '512')
     assert Equal(be.get_status('PKTFMT'), '1SFA')

@@ -410,16 +410,6 @@ class Backend:
         self.hpc_cmd('STOP')
 
 
-    def set_param(self, **kvpairs):
-        """
-        A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
-
-        Example usage:
-        set_param(exposure=x,switch_period=1.0, ...)
-        """
-        for k,v in kvpairs.items():
-            self.backend.set_param(str(k), v)
-
     def prepare(self):
         """
         Perform calculations for the current set of parameter settings

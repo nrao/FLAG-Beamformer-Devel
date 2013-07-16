@@ -26,50 +26,14 @@
 #
 ######################################################################
 
-import types
+
 import zmq
+from ZMQJSONProxy import ZMQJSONProxyClient
 
 def datetime_to_tuple(dt):
     return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
 
-class ZMQJSONProxyClient(object):
-    def __init__(self, ctx, obj_name, url):
-        self._url = url
-        self._obj_name = obj_name
-        self._sock = ctx.socket(zmq.REQ)
-        self._sock.connect(self._url)
-        self._poller = zmq.Poller()
-        self._poller.register(self._sock, zmq.POLLIN)
-        self._sock.send_json({'proc': 'list_methods', 'args': [], 'kwargs': {}})
-        methods = self._sock.recv_json()
-        my_methods = [m for m in methods if self._obj_name in m[0]]
-        for m, d in my_methods:
-            self._add_method(m, d)
-
-    def _add_method(self, method_name, doc_string):
-        mn = method_name.split('.')[1] # we want the 'bar' part of 'foo.bar'
-        method = types.MethodType(self._generate_method(mn), self)
-        method.__func__.__doc__ = doc_string
-        self.__dict__[mn]=method
-
-    def _generate_method(self, name):
-        def new_method(self, *args, **kwargs):
-            return self._do_the_deed(name, *args, **kwargs)
-        return new_method
-
-    def _do_the_deed(self, *args, **kwargs):
-        msg = {'proc': self._obj_name + '.' + args[0], 'args': args[1:], 'kwargs': kwargs}
-        self._sock.send_json(msg)
-        socks = dict(self._poller.poll(10000))
-
-        if self._sock in socks and socks[self._sock] == zmq.POLLIN:
-            repl = self._sock.recv_json()
-            return repl
-        else:
-            print "socket timed out!"
-            return None
-
 ctx = zmq.Context()
 bp = ZMQJSONProxyClient(ctx, 'bank', 'tcp://north:6667')
-bp.katcp = ZMQJSONProxy(ctx, 'katcp', 'tcp://north:6667')
-bp.valon = ZMQJSONProxyClient(ctx, 'valon', 'tcp://north:6667')
+bp.katcp = ZMQJSONProxy(ctx, 'bank.katcp', 'tcp://north:6667')
+bp.valon = ZMQJSONProxyClient(ctx, 'bank.valon', 'tcp://north:6667')
