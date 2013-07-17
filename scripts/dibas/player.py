@@ -42,7 +42,7 @@ from ConfigData import ModeData, BankData, AutoVivification
 import VegasBackend
 import GuppiBackend
 import GuppiCODDBackend
-
+from ZMQJSONProxy import ZMQJSONProxyServer
 
 def print_doc(obj):
     print obj.__doc__
@@ -499,67 +499,30 @@ def _testCaseVegas1():
 
 
 
-def dispatch(f_data, f_dict):
-    try:
-        proc = f_dict[str(f_data['proc'])]
-        args = f_data['args']
-        kwargs = f_data['kwargs']
-        return proc(*args, **kwargs)
-    except:
-        return formatExceptionInfo(10)
+proxy = None
 
-def formatExceptionInfo(maxTBlevel=5):
-    """
-    Obtains information from the last exception thrown and extracts
-    the exception name, data and traceback, returning them in a tuple
-    (string, string, [string, string, ...]).  The traceback is a list
-    which will be 'maxTBlevel' deep.
-    """
-    cla, exc, trbk = sys.exc_info()
-    excName = cla.__name__
-    excArgs = exc.__str__()
-    excTb = traceback.format_tb(trbk, maxTBlevel)
-    return (excName, excArgs, excTb)
+def main_loop(bank_name, URL):
+    # The proxy server, can proxy many classes.
+    global proxy
 
-def main_loop(bank_name, url):
-    global not_done
+    proxy = ZMQJSONProxyServer(URL)
+    # A class to expose
     bank = Bank(bank_name)
-    bank_methods = {'bank.' + p[0]: p[1] \
-                        for p in inspect.getmembers(bank, predicate=inspect.ismethod)}
-    katcp_methods= {'katcp.' + p[0]: p[1] \
-                        for p in inspect.getmembers(bank.roach, predicate=inspect.ismethod)}
-    f_dict = dict(bank_methods.items() + katcp_methods.items())
-    exported_funcs = [(ef, f_dict[ef].__doc__) \
-                          for ef in filter(lambda x:x[0] != '_', f_dict.keys())]
-    ctx = zmq.Context()
-    s = ctx.socket(zmq.REP)
-    s.bind(url)
-    poller = zmq.Poller()
-    poller.register(s, zmq.POLLIN)
+    # Expose some interfaces. The classes can be any class, including
+    # contained within another exposed class. The name can be anything
+    # at all that uniquely identifies the interface.
+    proxy.expose("bank", bank)
+    proxy.expose("bank.katcp", bank.roach)
+    proxy.expose("bank.valon", bank.valon)
 
+    # Run the proxy:
     while not_done:
-        try:
-            socks = dict(poller.poll(500))
+        proxy.run_loop()
 
-            if s in socks and socks[s] == zmq.POLLIN:
-                message = s.recv_json()
-
-                if message['proc'] == 'list_methods':
-                    s.send_json(exported_funcs)
-                else:
-                    ret_msg = dispatch(message, f_dict)
-                    s.send_json(ret_msg)
-        except zmq.core.ZMQError as e:
-            print "zmq.core.ZMQError:", str(e)
-
-    print "exiting main_loop()..."
 
 def signal_handler(signal, frame):
-    global not_done
-    not_done = False
-
-not_done = True
-
+    global proxy
+    proxy.quit_loop()
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
@@ -570,4 +533,5 @@ if __name__ == '__main__':
             url = 'tcp://0.0.0.0:6667'
 
         signal.signal(signal.SIGINT, signal_handler)
+        print "Main loop..."
         main_loop(bank_name, url)
