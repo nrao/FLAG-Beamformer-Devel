@@ -11,6 +11,13 @@ from datetime import datetime, timedelta
 import os
 
 
+def round_second_up(the_datetime):
+    one_sec = timedelta(seconds = 1)
+    if the_datetime.microsecond != 0:
+        the_datetime += one_sec
+        the_datetime = the_datetime.replace(microsecond = 0)
+    return the_datetime
+
 class SWbits:
     """
     A class to hold and encode the bits of a single phase of a switching signal generator phase
@@ -86,8 +93,9 @@ class VegasBackend(Backend):
         Perform some cleanup tasks.
         """
         if self.fits_writer_process is not None:
+            print "Deleting FITS writer!"
             self.stop_fits_writer()
-            
+
     ### Methods to set user or mode specified parameters
     ###
 
@@ -363,11 +371,11 @@ class VegasBackend(Backend):
         """
         for i in range(len(sr)):
             self.set_status_str('_AISB_%02d' % (i+1), sr[i])
-            
+
     def obs_bw_dep(self):
         """
         Observation bandwidth dependency
-        """   
+        """
         self.obs_bw = self.chan_bw * self.nchan
 
     def set_status_str(self, x, y):
@@ -439,7 +447,7 @@ class VegasBackend(Backend):
         statusdata["FPGACLK"  ] = str(self.fpga_clock)
         statusdata["OBSNCHAN" ] = str(self.nchan)
         statusdata["OBS_MODE" ] = "HBW" # mode 1
-        statusdata["OBSBW"    ] = self.obs_bw       
+        statusdata["OBSBW"    ] = self.obs_bw
         statusdata["PKTFMT"   ] = "SPEAD"
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
@@ -468,7 +476,7 @@ class VegasBackend(Backend):
         statusdata["DATAHOST" ] = self.datahost;
         statusdata["DATAPORT" ] = self.dataport;
         statusdata['DATADIR' ]  = self.dataroot
-        statusdata['PROJID'  ]  = self.projectid        
+        statusdata['PROJID'  ]  = self.projectid
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
@@ -481,6 +489,11 @@ class VegasBackend(Backend):
             for i in statusdata.keys():
                 print "%s = %s" % (i, statusdata[i])
 
+
+    def earliest_start(self):
+        now = datetime.now()
+        earliest_start = round_second_up(now + self.mode.needed_arm_delay)
+        return earliest_start
 
     def start(self, starttime = None):
         """
@@ -509,25 +522,20 @@ class VegasBackend(Backend):
         signal. At that time it wakes up and arms the ROACH. The ROACH
         should then send the initial packet at that time.
         """
-        def round_second_up(the_datetime):
-            if the_datetime.microsecond != 0:
-                sec = the_datetime.second + 1
-                the_datetime = the_datetime.replace(second = sec).replace(microsecond = 0)
-            return the_datetime
-            
+
         if self.hpc_process is None:
             self.start_hpc()
         if self.fits_writer_process is None:
             self.start_fits_writer()
 
         now = datetime.now()
-        earliest_start = round_second_up(now + self.mode.needed_arm_delay)
+        earliest_start = self.earliest_start()
 
         if starttime:
             if type(starttime) == tuple or type(starttime) == list:
                 starttime = datetime(*starttime)
 
-            if type(starttime) != datatime:
+            if type(starttime) != datetime:
                 raise Exception("starttime must be a datetime or datetime compatible tuple or list.")
 
             # Force the start time to the next 1-second boundary. The
@@ -578,31 +586,36 @@ class VegasBackend(Backend):
         time.sleep(sleep_time)
         # We're now within a second of the desired start time. Arm:
         self.arm_roach()
-        
-        scan_running = True
+        self.scan_running = True
 
-        while scan_running:
-            time.sleep(3)
-            if self.hpc_process is None:
-                scan_running = False
-                Exception("HPC Process was stopped or failed");
-            if self.get_status('DISKSTAT') == "exiting":
-                scan_running = False
-            elif self.get_status('NETSTAT') == "exiting":
-                scan_running = False
-            elif self.check_keypress('q') == True:
-                print 'User terminated scan'
-                scan_running = False
-        self.hpc_cmd('stop')
-        self.fits_writer_cmd('stop')
-        
+    def stop(self):
+        """
+        Stops a scan.
+        """
+        if self.scan_running:
+            self.hpc_cmd('stop')
+            self.fits_writer_cmd('stop')
+            self.scan_running = False
+            return (True, "Scan ended")
+        else:
+            return (False, "No scan running!")
+
+    def scan_status(self):
+        """
+        Returns the current state of a scan, as a tuple:
+        (scan_running (bool), 'NETSTAT=' (string), and 'DISKSTAT=' (string))
+        """
+
+        return (self.scan_running,
+                'NETSTAT=%s' % self.get_status('NETSTAT'),
+                'DISKSTAT=%s' % self.get_status('DISKSTAT'))
 
     def start_fits_writer(self):
         """
         start_fits_writer()
         Starts the fits writer program running. Stops any previously running instance.
         """
-            
+
         self.stop_fits_writer()
         fits_writer_program = "vegasFitsWriter"
 
@@ -618,7 +631,7 @@ class VegasBackend(Backend):
         """
         if self.fits_writer_process is None:
             return False # Nothing to do
-        
+
         # First ask nicely
         self.fits_writer_cmd('stop')
         self.fits_writer_cmd('quit')
@@ -626,7 +639,7 @@ class VegasBackend(Backend):
         # Kill and reclaim child
         self.fits_writer_process.communicate()
         # Kill if necessary
-        if self.fits_writer_process.poll() == None: 
+        if self.fits_writer_process.poll() == None:
             # still running, try once more
             self.fits_writer_process.communicate()
             time.sleep(1)
@@ -648,23 +661,23 @@ class VegasBackend(Backend):
         """
         if self.test_mode:
             return
-        
+
         if self.fits_writer_process is None:
             raise Exception( "Fits writer program has not been started" )
 
         fifo_name = "/tmp/vegas_fits_control"
- 
+
         try:
             fh = os.open("/tmp/vegas_fits_control", os.O_WRONLY | os.O_NONBLOCK)
         except:
             print "fifo open for fits writer program failed"
             raise
             return False
-            
+
         os.write(fh, cmd + '\n')
         os.close(fh)
         return True
-                                
+
 ######################################################################
 # TBF: Make these work!
 

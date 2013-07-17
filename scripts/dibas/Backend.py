@@ -18,11 +18,14 @@ from datetime import datetime, timedelta
 # memory. They all manage a DAQ type process that actually does the data
 # collection and FITS file writing.
 #
-# Some backends
+# Some backends: GuppiBackend, GuppiCODDBackend, VegasBackend
 #
-# @param
-#
-# @return
+# @param theBank: Bank configuration data
+# @param theMode: Mode configuration data
+# @param theRoach: katcp_wrapper, a KATCP client
+# @param theValon: A module that controls the valon via KATCP
+# @param unit_test: Set to true to unit test. When unit testing, won't
+# use any hardware, or communicate to any other process.
 #
 ######################################################################
 
@@ -62,7 +65,7 @@ class Backend:
             self.status = vegas_status()
         # This is already checked by player.py, we won't get here if not set
         self.dibas_dir = os.getenv("DIBAS_DIR")
-        
+
         self.dataroot  = os.getenv("DIBAS_DATA") # Example /lustre/gbtdata
         if self.dataroot is None:
             self.dataroot = "/tmp"
@@ -74,23 +77,24 @@ class Backend:
         self.observer = "unknown"
         self.projectid = "JUNK"
         self.datadir = self.dataroot + "/" + self.projectid
+        self.scan_running = False
 
         self.params = {}
         self.params["frequency"]      = self.setValonFrequency
         self.params["observer"]       = self.setObserver
         self.params["project_id"]     = self.setProjectId
-        
+
         self.datahost = self.bank.datahost
         self.dataport = self.bank.dataport
-        self.bof_file = self.mode.bof     
-        
+        self.bof_file = self.mode.bof
+
         self.progdev()
         self.net_config()
-        
+
         if self.mode.roach_kvpairs:
             self.set_register(**self.mode.roach_kvpairs)
         self.reset_roach()
-        
+
 
     def __del__(self):
         """
@@ -101,6 +105,7 @@ class Backend:
             return
 
         if self.hpc_process is not None:
+            print "Stopping HPC program!"
             self.stop_hpc()
 
     def hpc_cmd(self, cmd):
@@ -125,7 +130,7 @@ class Backend:
         except:
             print "fifo open for hpc program failed"
             return False
-            
+
         os.write(fh, cmd + '\n')
         os.close(fh)
         return True
@@ -170,7 +175,7 @@ class Backend:
         # Kill and reclaim child
         self.hpc_process.communicate()
         # Kill if necessary
-        if self.hpc_process.poll() == None: 
+        if self.hpc_process.poll() == None:
             # still running, try once more
             self.hpc_process.communicate()
             time.sleep(1)
@@ -194,17 +199,25 @@ class Backend:
             set_method(value)
             return True
         else:
+            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" % (param, str(self.params.keys()))
             print 'No such parameter %s' % param
             print 'Legal parameters in this mode are:'
             for k in self.params.keys():
                 print k
+            raise Exception(msg)
+
 
     # generic help method
     def help_param(self, param):
         if param in self.params.keys():
             set_method=self.params[param]
-            print set_method.__doc__
+
+            if set_method.__doc__:
+                return set_method.__doc__
+            else:
+                return "No help for '%s' is available" % param
         else:
+            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" % (param, str(self.params.keys()))
             print 'No such parameter %s' % param
             print 'Legal parameters in this mode are:'
             for k in self.params.keys():
@@ -214,6 +227,7 @@ class Backend:
                 else:
                     print '        (No help for %s available)' % (k)
                 print
+            raise Exception(msg)
 
     def get_status(self, keys = None):
         """
@@ -330,7 +344,7 @@ class Backend:
         Sets the observer keyword in FITS headers and status memory.
         """
         self.observer = observer
-        
+
     def setProjectId(self, project):
         """
         Sets the project id for the session. This becomes part of the directory
@@ -339,7 +353,7 @@ class Backend:
         """
         self.projectid = project
         self.datadir = self.dataroot + "/" + self.projectid
-        
+
     def cdd_master(self):
         """
         Returns 'True' if this is a CoDD backend and it is master. False otherwise.
@@ -408,7 +422,7 @@ class Backend:
         dest_port_register_name = self.mode.dest_port_register_name
 
         print "tap0", gigbit_name, self.bank.mac_base + data_ip, data_ip, data_port
-        
+
         self.roach.tap_start("tap0", gigbit_name, self.bank.mac_base + data_ip, data_ip, data_port)
         #self.roach.tap_start("tap0", "gbe0", self.bank.mac_base + data_ip, data_ip, data_port)
         self.roach.write_int(dest_ip_register_name, dest_ip)
@@ -472,6 +486,20 @@ class Backend:
         """
         pass
 
+    def stop(self):
+        """
+        Stops a scan.
+        """
+        return (False, "stop() not implemented for this backend.")
+
+    def scan_status(self):
+        """
+        Returns the current state of a scan.
+        """
+        return (False, "scan_status() not implemented for this backend.")
+
+    def earliest_start(self):
+        return (False, "earliest_start() not implemented on this backend.")
 
     def stop(self):
         self.hpc_cmd('STOP')
@@ -593,34 +621,3 @@ class Backend:
             return ip
         else:
             raise Exception("IP address must be a dotted quad string, or an integer value.")
-            
-    def check_keypress(self, expected_ch):
-        """
-        Detect a user keystoke. If the keystroke matches the expected key,
-        this returns True, otherwise False
-        """
-        import termios, fcntl, sys, os
-        fd = sys.stdin.fileno()
-
-        oldterm = termios.tcgetattr(fd)
-        newattr = termios.tcgetattr(fd)
-        newattr[3] = newattr[3] & ~termios.ICANON & ~termios.ECHO
-        termios.tcsetattr(fd, termios.TCSANOW, newattr)
-
-        oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
-        got_keypress = False
-        try:
-            c = sys.stdin.read(1)
-            #print "Got character", repr(c)
-            if c == expected_ch:
-                got_keypress = True
-        except IOError:
-            got_keypress = False
-
-        finally:
-            termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
-            fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
-        return got_keypress
-
-

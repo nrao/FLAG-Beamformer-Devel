@@ -47,6 +47,9 @@ from ZMQJSONProxy import ZMQJSONProxyServer
 def print_doc(obj):
     print obj.__doc__
 
+def datetime_to_tuple(dt):
+    return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
+
 class Bank(object):
     """
     A roach bank manager class.
@@ -209,7 +212,7 @@ class Bank(object):
         """
         self.scan_number = self.scan_number+1
         self.set_scan_number(self.scan_number)
-        
+
     def set_status(self, **kwargs):
         """
         set_status(self, **kwargs)
@@ -241,8 +244,10 @@ class Bank(object):
         returned using 'keys' as the single key.
         """
         if self.backend is not None:
-            self.backend.get_status(keys)
-        
+            return self.backend.get_status(keys)
+        else:
+            return None
+
 
     def set_mode(self, mode, force = False):
         """
@@ -316,7 +321,7 @@ class Bank(object):
                                                                      self.valon)
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
-                        
+
                     return (True, 'New mode %s set!' % mode)
                 else:
                     return (False, 'Mode %s is already set! Use \'force=True\' to force.' % mode)
@@ -333,76 +338,127 @@ class Bank(object):
         """
         return self.current_mode
 
-    def start(self):
+    def start(self, starttime = None):
         """
-        start()
+        start(self, starttime = None)
 
-        Instructs the backend to start tacking data.
+        starttime: a datetime object
+
+        --OR--
+
+        starttime: a tuple or list(for ease of JSON serialization) of
+        datetime compatible values: (year, month, day, hour, minute,
+        second, microsecond).
+
+        Sets up the system for a measurement and kicks it off at the
+        appropriate time, based on 'starttime'.  If 'starttime' is not
+        on a PPS boundary it is bumped up to the next PPS boundary.  If
+        'starttime' is not given, the earliest possible start time is
+        used.
+
+        start() may require a needed arm delay time, which is specified
+        in every mode section of the configuration file as
+        'needed_arm_delay'. During this delay it tells the HPC program
+        to start its net, accum and disk threads, and waits for the HPC
+        program to report that it is receiving data. It then calculates
+        the time it needs to sleep until just after the penultimate PPS
+        signal. At that time it wakes up and arms the ROACH. The ROACH
+        should then send the initial packet at that time.
         """
 
         if self.backend:
-            self.backend.start()
+            self.backend.start(starttime)
             self.increment_scan_number()
 
-    def exposure(self, x):
+    def stop(self):
         """
-        exposure(x)
-
-        x: Floating point value, integration time in seconds
-
-        Sets the integration time, in seconds.
+        Stops a running scan, by telling the current backend to stop.
         """
+
         if self.backend:
-            return self.backend.exposure(x)
+            return self.backend.stop()
+        else:
+            return (False, "No backend selected!")
 
-    def nsubband(self, x):
+    def scan_status(self):
         """
-        nsubband(x)
+        scan_status(self):
 
-        x: The number of subbands, either 1 or 8
-
-        Sets the number of subbands.
+        Returns the state of currently running scan. The return type is
+        a tuple, backend dependent.
         """
+
         if self.backend:
-            return self.backend.nsubband(x)
+            return self.backend.scan_status()
+        else:
+            return (False, "No backend selected!")
 
-    def npol(self, x):
-        """
-        """
-        if self.backend:
-            return self.backend.npol(x)
 
-    def nchan(self, x):
-        """
-        """
+    def earliest_start(self):
         if self.backend:
-            return self.backend.nchan(x)
+            return (True, datetime_to_tuple(self.backend.earliest_start()))
+        else:
+            return (False, "No backend selected!")
 
-    def chan_bw(self, x):
-        """
-        """
-        if self.backend:
-            return self.backend.chan_bw(x)
+    # def exposure(self, x):
+    #     """
+    #     exposure(x)
 
-    def frequency(self, x):
-        """
-        """
-        if self.backend:
-            return self.backend.frequency(x)
+    #     x: Floating point value, integration time in seconds
 
-    def set_observer(self, person):
-        """
-        Sets the observer ID in status memory.
-        """
-        if self.backend:
-            self.backend.set_observer(person)
+    #     Sets the integration time, in seconds.
+    #     """
+    #     if self.backend:
+    #         return self.backend.exposure(x)
 
-    def set_obsid(self, id):
-        """
-        Sets the observation ID in status memory.
-        """
-        if self.backend:
-            self.backend.set_obsid(id)
+    # def nsubband(self, x):
+    #     """
+    #     nsubband(x)
+
+    #     x: The number of subbands, either 1 or 8
+
+    #     Sets the number of subbands.
+    #     """
+    #     if self.backend:
+    #         return self.backend.nsubband(x)
+
+    # def npol(self, x):
+    #     """
+    #     """
+    #     if self.backend:
+    #         return self.backend.npol(x)
+
+    # def nchan(self, x):
+    #     """
+    #     """
+    #     if self.backend:
+    #         return self.backend.nchan(x)
+
+    # def chan_bw(self, x):
+    #     """
+    #     """
+    #     if self.backend:
+    #         return self.backend.chan_bw(x)
+
+    # def frequency(self, x):
+    #     """
+    #     """
+    #     if self.backend:
+    #         return self.backend.frequency(x)
+
+    # def set_observer(self, person):
+    #     """
+    #     Sets the observer ID in status memory.
+    #     """
+    #     if self.backend:
+    #         self.backend.set_observer(person)
+
+    # def set_obsid(self, id):
+    #     """
+    #     Sets the observation ID in status memory.
+    #     """
+    #     if self.backend:
+    #         self.backend.set_obsid(id)
 
     def set_param(self, **kvpairs):
         """
@@ -414,10 +470,10 @@ class Bank(object):
 
         if self.backend is not None:
             for k,v in kvpairs.items():
-                self.backend.set_param(str(k), v)
+                return self.backend.set_param(str(k), v)
         else:
             raise Exception("Cannot set parameters until a mode is selected")
-            
+
     def help_param(self, name):
         """
         A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
@@ -427,10 +483,10 @@ class Bank(object):
         """
 
         if self.backend is not None:
-            self.backend.help_param(name)
+            return self.backend.help_param(name)
         else:
             raise Exception("Cannot set parameters until a mode is selected")
-            
+
 
     def prepare(self):
         """
@@ -501,11 +557,25 @@ def _testCaseVegas1():
 
 proxy = None
 
-def main_loop(bank_name, URL):
+def main_loop(bank_name, URL = None):
     # The proxy server, can proxy many classes.
     global proxy
 
-    proxy = ZMQJSONProxyServer(URL)
+    ctx = zmq.Context()
+
+    if not URL:
+        dibas_dir = os.getenv('DIBAS_DIR')
+
+        if dibas_dir == None:
+            raise Exception("'DIBAS_DIR' is not set!")
+
+        config_file = dibas_dir + '/etc/config/dibas.conf'
+        config = ConfigParser.ConfigParser()
+        config.readfp(open(config_file))
+        playerport = config.getint(bank_name.upper(), 'player_port')
+        URL = "tcp://0.0.0.0:%i" % playerport
+
+    proxy = ZMQJSONProxyServer(ctx, URL)
     # A class to expose
     bank = Bank(bank_name)
     # Expose some interfaces. The classes can be any class, including
@@ -516,8 +586,7 @@ def main_loop(bank_name, URL):
     proxy.expose("bank.valon", bank.valon)
 
     # Run the proxy:
-    while not_done:
-        proxy.run_loop()
+    proxy.run_loop()
 
 
 def signal_handler(signal, frame):
@@ -530,7 +599,7 @@ if __name__ == '__main__':
         if len(sys.argv) > 2:
             url = sys.argv[2]
         else:
-            url = 'tcp://0.0.0.0:6667'
+            url = None # fetch it from dibas.conf
 
         signal.signal(signal.SIGINT, signal_handler)
         print "Main loop..."
