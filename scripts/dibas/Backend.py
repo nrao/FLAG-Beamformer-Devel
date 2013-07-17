@@ -565,13 +565,6 @@ class Backend:
 
         for cmd, param in phase:
             if cmd == 'wait':
-<<<<<<< HEAD
-                print 'waiting', param
-                wait(param)
-            else:
-                print 'writing', cmd,'=',param
-                write_to_roach(cmd, param)
-=======
                 wait(param)
             else:
                 # in this case 'cmd' is really a roach register, fished
@@ -579,8 +572,6 @@ class Backend:
                 # intended. For example: 'arm' for VEGAS bofs, 'ARM' for
                 # GUPPI bofs, etc.
                 write_to_roach(cmd, param)
-
->>>>>>> 596a482d55044c56c2cdabf3014109370e91feb9
 
     def _ip_string_to_int(self, ip):
         """
