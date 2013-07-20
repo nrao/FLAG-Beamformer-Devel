@@ -19,12 +19,18 @@ ifdef EXT_DISK
 	OPT_FLAGS += -DEXT_DISK
 endif
 
-CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
+# Always build for an external disk writer
+OPT_FLAGS += -DEXT_DISK
+
+CXX=gcc
+#FITSIOLIB=./vegas_fitsio/libVegasFitsIO.a
+FITSIOLIB=
+CFLAGS = -g3  -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
 		-I$(PYSLALIB) -I$(VEGAS_DIR)/src -I/opt/local/include $(OPT_FLAGS)
 
 NVCCFLAGS = -arch=sm_20 -I$(CUDA)/include -I/opt/local/include -I$(VEGAS_INCL)
 
-LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -L$(VEGAS_LIB_GCC) -lcfitsio -lsla -lm -lpthread -lg2c
+LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread 
 CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread
 
 PROGS = check_vegas_databuf check_vegas_status clean_vegas_shmem
@@ -44,11 +50,11 @@ clean:
 INSTALL_DIR = ../bin
 install: $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw vegas_hpc_server
 	mkdir -p $(INSTALL_DIR) && \
-	cp -f $? $(INSTALL_DIR)
+	cp -f $(PROGS) $(THREAD_PROGS) vegas_hpc_server vegas_hpc_lbw $(INSTALL_DIR)
 sdfits.tgz: sdfits.h read_sdfits.c \
     vegas_SDFITS_template.txt \
 	tar cvzf $@ $^
-find_dropped_blocks: find_dropped_blocks.o
+find_dropped_blocks: find_dropped_blocks.o 
 #	$(CC) $(CFLAGS) $< -o $@ -L$(OPT64)/lib -lcfitsio -lm
 	$(CC) $(CFLAGS) $< -o $@ -lcfitsio -lm
 %.o : %.cu
@@ -58,9 +64,17 @@ vegas_hpc_lbw: vegas_hpc_lbw.c $(THREAD_OBJS) $(OBJS) $(CUDA_OBJS)
 	$(CC) $(CFLAGS) $(CUDA_CFLAGS) $< -o $@ $(THREAD_OBJS) \
 		$(CUDA_OBJS) $(OBJS) $(LIBS) $(CUDA_LIBS)
 
-vegas_hpc_server: vegas_hpc_server.c $(THREAD_OBJS) $(OBJS) $(CUDA_OBJS)
-	$(CC) $(CFLAGS) $(CUDA_CFLAGS) $< -o $@ $(THREAD_OBJS) \
+vegas_hpc_server: vegas_hpc_server.o $(THREAD_OBJS) $(OBJS) $(CUDA_OBJS)
+	$(CXX) $(CFLAGS) $(CUDA_CFLAGS) -o $@ vegas_hpc_server.o $(FITSIOLIB) $(THREAD_OBJS) \
 		$(CUDA_OBJS) $(OBJS) $(LIBS) $(CUDA_LIBS)
+help:
+	echo "CFLAGS=" $(CFLAGS)
+	echo "LIBS=" $(LIBS)
+	echo "CUDA_LIBS=" $(CUDA_LIBS)
+	echo "OPT_FLAGS=" $(OPT_FLAGS)
+	echo "To build for use with external disk writer try:"
+	echo "$(MAKE) EXT_DISK=1"
+
 
 .SECONDEXPANSION:
 $(PROGS): $$@.c $(OBJS)
