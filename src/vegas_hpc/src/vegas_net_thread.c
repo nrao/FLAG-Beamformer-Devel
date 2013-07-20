@@ -39,12 +39,12 @@
 
 #define DEBUG_NET
 
-// Read a status buffer all of the key observation paramters
+/// Read a status buffer all of the key observation paramters
 extern void vegas_read_obs_params(char *buf, 
                                   struct vegas_params *g, 
                                   struct sdfits *p);
 
-/* Structs/functions to more easily deal with multiple 
+/** Structs/functions to more easily deal with multiple 
  * active blocks being filled
  */
 struct datablock_stats {
@@ -59,14 +59,14 @@ struct datablock_stats {
     unsigned int last_heap;         // Last heap counter written to block
 };
 
-/* Reset all counters */
+/** Reset all packet loss counters */
 void reset_stats(struct datablock_stats *d) {
     d->nheaps=0;
     d->pkts_dropped=0;
     d->last_heap=0;
 }
 
-/* Reset block params */
+/** Reset block params */
 void reset_block(struct datablock_stats *d) {
     d->block_idx = -1;
     d->heap_idx = 0;
@@ -74,7 +74,7 @@ void reset_block(struct datablock_stats *d) {
     reset_stats(d);
 }
 
-/* Initialize block struct */
+/** Initialize block struct */
 void init_block(struct datablock_stats *d, struct vegas_databuf *db, 
         size_t heap_size, size_t spead_hdr_size, int heaps_per_block) {
     d->db = db;
@@ -84,7 +84,7 @@ void init_block(struct datablock_stats *d, struct vegas_databuf *db,
     reset_block(d);
 }
 
-/* Update block header info, set filled status */
+/** Update block header info, set filled status */
 void finalize_block(struct datablock_stats *d) {
     char *header = vegas_databuf_header(d->db, d->block_idx);
     hputi4(header, "HEAPIDX", d->heap_idx);
@@ -100,14 +100,14 @@ void finalize_block(struct datablock_stats *d) {
     vegas_databuf_set_filled(d->db, d->block_idx);
 }
 
-/* Push all blocks down a level, losing the first one */
+/** Push all blocks down a level, losing the first one */
 void block_stack_push(struct datablock_stats *d, int nblock) {
     int i;
     for (i=1; i<nblock; i++) 
         memcpy(&d[i-1], &d[i], sizeof(struct datablock_stats));
 }
 
-/* Go to next block in set */
+/** Go to next block in set */
 void increment_block(struct datablock_stats *d, unsigned int next_heap_cntr)
 {
     d->block_idx = (d->block_idx + 1) % d->db->n_block;
@@ -115,7 +115,7 @@ void increment_block(struct datablock_stats *d, unsigned int next_heap_cntr)
     reset_stats(d);
 }
 
-/* Check whether a certain heap counter belongs in the data block */
+/** Check whether a certain heap counter belongs in the data block */
 int block_heap_check(struct datablock_stats *d, unsigned int heap_cntr) {
     if (heap_cntr < d->heap_idx)
         return(-1);
@@ -125,12 +125,12 @@ int block_heap_check(struct datablock_stats *d, unsigned int heap_cntr) {
 }
 
 
-/*
+/**
  *  Write a SPEAD packet into the datablock.  Also zeroes out any dropped packets.
  */
-unsigned int prev_heap_cntr;
-unsigned int prev_heap_offset;
-char pkts_dropped_in_heap;
+static unsigned int prev_heap_cntr;
+static unsigned int prev_heap_offset;
+static char pkts_dropped_in_heap;
 
 void write_spead_packet_to_block(struct datablock_stats *d, struct vegas_udp_packet *p,
                                 unsigned int heap_cntr, unsigned int heap_offset,
@@ -181,6 +181,7 @@ void write_spead_packet_to_block(struct datablock_stats *d, struct vegas_udp_pac
     }
 
     //If this is the last packet of the heap, write valid bit and MJD to index
+    // JJB what is 6*8 here?
     if(heap_offset + PAYLOAD_SIZE + 6*8 >= d->heap_size)
     {
 		index->cpu_gpu_buf[block_heap_idx].heap_valid = 1 - pkts_dropped_in_heap;
@@ -193,7 +194,7 @@ void write_spead_packet_to_block(struct datablock_stats *d, struct vegas_udp_pac
 }
 
 
-/* This thread is passed a single arg, pointer
+/** This thread is passed a single arg, pointer
  * to the vegas_udp_params struct.  This thread should 
  * be cancelled and restarted if any hardware params
  * change, as this potentially affects packet size, etc.
@@ -277,26 +278,31 @@ void *vegas_net_thread(void *_args) {
      */
     int block_size;
     struct vegas_udp_packet p;
-    size_t heap_size, spead_hdr_size;
-    unsigned int heaps_per_block, packets_per_heap; 
+    size_t heap_size = 0, spead_hdr_size = 0;
+    unsigned int heaps_per_block, packets_per_heap = 0; 
     char bw_mode[16];
 
     if (hgets(status_buf, "BW_MODE", 16, bw_mode))
     {
-        if(strncmp(bw_mode, "high", 4) == 0)
+        if(strncasecmp(bw_mode, "high", 4) == 0)
         {
             heap_size = sizeof(struct freq_spead_heap) + nchan*4*sizeof(int);
             spead_hdr_size = sizeof(struct freq_spead_heap);
             packets_per_heap = nchan*4*sizeof(int) / PAYLOAD_SIZE;
         }
-        else if(strncmp(bw_mode, "low", 3) == 0)
+        else if(strncasecmp(bw_mode, "low", 3) == 0)
         {
             heap_size = sizeof(struct time_spead_heap) + PAYLOAD_SIZE;
             spead_hdr_size = sizeof(struct time_spead_heap);
             packets_per_heap = 1;
         }
         else
+        {
+            // Since the mode is unknown, the calculations below may fail.
+            // give up and exit.
             vegas_error("vegas_net_thread", "Unsupported bandwidth mode");
+            pthread_exit(NULL);
+        }
     }
     else
         vegas_error("vegas_net_thread", "BW_MODE not set");
