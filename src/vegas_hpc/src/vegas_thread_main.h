@@ -1,4 +1,4 @@
-/* vegas_thread_main.h
+/** vegas_thread_main.h
  *
  * Include in any main program that will 
  * call the thread functions.
@@ -8,7 +8,7 @@
 
 #include "vegas_thread_args.h"
 
-/* Control-C handler */
+/** Control-C handler */
 int run=1;
 void cc(int sig) { run=0; }
 
