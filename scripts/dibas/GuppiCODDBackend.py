@@ -39,14 +39,15 @@ class GuppiCODDBackend(Backend):
         self.nrcvr = 2
         self.nchan = 8 # Needs to be a config value!!!!!!
         self.num_nodes = 8
+        self.feed_polarization = 'LIN'
 
         bank_names = {'A' : 0, 'B' : 1, 'C' : 2, 'D' : 3, 'E' : 4, 'F' : 5, 'G' : 6, 'H' : 7 }
         self.node_number = bank_names[self.bank.name[-1]]
 
-        self.integration_time =40.96E-6 # TBD JJB
+        self.integration_time =40.96E-6 
 
-        if dibas_dir is not None:
-            self.pardir = dibas_dir + '/etc/config'
+        if self.dibas_dir is not None:
+            self.pardir = self.dibas_dir + '/etc/config'
         else:
             self.pardir = '/tmp'
         self.parfile = 'example.par'
@@ -67,23 +68,35 @@ class GuppiCODDBackend(Backend):
         self.params["scale_p1"]       = self.set_scale_P1
         self.params["tfold"       ]   = self.set_tfold
         self.params["only_i"  ]       = self.set_only_i
+        self.params["feed_polarization"] = self.setFeedPolarization
         
         # Fill-in defaults if they exist
         if 'OBS_MODE' in self.mode.shmkvpairs.keys():
-            self.set_param('obs_mode',   int(self.mode.shmkvpairs['OBS_MODE']))
+            self.set_param('obs_mode',   self.mode.shmkvpairs['OBS_MODE'])
         if 'ONLY_I' in self.mode.shmkvpairs.keys():
             self.set_param('only_i',   int(self.mode.shmkvpairs['ONLY_I']))
         
         if 'SCALE_P0' in self.mode.roach_kvpairs.keys():
-            self.set_param('scale_p0', int(self.mode.roach_kvpairs['SCALE_P0']))
+            self.set_param('scale_p0', float(self.mode.roach_kvpairs['SCALE_P0']))
         if 'SCALE_P1' in self.mode.roach_kvpairs.keys():    
-            self.set_param('scale_p1', int(self.mode.roach_kvpairs['SCALE_P1']))
+            self.set_param('scale_p1', float(self.mode.roach_kvpairs['SCALE_P1']))
 
     def cdd_master(self):
         """
         Returns 'True' if this is a CoDD backend and it is master. False otherwise.
         """
         return self.bank.name == self.mode.cdd_master_hpc
+
+    def setFeedPolarization(self, polar):
+        """
+        Sets the FD_POLN (feed polarization) keyword in status memory and PSR FITS files.
+        Legal values are 'LIN' (linear) or 'CIRC' (circular)
+        """
+        if isinstance(polar, str) and polar.upper() in ['LIN', 'CIRC']:
+            self.feed_polarization = polar
+        else:
+            raise Exception("bad value: legal values are 'LIN' (linear) or 'CIRC' (circular)")
+
 
     def set_par_file(self, file):
         """
@@ -543,12 +556,12 @@ class GuppiCODDBackend(Backend):
                 self.roach.tap_start(*tap)
 
             hpcs = self.mode.cdd_hpcs
-
+            
             for i in range(0, len(hpcs)):
                 ip_reg = dest_ip_register_name + '%i' % i
                 pt_reg = dest_port_register_name + '%i' % i
-                dest_ip = self.banks[hpcs[i]].dest_ip
-                dest_port = self.banks[hpcs[i]].dest_port
+                dest_ip = self.mode.cdd_hpc_ip_info[i][0]
+                dest_port = self.mode.cdd_hpc_ip_info[i][1]
                 self.roach.write_int(ip_reg, dest_ip)
                 self.roach.write_int(pt_reg, dest_port)
 
