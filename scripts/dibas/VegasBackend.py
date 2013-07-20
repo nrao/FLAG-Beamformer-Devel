@@ -11,12 +11,6 @@ from datetime import datetime, timedelta
 import os
 
 
-def round_second_up(the_datetime):
-    one_sec = timedelta(seconds = 1)
-    if the_datetime.microsecond != 0:
-        the_datetime += one_sec
-        the_datetime = the_datetime.replace(microsecond = 0)
-    return the_datetime
 
 class SWbits:
     """
@@ -507,7 +501,7 @@ class VegasBackend(Backend):
 
     def earliest_start(self):
         now = datetime.now()
-        earliest_start = round_second_up(now + self.mode.needed_arm_delay)
+        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
         return earliest_start
 
     def start(self, starttime = None):
@@ -555,7 +549,7 @@ class VegasBackend(Backend):
 
             # Force the start time to the next 1-second boundary. The
             # ROACH is triggered by a 1PPS signal.
-            starttime = round_second_up(starttime)
+            starttime = self.round_second_up(starttime)
             # starttime must be 'needed_arm_delay' seconds from now.
             if starttime < earliest_start:
                 raise Exception("Not enough time to arm ROACH.")
