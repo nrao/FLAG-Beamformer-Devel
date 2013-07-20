@@ -52,6 +52,17 @@ struct time_spead_heap {
     unsigned int payload_data_off;
 };
 
+/// A data structure to overlay one item in the time/freq_spead_heap structures
+/// Used in vegas_spead_packet_copy()
+struct _spead_heap_entry {
+    unsigned char  addr_mode;
+    unsigned short item_id;
+    unsigned char  item_top8;
+    unsigned int   item_lower32;
+};
+typedef struct _spead_heap_entry spead_heap_entry;
+
 #pragma pack(pop)
+
 
 #endif
