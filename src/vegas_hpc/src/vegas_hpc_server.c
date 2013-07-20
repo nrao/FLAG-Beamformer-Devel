@@ -51,8 +51,6 @@ void *vegas_accum_thread(void *args);
 void *vegas_rawdisk_thread(void *args);
 void *vegas_sdfits_thread(void *args);
 
-void *runGbtFitsWriter(void *args);
-
 /* Useful thread functions */
 
 int check_thread_exit(struct vegas_thread_args *args, int nthread) {
