@@ -151,7 +151,7 @@ void vegas_read_net_params(char *buf, struct vegas_udp_params *u) {
     else if (strncmp(u->packet_format, "SHORT", 5)==0)
         u->packet_size = 544;
     else if (strncmp(u->packet_format, "SPEAD", 5)==0)
-        u->packet_size = 8280;  //8K data + 11 * 8bytes
+        u->packet_size = 8280;  //8K data + 11 * 8bytes <== JJB: assumes 10 items per packet
     else
         u->packet_size = 8208;
 }
@@ -600,3 +600,19 @@ void vegas_free_sdfits(struct sdfits *sd) {
 }
 
 #endif
+
+int read_scan_length(char *buf, double *fpgaclk, double *scan_secs)
+{    
+    get_dbl("FPGACLK", *fpgaclk, 0.0);
+    get_dbl("SCANLEN", *scan_secs, 0.0);
+    if (*fpgaclk == 0 || *scan_secs == 0)
+    {
+        return FALSE;
+    }
+    // If the freq appears to be in MHz, convert to Hz
+    if (*fpgaclk < 50000)
+    {
+        *fpgaclk = *fpgaclk * 1E6;
+    }
+    return TRUE;
+}
