@@ -621,3 +621,14 @@ class Backend:
             return ip
         else:
             raise Exception("IP address must be a dotted quad string, or an integer value.")
+            
+    def round_second_up(self, the_datetime):
+        """
+        Round the provided time up to the nearest second.
+        """
+        one_sec = timedelta(seconds = 1)
+        if the_datetime.microsecond != 0:
+            the_datetime += one_sec
+            the_datetime = the_datetime.replace(microsecond = 0)
+        return the_datetime
+            
