@@ -102,7 +102,7 @@ void vegas_sdfits_thread(void *_args) {
     int curblock=0, total_status=0, firsttime=1, run=1, got_packet_0=0, dataset=0;
     char *ptr;
     char tmpstr[256];
-    int scan_finished=0, first_heap_in_blk, old_filenum;
+    int scan_finished=0, old_filenum;
     int num_exposures_written = 0;
     int old_integ_num = -1;
 

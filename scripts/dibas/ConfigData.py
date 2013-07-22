@@ -214,7 +214,7 @@ class ModeData(ConfigData):
         self.arm_phase = []
         self.postarm_phase = []
         self.master_slave_sels = AutoVivification()
-        self.needed_arm_delay = None
+        self.needed_arm_delay = 0
         self.cdd_mode = None
         self.cdd_roach = None
         self.cdd_roach_ips = []
@@ -225,22 +225,22 @@ class ModeData(ConfigData):
 
 
     def __repr__(self):
-        return "ModeData (mode=%s, acc_len=%i, filter_bw=%i, frequency=%f, nchan=%i, bof=%s, " \
-            "sg_period=%i, reset_phase=%s, arm_phase=%s, " \
-            "postarm_phase=%s, needed_arm_delay=%i, master_slave_sels=%s, " \
+        return "ModeData (mode=%s, acc_len=%s, filter_bw=%s, frequency=%s, nchan=%s, bof=%s, " \
+            "sg_period=%s, reset_phase=%s, arm_phase=%s, " \
+            "postarm_phase=%s, needed_arm_delay=%s, master_slave_sels=%s, " \
             "shmkvpairs=%s, roach_kvpairs=%s)" % \
-            (self.mode,
-             self.acc_len,
-             self.filter_bw,
-             self.frequency,
-             self.nchan,
-             self.bof,
-             self.sg_period,
-             self.reset_phase,
-             self.arm_phase,
-             self.postarm_phase,
+            (str(self.mode),
+             str(self.acc_len),
+             str(self.filter_bw),
+             str(self.frequency),
+             str(self.nchan),
+             str(self.bof),
+             str(self.sg_period),
+             str(self.reset_phase),
+             str(self.arm_phase),
+             str(self.postarm_phase),
              str(self.needed_arm_delay),
-             self.master_slave_sels,
+             str(self.master_slave_sels),
              str(self.shmkvpairs),
              str(self.roach_kvpairs))
 
@@ -314,3 +314,20 @@ class ModeData(ConfigData):
             self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
         except:
             pass
+
+        # If this mode has a list of HPC machines for CODD operation, fetch
+        # the dest_ip and dest_port entries from the corresponding Bank sections.
+        # The resulting list is in the order of ports, i.e the first entry in the
+        # cdd_hpcs list specifies the IP_0 and PT_0 registers of the CODD bof.            
+        if self.cdd_hpcs is not None:
+            self.cdd_hpc_ip_info = []
+            for i in self.cdd_hpcs:
+                try:
+                    d_ip = int(config.get(i, 'dest_ip'),0)
+                    dprt = int(config.get(i, 'dest_port'),0)
+                    self.cdd_hpc_ip_info.append( (d_ip, dprt) )
+                except:
+                    print "No dest_ip/dest_port information for cdd Bank %s" % i
+                    pass
+                    #raise Exception("No dest_ip/dest_port information for cdd Bank %s" % i)
+                    

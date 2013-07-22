@@ -678,3 +678,13 @@ class Backend:
 
         """
         raise Exception("This backend does not support switching signals.")
+
+    def round_second_up(self, the_datetime):
+        """
+        Round the provided time up to the nearest second.
+        """
+        one_sec = timedelta(seconds = 1)
+        if the_datetime.microsecond != 0:
+            the_datetime += one_sec
+            the_datetime = the_datetime.replace(microsecond = 0)
+        return the_datetime

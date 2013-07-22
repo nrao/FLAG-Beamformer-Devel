@@ -11,12 +11,6 @@ from datetime import datetime, timedelta
 import os
 
 
-def round_second_up(the_datetime):
-    one_sec = timedelta(seconds = 1)
-    if the_datetime.microsecond != 0:
-        the_datetime += one_sec
-        the_datetime = the_datetime.replace(microsecond = 0)
-    return the_datetime
 
 class SWbits:
     """
@@ -71,6 +65,7 @@ class VegasBackend(Backend):
         self.frequency_resolution = 0.0
         self.fpga_clock = None
         self.fits_writer_process = None
+        self.scan_length = 30.0
 
         # setup the parameter dictionary/methods
         self.params["polarization"] = self.setPolarization
@@ -79,6 +74,7 @@ class VegasBackend(Backend):
         self.params["filter_bw"]    = self.setFilterBandwidth
         self.params["num_spectra"]  = self.setNumberSpectra
         self.params["acc_len"]      = self.setAccLen
+        self.params["scan_length"]  = self.setScanLength
 
         # the status memory key/value pair dictionary
         self.sskeys = {}
@@ -106,7 +102,17 @@ class VegasBackend(Backend):
         self.filter_bw = fbw
 
     def setAccLen(self, acclen):
+        """
+        Not used on the VEGAS backend, usually the value is set from
+        the dibas.conf configuration file.
+        """
         self.acc_len = acclen
+        
+    def setScanLength(self, length):
+        """
+        This parameter controls how long the scan will last in seconds.
+        """
+        self.scan_length = length
 
 
     def setPolarization(self, polar):
@@ -138,7 +144,9 @@ class VegasBackend(Backend):
 
     def prepare(self):
         """
-        A place to hang the dependency methods.
+        This command writes calculated values to the hardware and status memory.
+        This command should be run prior to the first scan to properly setup
+        the hardware.
         """
         # calculate the fpga_clock and sampler frequency
         self.sampler_frequency_dep()
@@ -427,10 +435,10 @@ class VegasBackend(Backend):
         statusdata["FILENUM"  ] = DEFAULT_VALUE;
         statusdata["FPGACLK"  ] = DEFAULT_VALUE;
         statusdata["HWEXPOSR" ] = DEFAULT_VALUE;
-        statusdata["M_STTMJD" ] = DEFAULT_VALUE;
-        statusdata["M_STTOFF" ] = DEFAULT_VALUE;
-        statusdata["NBITS"    ] = DEFAULT_VALUE;
-        statusdata["NBITSADC" ] = DEFAULT_VALUE;
+        statusdata["M_STTMJD" ] = 0;
+        statusdata["M_STTOFF" ] = 0;
+        statusdata["NBITS"    ] = 8;
+        statusdata["NBITSADC" ] = 8;
         statusdata["NCHAN"    ] = DEFAULT_VALUE;
 
         statusdata["NPKT"     ] = DEFAULT_VALUE;
@@ -495,8 +503,9 @@ class VegasBackend(Backend):
         # should this get set by Backend?
         statusdata["DATAHOST" ] = self.datahost;
         statusdata["DATAPORT" ] = self.dataport;
-        statusdata['DATADIR' ]  = self.dataroot
-        statusdata['PROJID'  ]  = self.projectid
+        statusdata['DATADIR'  ]  = self.dataroot
+        statusdata['PROJID'   ]  = self.projectid
+        statusdata['SCANLEN'  ]  = self.scan_length        
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
@@ -512,7 +521,7 @@ class VegasBackend(Backend):
 
     def earliest_start(self):
         now = datetime.now()
-        earliest_start = round_second_up(now + self.mode.needed_arm_delay)
+        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
         return earliest_start
 
     def start(self, starttime = None):
@@ -560,7 +569,7 @@ class VegasBackend(Backend):
 
             # Force the start time to the next 1-second boundary. The
             # ROACH is triggered by a 1PPS signal.
-            starttime = round_second_up(starttime)
+            starttime = self.round_second_up(starttime)
             # starttime must be 'needed_arm_delay' seconds from now.
             if starttime < earliest_start:
                 raise Exception("Not enough time to arm ROACH.")
