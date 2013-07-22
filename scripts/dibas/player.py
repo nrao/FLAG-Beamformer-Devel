@@ -535,6 +535,70 @@ class Bank(object):
         if self.backend:
             self.backend.disarm_roach()
 
+
+    def clear_switching_states(self):
+        """
+        resets/deletes the switching_states (backend dependent)
+        """
+        if self.backend:
+            return self.backend.clear_switching_states()
+        else:
+            raise Exception("Cannot clear switcvhing states until a mode has been selected")
+
+    def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
+        """
+        add_switching_state(duration, blank, cal, sig):
+
+        Add a description of one switching phase (backend dependent).
+        Where:
+            duration is the length of this phase in seconds,
+            blank is the state of the blanking signal (True = blank, False = no blank)
+            cal is the state of the cal signal (True = cal, False = no cal)
+            sig is the state of the sig_ref signal (True = ref, false = sig)
+
+        Example to set up a 8 phase signal (4-phase if blanking is not
+        considered) with blanking, cal, and sig/ref, total of 400 mS:
+          be = Backend(None) # no real backend needed for example
+          be.clear_switching_states()
+          be.add_switching_state(0.01, blank = True, cal = True, sig = True)
+          be.add_switching_state(0.09, cal = True, sig = True)
+          be.add_switching_state(0.01, blank = True, cal = True)
+          be.add_switching_state(0.09, cal = True)
+          be.add_switching_state(0.01, blank = True, sig = True)
+          be.add_switching_state(0.09, sig = True)
+          be.add_switching_state(0.01, blank = True)
+          be.add_switching_state(0.09)
+        """
+        if self.backend:
+            return self.backend.add_switching_state(duration, blank, cal, sig_ref_1)
+        else:
+            raise Exception("Cannot add switching states until a mode has been selected.")
+
+    def set_gbt_ss(self, period, ss_list):
+        """
+        set_gbt_ss(period, ss_list):
+
+        adds a complete GBT style switching signal description.
+
+        period: The complete period length of the switching signal.
+        ss_list: A list of GBT phase components. Each component is a tuple:
+        (phase_start, sig_ref, cal, blanking_time)
+        There is one of these tuples per GBT style phase.
+
+        Example:
+        b.set_gbt_ss(period = 0.1,
+                     ss_list = ((0.0, SWbits.SIG, SWbits.CALON, 0.025),
+                                (0.25, SWbits.SIG, SWbits.CALOFF, 0.025),
+                                (0.5, SWbits.REF, SWbits.CALON, 0.025),
+                                (0.75, SWbits.REF, SWbits.CALOFF, 0.025))
+                    )
+
+        """
+        if self.backend:
+            return self.backend.set_gbt_ss(period, ss_list)
+        else:
+            raise Exception("Cannot set switching states until a mode has been selected.")
+
 def _testCaseVegas1():
 
     # Not sure why I can't import SWbits from VegasBackend ???

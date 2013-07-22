@@ -22,8 +22,8 @@ class SWbits:
     """
     A class to hold and encode the bits of a single phase of a switching signal generator phase
     """
-    SIG=1
-    REF=0
+    SIG=0
+    REF=1
     CALON=1
     CALOFF=0
 
@@ -84,6 +84,9 @@ class VegasBackend(Backend):
         self.sskeys = {}
         # the switching signals builder
         self.ss = SwitchingSignals(self.frequency, self.nchan)
+        self.clear_switching_states()
+        self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
+        self.prepare()
         self.start_hpc()
         self.start_fits_writer()
 
@@ -153,7 +156,13 @@ class VegasBackend(Backend):
         if self.roach:
             self.set_register(acc_len=self.acc_len)
             # write the switching signal specification to the roach:
+            self.roach.write_int('ssg_length', self.ss.total_duration_granules())
             self.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
+            master = 1 if self.bank.i_am_master else 0
+            sssource = 0 # internal
+            bsource = 0 # internal
+            ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
+            self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
 
     # Algorithmic dependency methods, not normally called by a users
 
@@ -185,8 +194,9 @@ class VegasBackend(Backend):
         resets/deletes the switching_states
         """
         self.ss.clear_phases()
+        return (True, self.ss.number_phases())
 
-    def add_switching_state(self, duration, blank = False, cal = False, sig = False):
+    def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
         """
         add_switching_state(duration, blank, cal, sig):
 
@@ -210,7 +220,8 @@ class VegasBackend(Backend):
           be.add_switching_state(0.01, blank = True)
           be.add_switching_state(0.09)
         """
-        self.ss.add_phase(dur = duration, bl = blank, cal = cal, sr1 = sig)
+        self.ss.add_phase(dur = duration, bl = blank, cal = cal, sr1 = sig_ref_1)
+        return (True, self.ss.number_phases())
 
     def set_gbt_ss(self, period, ss_list):
         """
@@ -232,17 +243,26 @@ class VegasBackend(Backend):
                     )
 
         """
+        try:
+            self.nPhases = len(ss_list)
+            self.clear_switching_states()
 
-        self.nPhases = len(ss_list)
-
-        for i in range(self.nPhases):
-            this_start = ss_list[i][0]
-            next_start = 1.0 if i + 1 == self.nPhases else ss_list[i + 1][0]
-            duration = next_start * period - this_start * period
-            blt = ss_list[i][3]
-            nblt = duration - blt
-            self.add_switching_state(blt, sig = ss_list[i][1], cal = ss_list[i][2], blank = True)
-            self.add_switching_state(nblt, sig = ss_list[i][1], cal = ss_list[i][2], blank = False)
+            for i in range(self.nPhases):
+                this_start = ss_list[i][0]
+                next_start = 1.0 if i + 1 == self.nPhases else ss_list[i + 1][0]
+                duration = next_start * period - this_start * period
+                blt = ss_list[i][3]
+                nblt = duration - blt
+                self.add_switching_state(blt, sig_ref_1 = ss_list[i][1], cal = ss_list[i][2], blank = True)
+                self.add_switching_state(nblt, sig_ref_1 = ss_list[i][1], cal = ss_list[i][2], blank = False)
+        except TypeError:
+            # input error, leave it in a sane state.
+            self.clear_switching_states()
+            self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = True)
+            raise Exception("Possible syntax error with parameter 'ss_list'. " \
+                                "If 'ss_list' only has one phase element, please " \
+                                "use the '((),)' syntax instead of '(())'")
+        return (True, self.ss.number_phases())
 
     def show_switching_setup(self):
         srline=""

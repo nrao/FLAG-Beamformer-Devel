@@ -73,7 +73,7 @@ class SwitchingSignals(object):
             # apply. The FITS writer also must take this into account,
             # because the cal signal will not be in the expected accum
             # id.
-            self._nocal = 2
+            self._cal = 0
             self._blanking = 0;
 
             if asr: self.set_adv_sig_ref()
@@ -96,7 +96,7 @@ class SwitchingSignals(object):
             """
             Returns signals values minus blanking.
             """
-            return sum([self._nocal, self._sig_ref_1, self._sig_ref_2, self._adv_sig_ref])
+            return sum([self._cal, self._sig_ref_1, self._sig_ref_2, self._adv_sig_ref])
 
         def set_duration(self, duration):
             self._duration = int(duration)
@@ -112,11 +112,11 @@ class SwitchingSignals(object):
 
         def set_cal(self):
             # See comment in self.__init__ for CAL logic
-            self._nocal = 0
+            self._cal = 2
 
         def cal(self):
             # See comment in self.__init__ for CAL logic
-            return 1 if self._nocal == 0 else 0
+            return 1 if self._cal != 0 else 0
 
         def set_sig_ref_1(self):
             self._sig_ref_1 = 4
@@ -141,7 +141,7 @@ class SwitchingSignals(object):
                         self._adv_sig_ref,
                         self._sig_ref_2,
                         self._sig_ref_1,
-                        self._nocal,
+                        self._cal,
                         self._blanking))
 
     def __init__(self, frequency, nchan):
@@ -182,6 +182,18 @@ class SwitchingSignals(object):
         # don't return a zero sum. In these cases the duration doesn't mean anything.
         if len(self.phases) > 1:
             return granules * self._sec_per_granule
+        else:
+            return 1
+
+    def total_duration_granules(self):
+        """
+        Returns the total duration of all phases, in granules
+        """
+        granules = sum([p.duration() for p in self.phases])
+        # if no phases are specified or if there is only a single phase,
+        # don't return a zero sum. In these cases the duration doesn't mean anything.
+        if len(self.phases) > 1:
+            return granules
         else:
             return 1
 
