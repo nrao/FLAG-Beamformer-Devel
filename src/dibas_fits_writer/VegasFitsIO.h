@@ -34,7 +34,6 @@
 #define STATUS_MEMSIZE 184320
 
 #include "FitsIO.h"
-// #include "TimeStamp.h"
 #include "SwitchingSignals.h"
 
 class DiskBufferChunk;
@@ -42,46 +41,7 @@ class DiskBufferChunk;
 #include <vector>
 #include <string>
 
-/// A class for in process (pthreads) mutexes
-class Mutex
-{
-public:
-    int lock();
-    int unlock();
-    Mutex();
-    virtual ~Mutex();
-private:
-    pthread_mutex_t mutex;
-};
-
-/// An auto-unlocking mutex util
-class MutexLock
-{
-public:
-    MutexLock(Mutex &mutex) : mtx(mutex), locked(false)
-    {
-        mtx.lock();
-        locked=true;
-    }
-    ~MutexLock() { unlock(); };
-    void unlock()
-    {
-        if (locked==true)
-            mtx.unlock();
-    }
-    void lock()
-    {
-        if (locked==false)
-        {
-            mtx.lock();
-            locked=true;
-        }
-    }
-    
-private:
-    Mutex &mtx;
-    bool locked;
-};
+#include "Mutex.h"
 
 /// A GBT-like Vegas/spectral-line Fits writing class
 class VegasFitsIO : public FitsIO
@@ -92,12 +52,10 @@ public:
     static const int MAXPHASES = 8;
     static const int MAXSUBBANDS = 8;
     static const int MAXCHANNELS = 32768;
-    // The constructor takes the environment variable string as
-    // found in <b>system.conf</b> to be passed to <b>getConfigValue</b>
-    // to determine the root directory for the FITS file path
-    // and the next level directory.
-    // <group>
-    VegasFitsIO(const char *path_env_variable, int simulate = 0);
+    /// @param path_prefix is the first portion of the
+    /// root directory for the FITS file path.
+    /// @param simulator is a flag which sets the SIMULATE primary header keyword
+    VegasFitsIO(const char *path_prefix, int simulator = 0);
     ~VegasFitsIO();
 
     // This method opens the FITS file for writing.
@@ -128,10 +86,15 @@ public:
     void setBofFile(const char *);
 
 public:
+    /// Read the primary header information from status shared memory
     bool readPrimaryHeaderKeywords();
+    /// Read the switching signal configuration information from status shared memory
     bool readStateTableKeywords();
+    /// Read the low-level switching signal configuration information from status memory
     bool readActStateTableKeywords();
+    /// Read the port table information from status memory
     bool readPortTableKeywords();
+    /// Read the sampler table information from status memory
     bool readSamplerTableKeywords();
 
 public:
@@ -142,15 +105,17 @@ public:
     void setNoiseTone(int noiseTone, int index);
 
 public:
-    //STATE Table methods
+    ///@{
+    /// STATE Table methods
     void setBlanking(const double *blanking);
     void setCalState(const int *cal_state);
     void setPhaseStart(const double *phase_start);
     void setSigRefState(const int *sig_ref_state);
     void setSwitchPeriod(double switch_period);
+    ///@}
 
 public:
-    //SAMPLER Table methods
+    /// SAMPLER Table methods 
     void setPolarization(const char *pol);
     void setNumberStokes(int stokes);
     void setNumberSubBands(int subbands);
@@ -158,10 +123,10 @@ public:
     void setChannelCenterFreq(const double*);
     void setChannelFreqIncrement(const double*);
     void setChannelFreqResolution(const double*);
+    //@}
 
 public:
-    //ACT_STATE Table methods
-    //void setSwitchingSignals();
+    /// ACT_STATE Table methods
     void setEcal(const int *ecal);
     void setEsigref1(const int *esr1);
     void setEsigref2(const int *esr2);
@@ -172,7 +137,7 @@ public:
     void setSwitchingSource(int source);
 
 public:
-    //DATA Table methods
+    /// DATA Table methods
     void setFpgaClock(float fpga_clock);
     void setRequestedIntegrationTime(float exposure);
     void setSwPerInt(int sw_per_int);
@@ -260,7 +225,9 @@ protected:
     int current_row;
     Mutex lock_mutex;
 
-    // fpga time_counter
+    /// A class to track the fpga time_counter.
+    /// The counter is only 40 bits in length, but this tracks roll-over extending the
+    /// count to a full 64 bits.
     struct fpga_time_counter
     {
         fpga_time_counter();

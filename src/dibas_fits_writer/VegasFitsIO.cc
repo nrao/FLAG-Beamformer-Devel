@@ -103,10 +103,12 @@ void VegasFitsIO::fpga_time_counter::clear()
     msw = lsw = last_lsw = delta = 0;
 }
 
-
-VegasFitsIO::VegasFitsIO(const char *path_env_variable, int simulator)
+/// path_prefix The environment varable to use which contains
+/// the directory prefix for the data files.
+/// simulator A boolean value which sets the 'SIMULATE' header keyword.
+VegasFitsIO::VegasFitsIO(const char *path_prefix, int simulator)
     :
-    FitsIO(path_env_variable, 0, "VEGAS", simulator),
+    FitsIO(path_prefix, 0, "VEGAS", simulator),
     openFlag(0),
     nrows(0),
     dmjd(0),
@@ -1315,11 +1317,13 @@ void VegasFitsIO::createDataTable()
     flush();
 }
 
+/// Buffer a portion of an integration to be written later
 int
 VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
 {
     int accum;
 
+    // If this a new integration, handle the integration start time counter
     if (new_integration)
     {
         time_ctr_40bits = chunk->getIntegrationOffset();
@@ -1329,6 +1333,9 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
         integ_num = chunk->getIntegrationNumber();
     }
 
+    // The accum (accumulation identifier) represents the state of the
+    // switching signals at the time this sub-integration was taken, and
+    // also which 'bin' the data was placed in.
     accum = chunk->getAccumulationId();
     // The correct order of bits is as follows, per 06/02/2013 12:51 PM
     // email from Mark Wagner:
@@ -1336,10 +1343,14 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     // 2: sr1
     // 1: sr0
     // 0: cal
+    // The logic for cal is low-true, so we invert it here. cal_state=1
+    // means the cal was ON
     int cal_state = (accum & 0x1) ? 0 : 1;
+    // Sig-Ref is also inverted. sig_ref_state = 1 means SIG
     int sig_ref_state = ((accum >> 1) & 0x1) ? 0 : 1;
     int state_offset;
 
+    // Search the knowns switching states and match it against this accum
     for(state_offset = 0; state_offset < numberPhases; ++state_offset)
     {
         if ((calState[state_offset] == cal_state) &&
@@ -1352,7 +1363,7 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
         }
     }
 
-    // If we couldn't find the right state, bail out
+    // If we couldn't find the right state, bail out with messages
     if(state_offset >= numberPhases)
     {
         std::cout << "Could not find state: "
@@ -1370,6 +1381,7 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
         return 0;
     }
 
+    // We found the state, now calculate the offset into the data for this accum
     int num_ints = numberSubBands * numberStokes;
     state_offset *= num_ints;
 
@@ -1391,6 +1403,7 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
             data_offset += numberChannels;
         }
         float *data = chunk->getData();
+        // copy the data into the integration buffer at the proper offset
         memcpy(&fits_data[fits_offset], &data[data_offset],
                numberStokes * numberChannels * sizeof(float));
     }
@@ -1398,6 +1411,7 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     return 1;
 }
 
+/// Writes a full integration of data to a row in the FITS file.
 int
 VegasFitsIO::write()
 {
@@ -1407,7 +1421,6 @@ VegasFitsIO::write()
 
 
     // DMJD column
-    // TBF: Time offset calculations
     double dmjd = integration_start_time;
     write_col_dbl(column++,
                   current_row,
@@ -1480,6 +1493,7 @@ VegasFitsIO::write()
     return getStatus();
 }
 
+/// Check to see if the scan end time has been seen in the data
 bool
 VegasFitsIO::is_scan_complete()
 {

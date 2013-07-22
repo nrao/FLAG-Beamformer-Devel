@@ -33,36 +33,17 @@
 
 #define DATEBLD_TARGET_STRING "DATEBLD  goes  here"
 
-// <summary>
-// encapsulates Pence's CFITSIO library to handle telescope data.
-// </summary>
-
-// <use visibility=export>
-
-// <prequisite>
-// <li> CFITSIO
-// <li> getConfigValue
-// </prequisite>
-
-// <etymology>
-// Lazily named after Pence's library: cfitsio -> FitsIO.
-// </etymology>
-
-// <synopsis>
-// This abstract base class encapsulates Pence's CFITSIO library
-// for handling telescope data. 
-// </synopsis>
-
-// <motivation>
-// Create a class that is knowledgeable of telescope data writing needs
-// and built on a system dedicated to keep current with the FITS standard.
-// </motivation>
-
 typedef double TimeStamp;
+
+/// Encapsulates Pence's CFITSIO library to handle telescope data.
+/// This abstract base class encapsulates Pence's CFITSIO library
+/// for handling telescope data. 
+/// Full implementations should extend this class with a class that is knowledgeable of telescope 
+/// data writing needs.
 class FitsIO
 {
 public:
-    // The constructor takes:
+    /// The constructor takes:
     // <dl> <i>path_env_variable</i>
     // <dd> the environement variable string as found in <b>system.conf</b>
     // to be passed to <b>getConfigValue</b> to determine the root

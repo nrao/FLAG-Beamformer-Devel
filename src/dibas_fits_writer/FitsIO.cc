@@ -32,6 +32,7 @@
 #include <ctime>
 
 
+/// A data structure to store the CFITSIO library handle and the current status.
 struct FitsIO::fitsio_data
 {
     fitsfile *fptr;

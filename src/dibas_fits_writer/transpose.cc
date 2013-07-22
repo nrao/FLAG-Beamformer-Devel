@@ -77,12 +77,22 @@ static char rcs_id[] =  "$Id$";
     }
 
 /**
- * Transpose a 4x4 block of floats from aligned (i.e. address is a multiple of 16 bytes) or 
- * unaligned. There are four cases and we don't want conditionals in our loops so
- * the macros above unroll the code in each case. BUBF (butt-ugly-but-fast).
+ * Transpose a 4x4 block of float values. 
+ *
+ * The x86 architecture has super-scalar extensions (SSE) available
+ * for processing vector data. The instructions have optimizations
+ * which require 16 byte data alignment. 
+ *
+ * This function handles all of the alignment cases, using the most
+ * efficient instructions for the alignment. If SSE instructions are
+ * not available, non-SSE instructions will be used. 
+ * While the alignment cases are handled at runtime, no effort
+ * is made here to detect availablilty of SSE at run-time. (Just about any recent CPU
+ * has the required SSE instructions available.)
  *
  * Note: The routine does not protect against nchannels and nstokes values which would
  * also produce un-aligned accesses.
+ *
  */
 
 void transpose(float * restrict in, float * restrict out, int nsubbands, int nchannels, int nstokes)

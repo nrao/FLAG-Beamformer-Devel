@@ -34,16 +34,20 @@
 
 struct sdfits_data_columns;
 
+/// DiskBufferChunk.h
+/// A class to process a dataset from a shared memory data block.
 class DiskBufferChunk
 {
 public:
-    //!!! Where should the transpose be done?
+    
+    /// @param fits_header The header for this dataset
+    /// @param data_header column header data
+    /// @param in_data a pointer to the dataset in the current data block
     DiskBufferChunk(const char *fits_header,
                     const sdfits_data_columns *data_header,
                     float *in_data);
     ~DiskBufferChunk();
 
-    //?? double getRealIntegrationTime();
     double getIntegrationStart();  // MJD at start of integration (system time)
     uint64_t getIntegrationOffset(); // FPGA time counter at start of integration
     int    getIntegrationNumber();

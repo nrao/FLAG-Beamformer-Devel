@@ -36,7 +36,16 @@ class VegasFitsThread
 {
 public:
     VegasFitsThread() {};
+    /// The FITS writing main loop. Data blocks are obtained from data shared memory
+    /// and processed by the VegasFitsIO writer.
+    /// Processing proceeds as follows: 
+    /// 1. A data block is waited to be filled.
+    /// 2. When the block is full, each dataset contained in the block is processed
+    /// by the DiskBuffer class (organizes the data and transposes it as necessary).
+    /// 3. When a full integration is detected, the data is written as a row in the
+    /// FITS file DATA table.
     static void *run(struct vegas_thread_args *args);
+
     static void set_finished(struct vegas_thread_args *args);
     static void status_detach(vegas_status *st);
     static void setExitStatus(vegas_status *st);
