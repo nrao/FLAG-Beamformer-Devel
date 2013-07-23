@@ -342,13 +342,13 @@ class Bank(object):
         """
         start(self, starttime = None)
 
-        starttime: a datetime object
+        starttime: a datetime object representing a start time, in UTC
 
         --OR--
 
         starttime: a tuple or list(for ease of JSON serialization) of
         datetime compatible values: (year, month, day, hour, minute,
-        second, microsecond).
+        second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
         appropriate time, based on 'starttime'.  If 'starttime' is not
@@ -364,6 +364,9 @@ class Bank(object):
         the time it needs to sleep until just after the penultimate PPS
         signal. At that time it wakes up and arms the ROACH. The ROACH
         should then send the initial packet at that time.
+
+        If a start time is specified that cannot be met an Exception is
+        thrown with a message stating the problem.
         """
 
         if self.backend:

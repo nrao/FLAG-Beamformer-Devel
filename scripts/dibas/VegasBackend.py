@@ -56,9 +56,10 @@ class VegasBackend(Backend):
         self.setPolarization('SELF')
         self.setNumberChannels(self.mode.nchan)
         self.requested_integration_time = 1.0
-        self.setFilterBandwidth(self.mode.filter_bw)
         self.setAccLen(self.mode.acc_len)
         self.setValonFrequency(self.mode.frequency)
+        self.setFilterBandwidth(self.mode.filter_bw)
+        print self.filter_bw
 
         # dependent values, computed from Parameters:
         self.nspectra = 1
@@ -66,6 +67,7 @@ class VegasBackend(Backend):
         self.fpga_clock = None
         self.fits_writer_process = None
         self.scan_length = 30.0
+
 
         # setup the parameter dictionary/methods
         self.params["polarization"] = self.setPolarization
@@ -107,7 +109,7 @@ class VegasBackend(Backend):
         the dibas.conf configuration file.
         """
         self.acc_len = acclen
-        
+
     def setScanLength(self, length):
         """
         This parameter controls how long the scan will last in seconds.
@@ -137,7 +139,7 @@ class VegasBackend(Backend):
         self.nspectra = nspectra
 
     def setFilterBandwidth(self, bw):
-        self.filter_bandwidth = bw
+        self.filter_bw = bw
 
     def setIntegrationTime(self, int_time):
         self.requested_integration_time = int_time
@@ -157,6 +159,7 @@ class VegasBackend(Backend):
         # specified prior to prepare():
         self.setSSKeys()
 
+        self.set_filter_bw()
         # now update all the status keywords needed for this mode:
         self.set_state_table_keywords()
 
@@ -173,6 +176,13 @@ class VegasBackend(Backend):
             self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
 
     # Algorithmic dependency methods, not normally called by a users
+
+    def set_filter_bw(self):
+        bits_vals = {950: 0x00, 1150: 0x08, 1400: 0x18}
+        # TBF: Noise source / Noise tone bits are set here. Assume only
+        # no noise source for now (0x01)
+        bits = bits_vals[self.filter_bw] | 0x01
+        self.setI2CValue(0x38, 1, bits)
 
     def chan_bw_dep(self):
         self.chan_bw = self.sampler_frequency / (self.nchan * 2)
@@ -219,14 +229,14 @@ class VegasBackend(Backend):
         considered) with blanking, cal, and sig/ref, total of 400 mS:
           be = Backend(None) # no real backend needed for example
           be.clear_switching_states()
-          be.add_switching_state(0.01, blank = True, cal = True, sig = True)
-          be.add_switching_state(0.09, cal = True, sig = True)
-          be.add_switching_state(0.01, blank = True, cal = True)
-          be.add_switching_state(0.09, cal = True)
-          be.add_switching_state(0.01, blank = True, sig = True)
-          be.add_switching_state(0.09, sig = True)
-          be.add_switching_state(0.01, blank = True)
-          be.add_switching_state(0.09)
+          be.add_switching_state(0.01, blank = True,  cal = True,  sig_ref_1 = True)
+          be.add_switching_state(0.09, blank = False, cal = True,  sig_ref_1 = True)
+          be.add_switching_state(0.01, blank = True,  cal = True,  sig_ref_1 = False)
+          be.add_switching_state(0.09, blank = False, cal = True,  sig_ref_1 = False)
+          be.add_switching_state(0.01, blank = True,  cal = False, sig_ref_1 = True)
+          be.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = True)
+          be.add_switching_state(0.01, blank = True,  cal = False, sig_ref_1 = False)
+          be.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False)
         """
         self.ss.add_phase(dur = duration, bl = blank, cal = cal, sr1 = sig_ref_1)
         return (True, self.ss.number_phases())
@@ -489,7 +499,7 @@ class VegasBackend(Backend):
         statusdata["SUB6FREQ" ] = self.frequency / 2
         statusdata["SUB7FREQ" ] = self.frequency / 2
 
-        statusdata["BASE_BW"  ] = self.filter_bandwidth # From MODE
+        statusdata["BASE_BW"  ] = self.filter_bw # From MODE
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'
         statusdata["MODENUM"  ] = str(self.mode.mode) # from MODE
         statusdata["NOISESRC" ] = "OFF"  # TBD??
@@ -505,7 +515,7 @@ class VegasBackend(Backend):
         statusdata["DATAPORT" ] = self.dataport;
         statusdata['DATADIR'  ]  = self.dataroot
         statusdata['PROJID'   ]  = self.projectid
-        statusdata['SCANLEN'  ]  = self.scan_length        
+        statusdata['SCANLEN'  ]  = self.scan_length
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
@@ -520,7 +530,10 @@ class VegasBackend(Backend):
 
 
     def earliest_start(self):
-        now = datetime.now()
+        """
+        Reports earliest possible start time, in UTC
+        """
+        now = datetime.utcnow()
         earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
         return earliest_start
 
@@ -528,13 +541,13 @@ class VegasBackend(Backend):
         """
         start(self, starttime = None)
 
-        starttime: a datetime object
+        starttime: a datetime object, representing a UTC start time.
 
         --OR--
 
         starttime: a tuple or list(for ease of JSON serialization) of
         datetime compatible values: (year, month, day, hour, minute,
-        second, microsecond).
+        second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
         appropriate time, based on 'starttime'.  If 'starttime' is not
@@ -557,7 +570,7 @@ class VegasBackend(Backend):
         if self.fits_writer_process is None:
             self.start_fits_writer()
 
-        now = datetime.now()
+        now = datetime.utcnow()
         earliest_start = self.earliest_start()
 
         if starttime:
@@ -603,7 +616,7 @@ class VegasBackend(Backend):
         #          ^         ^
         #       arm_time  start_time
         arm_time = starttime - timedelta(microseconds = 900000)
-        now = datetime.now()
+        now = datetime.utcnow()
 
         if now > arm_time:
             self.hpc_cmd('STOP')
@@ -734,7 +747,7 @@ def testCase1():
     be.setValonFrequency(1E9)
     be.setPolarization('SELF')
     be.setNumberChannels(1024) # mode 1
-    be.setFilterBandwidth(800E6)
+    be.setFilterBandwidth(950)
     be.setIntegrationTime(ssg_duration)
 
     # call dependency methods and update shared memory
@@ -771,7 +784,7 @@ def testCase2():
     be.setValonFrequency(1E9)    # config file
     be.setPolarization('SELF')
     be.setNumberChannels(1024)   # mode 1 (config file)
-    be.setFilterBandwidth(800E6) # config file?
+    be.setFilterBandwidth(1400) # config file?
     be.setIntegrationTime(ssg_duration)
 
     # call dependency methods and update shared memory
@@ -793,7 +806,7 @@ def testCase3():
     be.setValonFrequency(1E9)    # config file
     be.setPolarization('SELF')
     be.setNumberChannels(1024)   # mode 1 (config file)
-    be.setFilterBandwidth(800E6) # config file?
+    be.setFilterBandwidth(1150) # config file?
     be.setIntegrationTime(0.4)
 
     be.clear_switching_states()

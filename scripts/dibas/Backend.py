@@ -108,6 +108,36 @@ class Backend:
             print "Stopping HPC program!"
             self.stop_hpc()
 
+
+    def getI2CValue(self, addr, nbytes):
+        """
+        getI2CValue(addr, nbytes, data):
+
+        addr: The I2C address
+        nbytes: the number of bytes to get
+        data: the data.
+
+        Returns the IF bits used to set the input filter.
+        """
+        reply, informs = self.roach._request('i2c-read', addr, nbytes)
+        v = reply.arguments[2]
+        return (reply.arguments[0] == 'ok', struct.unpack('>%iB' % nbytes, v))
+
+
+
+    def setI2CValue(self, addr, nbytes, data):
+        """
+        setI2CValue(addr, nbytes, data):
+
+        addr: the I2C address
+        nbytes: the number of bytes to send
+        data: the data to send
+
+        Sets the IF bits used to set the input filter.
+        """
+        reply, informs = self.roach._request('i2c-write', addr, nbytes, struct.pack('>%iB' % nbytes, data))
+        return reply.arguments[0] == 'ok'
+
     def hpc_cmd(self, cmd):
         """
         Opens the named pipe to the HPC program, sends 'cmd', and closes
