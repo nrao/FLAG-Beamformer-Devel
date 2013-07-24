@@ -116,7 +116,8 @@ VegasFitsIO::VegasFitsIO(const char *path_prefix, int simulator)
     stopTime(),
     integration_time(0),
     fits_data(0),
-    current_row(1)
+    current_row(1),
+    accumid_xor_mask(0x0)
 {
     strcpy(theVEGASMode, "");
     for(int i = 0; i < NUMPORTS; ++i)
@@ -222,6 +223,12 @@ VegasFitsIO::readPrimaryHeaderKeywords()
         scanlen=10.0;
     }
     setScanLength(scanlen);
+    
+    if (hgeti4(status_buffer, "_SWSGPLY", &accumid_xor_mask) == 0)
+    {
+        // Treat sig and as inverted (SIG=0, CAL=1)
+        accumid_xor_mask = 0x0;
+    }
     
     return true;
 }
@@ -1317,6 +1324,9 @@ void VegasFitsIO::createDataTable()
     flush();
 }
 
+#define CAL_BIT    0x1
+#define SIGREFBIT0 0x2
+#define SIGREFBIT1 0x4
 /// Buffer a portion of an integration to be written later
 int
 VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
@@ -1343,22 +1353,23 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     // 2: sr1
     // 1: sr0
     // 0: cal
-    // The logic for cal is low-true, so we invert it here. cal_state=1
-    // means the cal was ON
-    int cal_state = (accum & 0x1) ? 0 : 1;
-    // Sig-Ref is also inverted. sig_ref_state = 1 means SIG
-    int sig_ref_state = ((accum >> 1) & 0x1) ? 0 : 1;
+    //
+    // Use the accumid_xor_mask to invert the accumid to a sense
+    // which matches the state table convention:
+    int switch_state  = (accum ^ accumid_xor_mask);
+    int accum_sig_state  = switch_state & SIGREFBIT0 ? true : false;
+    int accum_cal_state  = switch_state & CAL_BIT    ? true : false;
     int state_offset;
 
     // Search the knowns switching states and match it against this accum
     for(state_offset = 0; state_offset < numberPhases; ++state_offset)
     {
-        if ((calState[state_offset] == cal_state) &&
-            (sigRefState[state_offset] == sig_ref_state))
+        if ((calState[state_offset]    == accum_cal_state) &&
+            (sigRefState[state_offset] == accum_sig_state))
         {
             sttspec[state_offset] = chunk->getSpectrumCountStart();
             stpspec[state_offset] = chunk->getSpectrumCountStop();
-            accumid[state_offset] = accum;
+            accumid[state_offset] = accum; // Left un-inverted
             break;
         }
     }
@@ -1367,15 +1378,15 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     if(state_offset >= numberPhases)
     {
         std::cout << "Could not find state: "
-                  << "cal=" << cal_state 
-                  << " sig_ref=" << sig_ref_state 
+                  << " accum_cal_state=" << accum_cal_state 
+                  << " accum_sig_state=" << accum_sig_state 
                   << std::endl;
         int i;
         std::cout << "Known states are:" << endl;
         for (i=0; i<numberPhases; ++i)
         {
-            std::cout << "\t cal=" << calState[i]
-                      << " sig_ref=" << sigRefState[i]
+            std::cout << "\t cal="     << calState[i]
+                      << "\t sig_ref=" << sigRefState[i]
                       << endl;
         }
         return 0;
