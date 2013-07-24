@@ -48,6 +48,7 @@ class VegasBackend(Backend):
         # Important to do this as soon as possible, so that status application
         # can change its data buffer format
         self.set_status(BACKEND='VEGAS')
+
         # In VEGAS mode, i_am_master means this particular backend
         # controls the switching signals. (self.bank is from base class.)
         self.i_am_master = self.bank.i_am_master
@@ -58,8 +59,6 @@ class VegasBackend(Backend):
         self.requested_integration_time = 1.0
         self.setAccLen(self.mode.acc_len)
         self.setValonFrequency(self.mode.frequency)
-        self.setFilterBandwidth(self.mode.filter_bw)
-        print self.filter_bw
 
         # dependent values, computed from Parameters:
         self.nspectra = 1
@@ -73,7 +72,6 @@ class VegasBackend(Backend):
         self.params["polarization"] = self.setPolarization
         self.params["nchan"]        = self.setNumberChannels
         self.params["exposure"]     = self.setIntegrationTime
-        self.params["filter_bw"]    = self.setFilterBandwidth
         self.params["num_spectra"]  = self.setNumberSpectra
         self.params["acc_len"]      = self.setAccLen
         self.params["scan_length"]  = self.setScanLength
@@ -99,9 +97,6 @@ class VegasBackend(Backend):
 
     ### Methods to set user or mode specified parameters
     ###
-
-    def setFilterBandwidth(self, fbw):
-        self.filter_bw = fbw
 
     def setAccLen(self, acclen):
         """
@@ -138,9 +133,6 @@ class VegasBackend(Backend):
     def setNumberSpectra(self, nspectra):
         self.nspectra = nspectra
 
-    def setFilterBandwidth(self, bw):
-        self.filter_bw = bw
-
     def setIntegrationTime(self, int_time):
         self.requested_integration_time = int_time
 
@@ -176,13 +168,6 @@ class VegasBackend(Backend):
             self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
 
     # Algorithmic dependency methods, not normally called by a users
-
-    def set_filter_bw(self):
-        bits_vals = {950: 0x00, 1150: 0x08, 1400: 0x18}
-        # TBF: Noise source / Noise tone bits are set here. Assume only
-        # no noise source for now (0x01)
-        bits = bits_vals[self.filter_bw] | 0x01
-        self.setI2CValue(0x38, 1, bits)
 
     def chan_bw_dep(self):
         self.chan_bw = self.sampler_frequency / (self.nchan * 2)

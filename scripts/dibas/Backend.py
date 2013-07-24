@@ -63,6 +63,10 @@ class Backend:
             self.roach = theRoach
             self.valon = theValon
             self.status = vegas_status()
+
+        # Bits used to set I2C for proper filter
+        self.filter_bw_bits = {950: 0x00, 1150: 0x08, 1400: 0x18}
+
         # This is already checked by player.py, we won't get here if not set
         self.dibas_dir = os.getenv("DIBAS_DIR")
 
@@ -78,9 +82,12 @@ class Backend:
         self.projectid = "JUNK"
         self.datadir = self.dataroot + "/" + self.projectid
         self.scan_running = False
+        self.setFilterBandwidth(self.mode.filter_bw)
+        print self.filter_bw
 
         self.params = {}
         self.params["frequency"]      = self.setValonFrequency
+        self.params["filter_bw"]      = self.setFilterBandwidth
         self.params["observer"]       = self.setObserver
         self.params["project_id"]     = self.setProjectId
 
@@ -137,6 +144,7 @@ class Backend:
         """
         reply, informs = self.roach._request('i2c-write', addr, nbytes, struct.pack('>%iB' % nbytes, data))
         return reply.arguments[0] == 'ok'
+
 
     def hpc_cmd(self, cmd):
         """
@@ -226,8 +234,12 @@ class Backend:
     def set_param(self, param, value):
         if param in self.params:
             set_method=self.params[param]
-            set_method(value)
-            return True
+            retval = set_method(value)
+
+            if not retval:  # for those who don't return a value
+                return True
+            else:
+                return retval
         else:
             msg = "No such parameter '%s'. Legal parameters in this mode are: %s" % (param, str(self.params.keys()))
             print 'No such parameter %s' % param
@@ -361,6 +373,18 @@ class Backend:
 
             print "progdev programming bof", str(bof)
             return self.roach.progdev(str(bof))
+
+    def setFilterBandwidth(self, fbw):
+        """
+        setFilterBandwidth(self, fbw):
+
+        fbw: new filter bandwidth. Must be a value in [950, 1150, 1400]
+        """
+
+        if fbw not in self.filter_bw_bits:
+            return (False, "Filter bandwidth must be one of %s" % str(self.filter_bw_bits.keys()))
+
+        self.filter_bw = fbw
 
     def setValonFrequency(self, vfreq):
         """
@@ -559,6 +583,18 @@ class Backend:
         # All banks have roaches if they are incoherent, VEGAS, or coherent masters.
         if self.roach:
             self._execute_phase(self.mode.reset_phase)
+
+
+    def set_filter_bw(self):
+        """
+        Programs the I2C to set the correct filter based on
+        bandwidth. Intended to be called from Backend's 'prepare'
+        function.
+        """
+        # TBF: Noise source / Noise tone bits are set here. Assume only
+        # no noise source for now (0x01)
+        bits = self.filter_bw_bits[self.filter_bw] | 0x01
+        self.setI2CValue(0x38, 1, bits)
 
     def arm_roach(self):
         """

@@ -80,6 +80,7 @@ class GuppiBackend(Backend):
     ### Methods to set user or mode specified parameters
     ### Not sure how these map for GUPPI
 
+    # TBF, all bandwidth probably belongs in base class
     def set_bandwidth(self, bandwidth):
         """
         Sets the bandwidth in MHz. This value should match the valon output frequency.
@@ -239,6 +240,7 @@ class GuppiBackend(Backend):
 
         self.set_registers()
         self.set_status_keys()
+        self.set_filter_bw()
 
         # The prepare after construction, starts the HPC and
         # arm's the roach. This gets packets flowing. If the roach is
@@ -496,6 +498,7 @@ class GuppiBackend(Backend):
         """
         statusdata = {}
         statusdata['ACC_LEN' ] = self.acc_len
+        statusdata["BASE_BW" ] = self.filter_bw
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw

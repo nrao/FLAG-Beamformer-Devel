@@ -24,7 +24,7 @@ class GuppiCODDBackend(Backend):
         # change their data buffer format.
         self.set_status(BACKEND="GUPPI")
         # The default switching in the Backend ctor is a static SIG, NOCAL, and no blanking
-            
+
         self.max_databuf_size = 128 # in MBytes
         self.scale_p0 = 1.0
         self.scale_p1 = 1.0
@@ -44,7 +44,7 @@ class GuppiCODDBackend(Backend):
         bank_names = {'A' : 0, 'B' : 1, 'C' : 2, 'D' : 3, 'E' : 4, 'F' : 5, 'G' : 6, 'H' : 7 }
         self.node_number = bank_names[self.bank.name[-1]]
 
-        self.integration_time =40.96E-6 
+        self.integration_time =40.96E-6
 
         if self.dibas_dir is not None:
             self.pardir = self.dibas_dir + '/etc/config'
@@ -69,16 +69,16 @@ class GuppiCODDBackend(Backend):
         self.params["tfold"       ]   = self.set_tfold
         self.params["only_i"  ]       = self.set_only_i
         self.params["feed_polarization"] = self.setFeedPolarization
-        
+
         # Fill-in defaults if they exist
         if 'OBS_MODE' in self.mode.shmkvpairs.keys():
             self.set_param('obs_mode',   self.mode.shmkvpairs['OBS_MODE'])
         if 'ONLY_I' in self.mode.shmkvpairs.keys():
             self.set_param('only_i',   int(self.mode.shmkvpairs['ONLY_I']))
-        
+
         if 'SCALE_P0' in self.mode.roach_kvpairs.keys():
             self.set_param('scale_p0', float(self.mode.roach_kvpairs['SCALE_P0']))
-        if 'SCALE_P1' in self.mode.roach_kvpairs.keys():    
+        if 'SCALE_P1' in self.mode.roach_kvpairs.keys():
             self.set_param('scale_p1', float(self.mode.roach_kvpairs['SCALE_P1']))
 
     def cdd_master(self):
@@ -219,6 +219,7 @@ class GuppiCODDBackend(Backend):
 
         self.set_status_keys()
         self.set_registers()
+        self.set_filter_bw()
 
     def start(self):
         """
@@ -420,12 +421,13 @@ class GuppiCODDBackend(Backend):
         """
         statusdata = {}
         statusdata['ACC_LEN' ] = self.acc_len
+        statusdata["BASE_BW" ] = self.filter_bw
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['BANKNUM' ] = self.node_number
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
         statusdata['DATADIR' ] = self.dataroot
-        statusdata['PROJID'  ] = self.projectid        
+        statusdata['PROJID'  ] = self.projectid
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len
@@ -556,7 +558,7 @@ class GuppiCODDBackend(Backend):
                 self.roach.tap_start(*tap)
 
             hpcs = self.mode.cdd_hpcs
-            
+
             for i in range(0, len(hpcs)):
                 ip_reg = dest_ip_register_name + '%i' % i
                 pt_reg = dest_port_register_name + '%i' % i
