@@ -11,16 +11,6 @@ from datetime import datetime, timedelta
 import os
 
 
-
-class SWbits:
-    """
-    A class to hold and encode the bits of a single phase of a switching signal generator phase
-    """
-    SIG=0
-    REF=1
-    CALON=1
-    CALOFF=0
-
 class VegasBackend(Backend):
     """
     A class which implements some of the VEGAS specific parameter calculations.
@@ -74,7 +64,6 @@ class VegasBackend(Backend):
         self.params["exposure"]     = self.setIntegrationTime
         self.params["num_spectra"]  = self.setNumberSpectra
         self.params["acc_len"]      = self.setAccLen
-        self.params["scan_length"]  = self.setScanLength
 
         # the status memory key/value pair dictionary
         self.sskeys = {}
@@ -104,13 +93,6 @@ class VegasBackend(Backend):
         the dibas.conf configuration file.
         """
         self.acc_len = acclen
-
-    def setScanLength(self, length):
-        """
-        This parameter controls how long the scan will last in seconds.
-        """
-        self.scan_length = length
-
 
     def setPolarization(self, polar):
         """
@@ -150,8 +132,8 @@ class VegasBackend(Backend):
         # Switching Signals info. Switching signals should have been
         # specified prior to prepare():
         self.setSSKeys()
-
-        self.set_filter_bw()
+        # program I2C: input filters, noise source, noise or tone
+        self.set_if_bits()
         # now update all the status keywords needed for this mode:
         self.set_state_table_keywords()
 
@@ -462,6 +444,7 @@ class VegasBackend(Backend):
         for x,y in self.sskeys.items():
             statusdata[x] = y
 
+        statusdata["OBSERVER" ] = self.observer
         statusdata["BW_MODE"  ] = "high" # mode 1
         statusdata["BOFFILE"  ] = str(self.bof_file)
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
@@ -498,9 +481,9 @@ class VegasBackend(Backend):
         # should this get set by Backend?
         statusdata["DATAHOST" ] = self.datahost;
         statusdata["DATAPORT" ] = self.dataport;
-        statusdata['DATADIR'  ]  = self.dataroot
-        statusdata['PROJID'   ]  = self.projectid
-        statusdata['SCANLEN'  ]  = self.scan_length
+        statusdata['DATADIR'  ] = self.dataroot
+        statusdata['PROJID'   ] = self.projectid
+        statusdata['SCANLEN'  ] = self.scan_length
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)

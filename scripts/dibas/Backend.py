@@ -9,6 +9,27 @@ import time
 from datetime import datetime, timedelta
 
 ######################################################################
+# Some constants
+######################################################################
+
+class NoiseTone:
+    NOISE=0
+    TONE=1
+
+class NoiseSource:
+    OFF=0
+    ON=1
+
+class SWbits:
+    """
+    A class to hold and encode the bits of a single phase of a switching signal generator phase
+    """
+    SIG=0
+    REF=1
+    CALON=1
+    CALOFF=0
+
+######################################################################
 # class Backend
 #
 # A generic backend class, which will provide common backend
@@ -83,13 +104,19 @@ class Backend:
         self.datadir = self.dataroot + "/" + self.projectid
         self.scan_running = False
         self.setFilterBandwidth(self.mode.filter_bw)
-        print self.filter_bw
+        self.setNoiseSource(NoiseSource.OFF)
+        self.setNoiseTone1(NoiseTone.NOISE)
+        self.setNoiseTone2(NoiseTone.NOISE)
 
         self.params = {}
         self.params["frequency"]      = self.setValonFrequency
         self.params["filter_bw"]      = self.setFilterBandwidth
         self.params["observer"]       = self.setObserver
         self.params["project_id"]     = self.setProjectId
+        self.params["noise_tone_1"]   = self.setNoiseTone1
+        self.params["noise_tone_2"]   = self.setNoiseTone2
+        self.params["noise_source"]   = self.setNoiseSource
+        self.params["scan_length"]    = self.setScanLength
 
         self.datahost = self.bank.datahost
         self.dataport = self.bank.dataport
@@ -250,25 +277,30 @@ class Backend:
 
 
     # generic help method
-    def help_param(self, param):
+    def help_param(self, param = None):
+
+        def all_params():
+             return {k:self.params[k].__doc__ \
+                         if self.params[k].__doc__ else \
+                         '        (No help for %s available)' % (k) \
+                        for k in self.params.keys()}
+
+        if not param:
+            return all_params()
+
         if param in self.params.keys():
             set_method=self.params[param]
-
-            if set_method.__doc__:
-                return set_method.__doc__
-            else:
-                return "No help for '%s' is available" % param
+            return set_method.__doc__ if set_method.__doc__ else "No help for '%s' is available" % param
         else:
             msg = "No such parameter '%s'. Legal parameters in this mode are: %s" % (param, str(self.params.keys()))
             print 'No such parameter %s' % param
             print 'Legal parameters in this mode are:'
-            for k in self.params.keys():
-                print k, ':'
-                if self.params[k].__doc__ is not None:
-                    print self.params[k].__doc__
-                else:
-                    print '        (No help for %s available)' % (k)
-                print
+
+            ps = all_params()
+
+            for p in ps:
+                print p, ':'
+                print ps[p]
             raise Exception(msg)
 
     def get_status(self, keys = None):
@@ -374,6 +406,12 @@ class Backend:
             print "progdev programming bof", str(bof)
             return self.roach.progdev(str(bof))
 
+    def setScanLength(self, length):
+        """
+        This parameter controls how long the scan will last in seconds.
+        """
+        self.scan_length = length
+
     def setFilterBandwidth(self, fbw):
         """
         setFilterBandwidth(self, fbw):
@@ -385,6 +423,7 @@ class Backend:
             return (False, "Filter bandwidth must be one of %s" % str(self.filter_bw_bits.keys()))
 
         self.filter_bw = fbw
+        return True
 
     def setValonFrequency(self, vfreq):
         """
@@ -407,6 +446,27 @@ class Backend:
         """
         self.projectid = project
         self.datadir = self.dataroot + "/" + self.projectid
+
+    def setNoiseTone1(self, noise_tone):
+        """
+        Selects the noise source or test tone for channel 1
+        noise_tone: one of NoiseTone.NOISE (or 0), NoiseTone.TONE (or 1)
+        """
+        self.noise_tone_1 = noise_tone
+
+    def setNoiseTone2(self, noise_tone):
+        """
+        Selects the noise source or test tone for channel 2
+        noise_tone: one of NoiseTone.NOISE (or 0), NoiseTone.TONE (or 1)
+        """
+        self.noise_tone_2 = noise_tone
+
+    def setNoiseSource(self, noise_source):
+        """
+        Turns the noise source on or off
+        noise_source: one of NoiseSource.OFF (or 0), NoiseSource.ON (or 1)
+        """
+        self.noise_source = noise_source
 
     def cdd_master(self):
         """
@@ -585,15 +645,18 @@ class Backend:
             self._execute_phase(self.mode.reset_phase)
 
 
-    def set_filter_bw(self):
+    def set_if_bits(self):
         """
-        Programs the I2C to set the correct filter based on
-        bandwidth. Intended to be called from Backend's 'prepare'
-        function.
+        Programs the I2C based on bandwidth, noise source, and noise
+        tones. Intended to be called from Backend's 'prepare' function.
         """
-        # TBF: Noise source / Noise tone bits are set here. Assume only
-        # no noise source for now (0x01)
-        bits = self.filter_bw_bits[self.filter_bw] | 0x01
+        # Set the IF bits based on the filter bandwidth, and also the
+        # noise source & noise tone paramters.
+
+        bits = self.filter_bw_bits[self.filter_bw] \
+            | {NoiseSource.OFF: 0x01, NoiseSource.ON: 0x00}[self.noise_source] \
+            | {NoiseTone.NOISE: 0x00, NoiseTone.TONE: 0x02}[self.noise_tone_1] \
+            | {NoiseTone.NOISE: 0x00, NoiseTone.TONE: 0x04}[self.noise_tone_2]
         self.setI2CValue(0x38, 1, bits)
 
     def arm_roach(self):

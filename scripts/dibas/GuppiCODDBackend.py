@@ -219,7 +219,9 @@ class GuppiCODDBackend(Backend):
 
         self.set_status_keys()
         self.set_registers()
-        self.set_filter_bw()
+
+        # program I2C: input filters, noise source, noise or tone
+        self.set_if_bits()
 
     def start(self):
         """
@@ -428,6 +430,8 @@ class GuppiCODDBackend(Backend):
         statusdata['CHAN_BW' ] = self.chan_bw
         statusdata['DATADIR' ] = self.dataroot
         statusdata['PROJID'  ] = self.projectid
+        statusdata['OBSERVER'] = self.observer
+        statusdata['SCANLEN' ] = self.scan_length
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len
