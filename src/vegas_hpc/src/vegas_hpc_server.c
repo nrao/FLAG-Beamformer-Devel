@@ -341,11 +341,14 @@ int main(int argc, char *argv[]) {
         fflush(stdout);
         fflush(stderr);
 
-        // Wait for data on fifo
-        struct pollfd pfd;
-        pfd.fd = command_fifo;
-        pfd.events = POLLIN;
-        rv = poll(&pfd, 1, 1000);
+        // Wait for commands on fifo or stdin
+        struct pollfd pfd[2];
+        pfd[0].fd = command_fifo;
+        pfd[0].events = POLLIN;
+        pfd[1].fd = fileno(stdin);
+        pfd[1].events = POLLIN;
+
+        rv = poll(pfd, 2, 1000);
         if (rv==0) { continue; }
         else if (rv<0) {
             if (errno!=EINTR) perror("poll");
@@ -355,7 +358,8 @@ int main(int argc, char *argv[]) {
         // If we got POLLHUP, it means the other side closed its
         // connection.  Close and reopen the FIFO to clear this
         // condition.  Is there a better/recommended way to do this?
-        if (pfd.revents==POLLHUP) { 
+        if (pfd[0].revents==POLLHUP) 
+        { 
             close(command_fifo);
             command_fifo = open(vegas_DAQ_CONTROL, O_RDONLY | O_NONBLOCK);
             if (command_fifo<0) {
@@ -366,10 +370,25 @@ int main(int argc, char *argv[]) {
             }
             continue;
         }
-
-        // Read the command
+        // clear the command
         memset(cmd, 0, MAX_CMD_LEN);
-        rv = read(command_fifo, cmd, MAX_CMD_LEN-1);
+        for (i=0; i<2; ++i)
+        {
+            rv = 0;
+            if (pfd[i].revents & POLLIN)
+            {
+                if (read(pfd[i].fd, cmd, MAX_CMD_LEN-1)<1)
+                    continue;
+                else
+                {
+                    rv = 1;
+                    break;
+                }
+            }
+        }
+
+
+        // rv = read(command_fifo, cmd, MAX_CMD_LEN-1);
         if (rv==0) { continue; }
         else if (rv<0) {
             if (errno==EAGAIN) { continue; }
@@ -384,13 +403,17 @@ int main(int argc, char *argv[]) {
         // Process the command 
         if (strncasecmp(cmd,"QUIT",MAX_CMD_LEN)==0) {
             // Exit program
-            printf("Exit\n");
-            run = 0;
             stop_threads(args, thread_id, nthread_cur);
             cmd_wait=0;
+            printf("Stop observations\n");
+            vegas_status_lock(&stat);
+            hputs(stat.buf, "SCANSTAT", "stopped");
+            vegas_status_unlock(&stat);
+            nthread_cur = 0;
+            printf("Exit\n");
+            run = 0;            
             continue;
-        } 
-        
+        }     
         else if (strncasecmp(cmd,"START",MAX_CMD_LEN)==0 ||
                 strncasecmp(cmd,"MONITOR",MAX_CMD_LEN)==0) {
             // Start observations
