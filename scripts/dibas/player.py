@@ -404,65 +404,6 @@ class Bank(object):
         else:
             return (False, "No backend selected!")
 
-    # def exposure(self, x):
-    #     """
-    #     exposure(x)
-
-    #     x: Floating point value, integration time in seconds
-
-    #     Sets the integration time, in seconds.
-    #     """
-    #     if self.backend:
-    #         return self.backend.exposure(x)
-
-    # def nsubband(self, x):
-    #     """
-    #     nsubband(x)
-
-    #     x: The number of subbands, either 1 or 8
-
-    #     Sets the number of subbands.
-    #     """
-    #     if self.backend:
-    #         return self.backend.nsubband(x)
-
-    # def npol(self, x):
-    #     """
-    #     """
-    #     if self.backend:
-    #         return self.backend.npol(x)
-
-    # def nchan(self, x):
-    #     """
-    #     """
-    #     if self.backend:
-    #         return self.backend.nchan(x)
-
-    # def chan_bw(self, x):
-    #     """
-    #     """
-    #     if self.backend:
-    #         return self.backend.chan_bw(x)
-
-    # def frequency(self, x):
-    #     """
-    #     """
-    #     if self.backend:
-    #         return self.backend.frequency(x)
-
-    # def set_observer(self, person):
-    #     """
-    #     Sets the observer ID in status memory.
-    #     """
-    #     if self.backend:
-    #         self.backend.set_observer(person)
-
-    # def set_obsid(self, id):
-    #     """
-    #     Sets the observation ID in status memory.
-    #     """
-    #     if self.backend:
-    #         self.backend.set_obsid(id)
 
     def set_param(self, **kvpairs):
         """
@@ -478,7 +419,7 @@ class Bank(object):
         else:
             raise Exception("Cannot set parameters until a mode is selected")
 
-    def help_param(self, name):
+    def help_param(self, name = None):
         """
         A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
 

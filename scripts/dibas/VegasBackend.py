@@ -87,7 +87,7 @@ class VegasBackend(Backend):
     def cleanup(self):
         """
         This explicitly cleans up any child processes. This will be called
-        by the player before deleting the backend object. 
+        by the player before deleting the backend object.
         """
         self.stop_hpc()
         self.stop_fits_writer()
@@ -115,15 +115,23 @@ class VegasBackend(Backend):
             raise Exception("polarization string must be one of: CROSS, SELF1, SELF2, or SELF")
 
     def setNumberChannels(self, nchan):
+        """
+        Sets the number of channels used by this mode. This is bof
+        specific, and should match the requirements of the bof.
+        """
         self.nchan = nchan
 
     def setADCsnap(self, snap):
         self.adc_snap = snap
 
+    # TBF: What does nspectra do?
     def setNumberSpectra(self, nspectra):
         self.nspectra = nspectra
 
     def setIntegrationTime(self, int_time):
+        """
+        Sets the integration time for each integration.
+        """
         self.requested_integration_time = int_time
 
     def prepare(self):
