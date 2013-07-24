@@ -206,12 +206,13 @@ class Dealer(object):
         """
         start(self, starttime = None)
 
-        starttime: a datetime with the desired start time. Default is
-        None, in which case the start time will be negotiated with the
-        players.
+        starttime: a datetime with the desired start time, which should
+        be in UTC, as that is how the player will interpret it. Default
+        is None, in which case the start time will be negotiated with
+        the players.
         """
 
-        # 1. Negotiate earliest start time with players:
+        # 1. Negotiate earliest start time (UTC) with players:
         earliest_start = datetime(*self.earliest_start())
         # 2. Check to see if given start time is reasonable
         if starttime:

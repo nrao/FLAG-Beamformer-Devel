@@ -76,10 +76,11 @@ class GuppiBackend(Backend):
         self.params["tfold"       ]   = self.set_tfold
         self.params["feed_polarization"] = self.setFeedPolarization
         self.fft_params_dep()
-        
+
     ### Methods to set user or mode specified parameters
     ### Not sure how these map for GUPPI
 
+    # TBF, all bandwidth probably belongs in base class
     def set_bandwidth(self, bandwidth):
         """
         Sets the bandwidth in MHz. This value should match the valon output frequency.
@@ -96,7 +97,7 @@ class GuppiBackend(Backend):
         Other modes should have this set to zero.
         """
         pass
-        
+
     def setFeedPolarization(self, polar):
         """
         Sets the FD_POLN (feed polarization) keyword in status memory and PSR FITS files.
@@ -239,6 +240,7 @@ class GuppiBackend(Backend):
 
         self.set_registers()
         self.set_status_keys()
+        self.set_filter_bw()
 
         # The prepare after construction, starts the HPC and
         # arm's the roach. This gets packets flowing. If the roach is
@@ -248,9 +250,9 @@ class GuppiBackend(Backend):
             self.start_hpc()
             time.sleep(5)
             self.arm_roach()
-            
+
     def earliest_start(self):
-        now = datetime.now()
+        now = datetime.utcnow()
         earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
         return earliest_start
 
@@ -264,7 +266,7 @@ class GuppiBackend(Backend):
 
         starttime: a tuple or list(for ease of JSON serialization) of
         datetime compatible values: (year, month, day, hour, minute,
-        second, microsecond).
+        second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
         appropriate time, based on 'starttime'.  If 'starttime' is not
@@ -285,7 +287,7 @@ class GuppiBackend(Backend):
         if self.hpc_process is None:
             self.start_hpc()
 
-        now = datetime.now()
+        now = datetime.utcnow()
         earliest_start = self.earliest_start()
 
         if starttime:
@@ -309,7 +311,7 @@ class GuppiBackend(Backend):
 
         self.hpc_cmd('START')
         status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
-        
+
         if not status:
             self.hpc_cmd('STOP')
             raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
@@ -322,7 +324,7 @@ class GuppiBackend(Backend):
         #          ^         ^
         #       arm_time  start_time
         arm_time = starttime - timedelta(microseconds = 900000)
-        now = datetime.now()
+        now = datetime.utcnow()
 
         if now > arm_time:
             self.hpc_cmd('STOP')
@@ -334,7 +336,7 @@ class GuppiBackend(Backend):
         # We're now within a second of the desired start time. Arm:
         self.arm_roach()
         self.scan_running = True
-        
+
     def stop(self):
         """
         Stops a scan.
@@ -496,6 +498,7 @@ class GuppiBackend(Backend):
         """
         statusdata = {}
         statusdata['ACC_LEN' ] = self.acc_len
+        statusdata["BASE_BW" ] = self.filter_bw
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
@@ -561,5 +564,3 @@ class GuppiBackend(Backend):
         """
         self.fft_len = 16384
         self.blocsize = 33554432 # defaults
-
-
