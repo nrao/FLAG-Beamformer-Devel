@@ -70,6 +70,8 @@ class Bank(object):
         self.read_config_file(self.dibas_dir + '/etc/config/dibas.conf')
         self.scan_number = 1
         self.backend = None
+        # This turns on the automatic reaping of dead child processes (anti-zombification)
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
     def __del__(self):
         """
@@ -114,18 +116,9 @@ class Bank(object):
             raise Exception("Configuration error: no field hpc_program specified in "
                             "MODE section of %s " % (self.current_mode))
 
-        mem_fmt_process = subprocess.Popen((fmt_path,hpc_program))
-        waits=0
-        # wait 10 seconds for the script to complete
-        ret = None
-        while waits < 10 and  ret == None:
-            ret = mem_fmt_process.poll()
-            waits = waits+1
-            time.sleep(1)
-
-        if ret is None or ret < 0:
-            raise Exception("data buffer re-create failed %s when changing " \
-                            "to mode %s" % (ret, mode))
+        #mem_fmt_process = subprocess.Popen((fmt_path,hpc_program))
+        print "reformatting data buffers"
+        os.system(fmt_path + ' ' + hpc_program)
 
     def read_config_file(self, filename):
         """
@@ -277,10 +270,17 @@ class Bank(object):
         if mode:
             if mode in self.mode_data:
                 if force or mode != self.current_mode:
-                    self.current_mode = mode
                     print "New mode specified!"
-                    self.reformat_data_buffers(mode)
-                    print 'Not reformatting buffers'
+                    if self.current_mode:
+                        old_hpc_program = self.mode_data[self.current_mode].hpc_program
+                    else:
+                        old_hpc_program = "none"
+                    self.current_mode = mode
+                    new_hpc_program = self.mode_data[mode].hpc_program
+                    if old_hpc_program != new_hpc_program:
+                        self.reformat_data_buffers(mode)
+                    else:
+                        print 'Not reformatting buffers'
 
                     # Two different kinds of mode: Coherent Dedispersion
                     # (CDD) and everything else. CDD modes are
@@ -299,6 +299,7 @@ class Bank(object):
                     # based upon the mode's backend config setting, create the appropriate
                     # parameter calculator 'backend'
                     if self.backend is not None:
+                        self.backend.cleanup()
                         del(self.backend)
                         self.backend = None
 

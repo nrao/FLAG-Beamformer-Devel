@@ -95,6 +95,14 @@ class VegasBackend(Backend):
             print "Deleting FITS writer!"
             self.stop_fits_writer()
 
+    def cleanup(self):
+        """
+        This explicitly cleans up any child processes. This will be called
+        by the player before deleting the backend object. 
+        """
+        self.stop_hpc()
+        self.stop_fits_writer()
+
     ### Methods to set user or mode specified parameters
     ###
 
@@ -649,7 +657,7 @@ class VegasBackend(Backend):
         fits_writer_program = "vegasFitsWriter"
 
         sp_path = self.dibas_dir + '/exec/x86_64-linux/' + fits_writer_program
-        self.fits_writer_process = subprocess.Popen((sp_path, ))
+        self.fits_writer_process = subprocess.Popen((sp_path, ), stdin=subprocess.PIPE)
 
 
     def stop_fits_writer(self):
@@ -662,15 +670,11 @@ class VegasBackend(Backend):
             return False # Nothing to do
 
         # First ask nicely
-        self.fits_writer_cmd('stop')
-        self.fits_writer_cmd('quit')
-        time.sleep(1)
-        # Kill and reclaim child
-        self.fits_writer_process.communicate()
+        self.fits_writer_process.communicate("quit\n")
         # Kill if necessary
         if self.fits_writer_process.poll() == None:
             # still running, try once more
-            self.fits_writer_process.communicate()
+            self.fits_writer_process.communicate("quit\n")
             time.sleep(1)
 
             if self.fits_writer_process.poll() is not None:
@@ -694,17 +698,8 @@ class VegasBackend(Backend):
         if self.fits_writer_process is None:
             raise Exception( "Fits writer program has not been started" )
 
-        fifo_name = "/tmp/vegas_fits_control"
-
-        try:
-            fh = os.open("/tmp/vegas_fits_control", os.O_WRONLY | os.O_NONBLOCK)
-        except:
-            print "fifo open for fits writer program failed"
-            raise
-            return False
-
+        fh=self.fits_writer_process.stdin.fileno()
         os.write(fh, cmd + '\n')
-        os.close(fh)
         return True
 
 ######################################################################
