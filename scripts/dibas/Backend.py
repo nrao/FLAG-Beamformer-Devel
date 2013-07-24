@@ -141,6 +141,14 @@ class Backend:
         if self.hpc_process is not None:
             print "Stopping HPC program!"
             self.stop_hpc()
+            
+    def cleanup(self):
+        """
+        This explicitly cleans up any child processes. This will be called
+        by the player before deleting the backend object. 
+        """
+        # Note: If redefined, in a derived class, be careful to include the code below.
+        self.stop_hpc()
 
 
     def getI2CValue(self, addr, nbytes):
@@ -185,19 +193,8 @@ class Backend:
         if self.hpc_process is None:
             raise Exception( "HPC program has not been started" )
 
-        fifo_name = self.mode.hpc_fifo_name
-        if fifo_name is None:
-            raise Exception("Configuration error: no field hpc_fifo_name specified in "
-                            "MODE section of %s " % (self.current_mode))
-
-        try:
-            fh = os.open(fifo_name, os.O_WRONLY | os.O_NONBLOCK)
-        except:
-            print "fifo open for hpc program failed"
-            return False
-
+        fh=self.hpc_process.stdin.fileno()
         os.write(fh, cmd + '\n')
-        os.close(fh)
         return True
 
     def start_hpc(self):
@@ -216,8 +213,8 @@ class Backend:
                             "MODE section of %s " % (self.current_mode))
 
         sp_path = self.dibas_dir + '/exec/x86_64-linux/' + hpc_program
-        print sp_path
-        self.hpc_process = subprocess.Popen((sp_path, ))
+        # print sp_path
+        self.hpc_process = subprocess.Popen((sp_path, ),stdin=subprocess.PIPE)
 
 
     def stop_hpc(self):
@@ -234,21 +231,18 @@ class Backend:
             return False # Nothing to do
 
         # First ask nicely
-        self.hpc_cmd('stop')
-        self.hpc_cmd('quit')
-        time.sleep(1)
         # Kill and reclaim child
-        self.hpc_process.communicate()
+        self.hpc_process.communicate("quit\n")
         # Kill if necessary
         if self.hpc_process.poll() == None:
             # still running, try once more
-            self.hpc_process.communicate()
+            self.hpc_process.communicate("quit")
             time.sleep(1)
 
             if self.hpc_process.poll() is not None:
                 killed = True
             else:
-                self.hpc_process.communicate()
+                self.hpc_process.communicate("quit\n")
                 killed = True;
         else:
             killed = False
@@ -535,10 +529,7 @@ class Backend:
         dest_ip_register_name = self.mode.dest_ip_register_name
         dest_port_register_name = self.mode.dest_port_register_name
 
-        print "tap0", gigbit_name, self.bank.mac_base + data_ip, data_ip, data_port
-
         self.roach.tap_start("tap0", gigbit_name, self.bank.mac_base + data_ip, data_ip, data_port)
-        #self.roach.tap_start("tap0", "gbe0", self.bank.mac_base + data_ip, data_ip, data_port)
         self.roach.write_int(dest_ip_register_name, dest_ip)
         self.roach.write_int(dest_port_register_name, dest_port)
         return 'ok'

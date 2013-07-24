@@ -254,6 +254,7 @@ protected:
     int32_t actstate_hdu;
     int32_t data_hdu;
     double scan_time_clock;
+    int32_t accumid_xor_mask;
 };
 
 #endif

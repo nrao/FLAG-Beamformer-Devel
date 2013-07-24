@@ -45,7 +45,7 @@ extern "C"
 #include "VegasFitsIO.h"
 #include "VegasFitsThread.h"
 
-static int verbose = true;
+static int verbose = false;
 #define dbprintf if(verbose) printf
 
 

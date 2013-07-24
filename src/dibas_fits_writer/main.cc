@@ -20,8 +20,6 @@
 //#	P. O. Box 2
 //#	Green Bank, WV 24944-0002 USA
 
-static char rcs_id[] =  "$Id$";
-
 
 #include <stdio.h>
 #include <signal.h>
@@ -86,6 +84,7 @@ int main(int argc, char **argv)
     int command_fifo;
     int rv;
     char cmd[MAX_CMD_LEN];
+    int i;
 
     signal(SIGHUP, signal_handler);     // hangup
 #if !defined(DEBUG)                     // when debugging, wish to use CTRL-C
@@ -97,7 +96,7 @@ int main(int argc, char **argv)
     signal(SIGCHLD, SIG_IGN);           // un-zombify child processes
     // If our process parent exits/dies, kernel should send us SIGKILL
     prctl(PR_SET_PDEATHSIG, SIGKILL);
-
+    
     command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
     if (command_fifo<0) 
     {
@@ -105,6 +104,7 @@ int main(int argc, char **argv)
         perror("open");
         exit(1);
     }
+    printf("vegas_fits_writer started\n");
 
     run=1;
     srv_run=1;
@@ -127,10 +127,12 @@ int main(int argc, char **argv)
         fflush(stderr);
 
         // Wait for data on fifo
-        struct pollfd pfd;
-        pfd.fd = command_fifo;
-        pfd.events = POLLIN;
-        rv = poll(&pfd, 1, 1000);
+        struct pollfd pfd[2];
+        pfd[0].fd = command_fifo;
+        pfd[0].events = POLLIN;
+        pfd[1].fd = fileno(stdin);
+        pfd[1].events = POLLIN;
+        rv = poll(pfd, 2, 1000);
         if (rv==0) 
         { 
             continue; 
@@ -143,11 +145,28 @@ int main(int argc, char **argv)
             }
             continue;
         }
+        
+        // clear the command
+        memset(cmd, 0, MAX_CMD_LEN);
+        for (i=0; i<2; ++i)
+        {
+            rv = 0;
+            if (pfd[i].revents & POLLIN)
+            {
+                if (read(pfd[i].fd, cmd, MAX_CMD_LEN-1)<1)
+                    continue;
+                else
+                {
+                    rv = 1;
+                    break;
+                }
+            }
+        }
 
         // If we got POLLHUP, it means the other side closed its
         // connection.  Close and reopen the FIFO to clear this
         // condition.  Is there a better/recommended way to do this?
-        if (pfd.revents==POLLHUP) 
+        if (pfd[0].revents==POLLHUP) 
         { 
             close(command_fifo);
             command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
@@ -161,9 +180,6 @@ int main(int argc, char **argv)
             continue;
         }
 
-        // Read the command
-        memset(cmd, 0, MAX_CMD_LEN);
-        rv = read(command_fifo, cmd, MAX_CMD_LEN-1);
         if (rv==0) 
         { 
             continue; 
@@ -243,7 +259,7 @@ int main(int argc, char **argv)
     time_t curtime = time(NULL);
     char tmp[256];
 
-    printf("vegas_daq_server exiting cleanly at %s\n", ctime_r(&curtime,tmp));
+    printf("vegas_fits_writer exiting cleanly at %s\n", ctime_r(&curtime,tmp));
 
     fflush(stdout);
     fflush(stderr);
