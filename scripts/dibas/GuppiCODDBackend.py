@@ -5,6 +5,7 @@ import binascii
 import player
 import math
 import time
+from datetime import datetime, timedelta
 from Backend import Backend
 import os
 
@@ -220,31 +221,99 @@ class GuppiCODDBackend(Backend):
         self.set_status_keys()
         self.set_registers()
         self.set_filter_bw()
-
-    def start(self):
-        """
-        An coherent mode start routine.
-        """
+        
         if self.hpc_process is None:
             self.start_hpc()
             time.sleep(5)
-        self.hpc_cmd("start")
-        time.sleep(3)
-        self.arm_roach()
-        scan_running = True
+            if self.cdd_master():
+                self.arm_roach()
 
-        while scan_running:
-            time.sleep(3)
-            if self.hpc_process is None:
-                scan_running = False
-                Exception("HPC Process was stopped or failed");
-            if self.get_status('DISKSTAT') == "exiting":
-                scan_running = False
-            elif self.bank.get_status('NETSTAT') == "exiting":
-                scan_running = False
-            elif self.check_keypress('q') == True:
-                print 'User terminated scan'
-                self.hpc_cmd('stop')
+    def earliest_start(self):
+        now = datetime.utcnow()
+        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
+        return earliest_start
+
+    def start(self, starttime):
+        """
+        start(self, starttime = None)
+
+        starttime: a datetime object
+
+        --OR--
+
+        starttime: a tuple or list(for ease of JSON serialization) of
+        datetime compatible values: (year, month, day, hour, minute,
+        second, microsecond), UTC.
+
+        Sets up the system for a measurement and kicks it off at the
+        appropriate time, based on 'starttime'.  If 'starttime' is not
+        on a PPS boundary it is bumped up to the next PPS boundary.  If
+        'starttime' is not given, the earliest possible start time is
+        used.
+
+        start() will require a needed arm delay time, which is specified
+        in every mode section of the configuration file as
+        'needed_arm_delay'. During this delay it tells the HPC program
+        to start its net, accum and disk threads, and waits for the HPC
+        program to report that it is receiving data. It then calculates
+        the time it needs to sleep until just after the penultimate PPS
+        signal. At that time it wakes up and arms the ROACH. The ROACH
+        should then send the initial packet at that time.
+        """
+
+        if self.hpc_process is None:
+            self.start_hpc()
+
+        now = datetime.utcnow()
+        earliest_start = self.earliest_start()
+
+        if starttime:
+            if type(starttime) == tuple or type(starttime) == list:
+                starttime = datetime(*starttime)
+
+            if type(starttime) != datetime:
+                raise Exception("starttime must be a datetime or datetime compatible tuple or list.")
+
+            # Force the start time to the next 1-second boundary. The
+            # ROACH is triggered by a 1PPS signal.
+            starttime = self.round_second_up(starttime)
+            # starttime must be 'needed_arm_delay' seconds from now.
+            if starttime < earliest_start:
+                raise Exception("Not enough time to arm ROACH.")
+        else: # No start time provided
+            starttime = earliest_start
+        # everything OK now, starttime is valid, go through the start procedure.
+        max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
+        print now, starttime, max_delay
+
+        self.hpc_cmd('START')
+        status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
+
+        if not status:
+            self.hpc_cmd('STOP')
+            raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
+
+        print "start(): waited %s for HPC program to be ready." % str(wait)
+
+        # now sleep until arm_time
+        #        PPS        PPS
+        # ________|__________|_____
+        #          ^         ^
+        #       arm_time  start_time
+        arm_time = starttime - timedelta(microseconds = 900000)
+        now = datetime.utcnow()
+
+        if now > arm_time:
+            self.hpc_cmd('STOP')
+            raise Exception("start(): deadline missed, arm time is in the past.")
+
+        tdelta = arm_time - now
+        sleep_time = tdelta.seconds + tdelta.microseconds / 1e6
+        time.sleep(sleep_time)
+        # We're now within a second of the desired start time. Arm:
+        if self.cdd_master():
+            self.arm_roach()
+        self.scan_running = True
 
 
 
@@ -426,11 +495,14 @@ class GuppiCODDBackend(Backend):
         statusdata['BANKNUM' ] = self.node_number
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
+        statusdata["DATAHOST" ] = self.datahost;
+        statusdata["DATAPORT" ] = self.dataport;        
         statusdata['DATADIR' ] = self.dataroot
         statusdata['PROJID'  ] = self.projectid
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len
+        statusdata['FD_POLN' ] = self.feed_polarization
         statusdata['NPOL'    ] = self.npol
         statusdata['NRCVR'   ] = self.nrcvr
         statusdata['NBIN'    ] = self.nbin
@@ -467,6 +539,9 @@ class GuppiCODDBackend(Backend):
         """
         Set the coherent design registers
         """
+        if not self.cdd_master():
+            return
+            
         if self.valon:
             self.valon.set_frequency(0, self.bandwidth)
         regs = {}
