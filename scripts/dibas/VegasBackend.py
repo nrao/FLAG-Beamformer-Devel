@@ -11,16 +11,6 @@ from datetime import datetime, timedelta
 import os
 
 
-
-class SWbits:
-    """
-    A class to hold and encode the bits of a single phase of a switching signal generator phase
-    """
-    SIG=0
-    REF=1
-    CALON=1
-    CALOFF=0
-
 class VegasBackend(Backend):
     """
     A class which implements some of the VEGAS specific parameter calculations.
@@ -74,7 +64,6 @@ class VegasBackend(Backend):
         self.params["exposure"]     = self.setIntegrationTime
         self.params["num_spectra"]  = self.setNumberSpectra
         self.params["acc_len"]      = self.setAccLen
-        self.params["scan_length"]  = self.setScanLength
 
         # the status memory key/value pair dictionary
         self.sskeys = {}
@@ -98,7 +87,7 @@ class VegasBackend(Backend):
     def cleanup(self):
         """
         This explicitly cleans up any child processes. This will be called
-        by the player before deleting the backend object. 
+        by the player before deleting the backend object.
         """
         self.stop_hpc()
         self.stop_fits_writer()
@@ -113,13 +102,6 @@ class VegasBackend(Backend):
         """
         self.acc_len = acclen
 
-    def setScanLength(self, length):
-        """
-        This parameter controls how long the scan will last in seconds.
-        """
-        self.scan_length = length
-
-
     def setPolarization(self, polar):
         """
         setPolarization(x)
@@ -133,15 +115,23 @@ class VegasBackend(Backend):
             raise Exception("polarization string must be one of: CROSS, SELF1, SELF2, or SELF")
 
     def setNumberChannels(self, nchan):
+        """
+        Sets the number of channels used by this mode. This is bof
+        specific, and should match the requirements of the bof.
+        """
         self.nchan = nchan
 
     def setADCsnap(self, snap):
         self.adc_snap = snap
 
+    # TBF: What does nspectra do?
     def setNumberSpectra(self, nspectra):
         self.nspectra = nspectra
 
     def setIntegrationTime(self, int_time):
+        """
+        Sets the integration time for each integration.
+        """
         self.requested_integration_time = int_time
 
     def prepare(self):
@@ -158,8 +148,8 @@ class VegasBackend(Backend):
         # Switching Signals info. Switching signals should have been
         # specified prior to prepare():
         self.setSSKeys()
-
-        self.set_filter_bw()
+        # program I2C: input filters, noise source, noise or tone
+        self.set_if_bits()
         # now update all the status keywords needed for this mode:
         self.set_state_table_keywords()
 
@@ -470,6 +460,7 @@ class VegasBackend(Backend):
         for x,y in self.sskeys.items():
             statusdata[x] = y
 
+        statusdata["OBSERVER" ] = self.observer
         statusdata["BW_MODE"  ] = "high" # mode 1
         statusdata["BOFFILE"  ] = str(self.bof_file)
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
@@ -506,9 +497,9 @@ class VegasBackend(Backend):
         # should this get set by Backend?
         statusdata["DATAHOST" ] = self.datahost;
         statusdata["DATAPORT" ] = self.dataport;
-        statusdata['DATADIR'  ]  = self.dataroot
-        statusdata['PROJID'   ]  = self.projectid
-        statusdata['SCANLEN'  ]  = self.scan_length
+        statusdata['DATADIR'  ] = self.dataroot
+        statusdata['PROJID'   ] = self.projectid
+        statusdata['SCANLEN'  ] = self.scan_length
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)

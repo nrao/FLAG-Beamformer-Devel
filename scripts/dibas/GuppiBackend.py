@@ -240,7 +240,9 @@ class GuppiBackend(Backend):
 
         self.set_registers()
         self.set_status_keys()
-        self.set_filter_bw()
+
+        # program I2C: input filters, noise source, noise or tone
+        self.set_if_bits()
 
         # The prepare after construction, starts the HPC and
         # arm's the roach. This gets packets flowing. If the roach is
@@ -504,8 +506,9 @@ class GuppiBackend(Backend):
         statusdata['CHAN_BW' ] = self.chan_bw
         statusdata['DATADIR' ] = self.dataroot
         statusdata['PROJID'  ] = self.projectid
+        statusdata['OBSERVER'] = self.observer
         statusdata['DS_TIME' ] = self.ds_time
-
+        statusdata['SCANLEN' ] = self.scan_length
         statusdata['FFTLEN'  ] = self.fft_len
         statusdata['FD_POLN' ] = self.feed_polarization
 
@@ -524,6 +527,7 @@ class GuppiBackend(Backend):
         statusdata['OFFSET3' ] = '0.0'
         statusdata['ONLY_I'  ] = self.only_i
         statusdata['OVERLAP' ] = self.overlap
+
 
         statusdata['POL_TYPE'] = self.pol_type
         statusdata['PFB_OVER'] = self.pfb_overlap

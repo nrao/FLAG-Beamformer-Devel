@@ -219,13 +219,15 @@ class GuppiCODDBackend(Backend):
         self.fft_params_dep()
 
         self.set_status_keys()
-        self.set_registers()
         self.set_filter_bw()
         
         if self.hpc_process is None:
             self.start_hpc()
             time.sleep(5)
             if self.cdd_master():
+                self.set_registers()
+                # program I2C: input filters, noise source, noise or tone
+                self.set_if_bits()
                 self.arm_roach()
 
     def earliest_start(self):
@@ -499,6 +501,8 @@ class GuppiCODDBackend(Backend):
         statusdata["DATAPORT" ] = self.dataport;        
         statusdata['DATADIR' ] = self.dataroot
         statusdata['PROJID'  ] = self.projectid
+        statusdata['OBSERVER'] = self.observer
+        statusdata['SCANLEN' ] = self.scan_length
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len
