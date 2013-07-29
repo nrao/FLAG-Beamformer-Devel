@@ -32,13 +32,13 @@ class GuppiCODDBackend(Backend):
         self.only_i = 0
         self.set_bandwidth(1500)
         self.dm = 0.0
-        self.rf_frequency = 750.0
+        self.rf_frequency = 1430.0
         self.overlap = 0
         self.tfold = 1.0
         self.nbin = 256
         # Most all receivers are dual polarization
         self.nrcvr = 2
-        self.nchan = 8 # Needs to be a config value!!!!!!
+        self.nchan = self.mode.nchan # total number of channels in the design, not per node
         self.num_nodes = 8
         self.feed_polarization = 'LIN'
 
@@ -46,7 +46,7 @@ class GuppiCODDBackend(Backend):
         self.node_number = bank_names[self.bank.name[-1]]
 
         self.integration_time =40.96E-6
-
+        self.scan_length = 30.0
         if self.dibas_dir is not None:
             self.pardir = self.dibas_dir + '/etc/config'
         else:
@@ -57,12 +57,10 @@ class GuppiCODDBackend(Backend):
         # register set methods
         self.params["bandwidth"]      = self.set_bandwidth
         self.params["dm"]             = self.set_dm
-        # self.params["frequency"]      = self.set_valon_frequency
         self.params["integration_time"] = self.set_integration_time
         self.params["nbin"]           = self.set_nbin
         self.params["num_channels"]   = self.set_nchannels
         self.params["obs_frequency"]  = self.set_obs_frequency
-        # self.params["overlap"]        = self.set_overlap
         self.params["obs_mode"]       = self.set_obs_mode
         self.params["par_file"]       = self.set_par_file
         self.params["scale_p0"]       = self.set_scale_P0
@@ -70,6 +68,7 @@ class GuppiCODDBackend(Backend):
         self.params["tfold"       ]   = self.set_tfold
         self.params["only_i"  ]       = self.set_only_i
         self.params["feed_polarization"] = self.setFeedPolarization
+        self.params["_node_number"] = self.setNodeNumber
 
         # Fill-in defaults if they exist
         if 'OBS_MODE' in self.mode.shmkvpairs.keys():
@@ -128,7 +127,7 @@ class GuppiCODDBackend(Backend):
 
     def set_bandwidth(self, bw):
         """
-        Sets the bandwidth in MHz. This value should match the valon output frequency.
+        Sets the total bandwidth in MHz. This value should match the valon output frequency.
         (The sampling rate being twice the valon frequency.)
         """
         self.bandwidth = bw
@@ -169,7 +168,7 @@ class GuppiCODDBackend(Backend):
 
     def set_nchannels(self, nchan):
         """
-        This probably comes from config file, via the Bank
+        This overrides the config file value nchan -- should not be used.
         """
         self.nchan = nchan
 
@@ -197,12 +196,15 @@ class GuppiCODDBackend(Backend):
         """
         self.only_i = only_i
 
+    def setNodeNumber(self, node_num):
+	self.node_number = node_num
+
     def prepare(self):
         """
         A place to hang the dependency methods.
         """
 
-        self.hw_nchan_dep()
+        self.node_nchan_dep()
         self.acc_len_dep()
         self.node_bandwidth_dep()
         self.chan_bw_dep()
@@ -219,16 +221,16 @@ class GuppiCODDBackend(Backend):
         self.fft_params_dep()
 
         self.set_status_keys()
-        self.set_filter_bw()
+        self.set_if_bits()
         
         if self.hpc_process is None:
             self.start_hpc()
             time.sleep(5)
-            if self.cdd_master():
-                self.set_registers()
-                # program I2C: input filters, noise source, noise or tone
-                self.set_if_bits()
-                self.arm_roach()
+        if self.cdd_master():
+            self.set_registers()
+            # program I2C: input filters, noise source, noise or tone
+            self.set_if_bits()
+            self.arm_roach()
 
     def earliest_start(self):
         now = datetime.utcnow()
@@ -333,9 +335,9 @@ class GuppiCODDBackend(Backend):
         Calculates the CHAN_BW status keyword
         Result is bandwidth of each PFM channel in MHz
         """
-        self.obsnchan = self.hw_nchan
+        self.obsnchan = self.node_nchan
 
-        chan_bw = self.node_bandwidth / float(self.hw_nchan)
+        chan_bw = self.node_bandwidth / float(self.node_nchan)
         self.chan_bw = chan_bw
 
     def ds_time_dep(self):
@@ -343,7 +345,7 @@ class GuppiCODDBackend(Backend):
         Calculate the down-sampling time status keyword
         """
         if 'SEARCH' in self.obs_mode.upper():
-            dst = self.integration_time * self.node_bandwidth * 1E6 / self.nchan
+            dst = self.integration_time * abs(self.node_bandwidth) * 1E6 / self.node_nchan
             power_of_two = 2 ** int(math.log(dst)/math.log(2) + 0.5)
             self.ds_time = power_of_two
         else:
@@ -357,18 +359,18 @@ class GuppiCODDBackend(Backend):
         or COHERENT_SEARCH modes.
         """
         if self.obs_mode.upper() in ["SEARCH", "COHERENT_SEARCH"]:
-            self.ds_freq = self.hw_nchan / self.nchan
+            self.ds_freq = self.nchan / self.node_nchan
         else:
             self.ds_freq = 1
 
-    def hw_nchan_dep(self):
+    def node_nchan_dep(self):
         """
-        Can't find direct evidence for this, but seemed logical ...
+        Calculates the number of channels received by this node.
         """
         if 'COHERENT' in self.obs_mode:
-            self.hw_nchan = self.nchan # number of nodes
+            self.node_nchan = self.nchan/self.num_nodes # number of nodes
         else:
-            self.hw_nchan = self.nchan
+            self.node_nchan = self.nchan
 
     def pfb_overlap_dep(self):
         """
@@ -414,7 +416,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculates the TBIN status keyword
         """
-        self.tbin = float(self.acc_len * self.hw_nchan) / (self.bandwidth*1E6)
+        self.tbin = float(self.acc_len * self.node_nchan) / abs(self.node_bandwidth*1E6)
 
     def tfold_dep(self):
         if 'COHERENT' == self.obs_mode:
@@ -459,21 +461,21 @@ class GuppiCODDBackend(Backend):
 
          where:
              rf_frequency is the center band center at the rx
-             total_bandwidth is the number of nodes * bandwidth of each node
+             total_bandwidth is the number of nodes * node_bandwidth of each node
              chan_bw is the calculated number from the node_bandwidth and
              number of node channels
         """
-        i = self.node_number
-        self.node_rf_frequency = self.rf_frequency - self.bandwidth/2.0 - \
-                  self.chan_bw/2.0 + (i-1.0+0.5)*self.node_bandwidth
+        self.node_rf_frequency = self.rf_frequency - self.bandwidth/2.0 + \
+                                 self.node_number * self.node_bandwidth + \
+                                 0.5*self.node_bandwidth - self.chan_bw/2.0
 
     def fft_params_dep(self):
         """
         Calculate the OVERLAP, FFTLEN, and BLOCSIZE status keywords
         """
         if 'COHERENT' in self.obs_mode:
-            (fftlen, overlap_r, blocsize) = self.fft_size_params(self.node_rf_frequency,
-                                                             self.node_bandwidth,
+            (fftlen, overlap_r, blocsize) = self.fft_size_params(self.rf_frequency,
+                                                             self.bandwidth,
                                                              self.nchan,
                                                              self.dm,
                                                              self.max_databuf_size)
@@ -514,7 +516,7 @@ class GuppiCODDBackend(Backend):
 
         statusdata['OBSFREQ' ] = self.node_rf_frequency
         statusdata['OBSBW'   ] = self.node_bandwidth
-        statusdata['OBSNCHAN'] = repr(self.hw_nchan)
+        statusdata['OBSNCHAN'] = self.node_nchan
         statusdata['OBS_MODE'] = self.obs_mode
         statusdata['OFFSET0' ] = '0.0'
         statusdata['OFFSET1' ] = '0.0'
@@ -547,7 +549,7 @@ class GuppiCODDBackend(Backend):
             return
             
         if self.valon:
-            self.valon.set_frequency(0, self.bandwidth)
+            self.valon.set_frequency(0, abs(self.bandwidth))
         regs = {}
         regs['SCALE_P0'] = int(self.scale_p0 * 65536)
         regs['SCALE_P1'] = int(self.scale_p1 * 65536)
@@ -579,6 +581,7 @@ class GuppiCODDBackend(Backend):
         if (round_fac<512):
             round_fac=512
         rf_ghz = (rf - abs(bw)/2.0)/1.0e3
+        print "DEBUG:", rf, bw, rf_ghz
         chan_bw = bw / nchan
         overlap_samp = 8.3 * dm * chan_bw**2 / rf_ghz**3
         overlap_r = round_fac * (int(overlap_samp)/round_fac + 1)

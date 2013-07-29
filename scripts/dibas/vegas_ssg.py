@@ -75,6 +75,9 @@ class SwitchingSignals(object):
             # id.
             self._cal = 0
             self._blanking = 0;
+            # This is an mask which is XOR'ed to optionally invert
+            # the sense of the output switching signals.
+            self.polarity_mask = 0x6
 
             if asr: self.set_adv_sig_ref()
             if sr2: self.set_sig_ref_2()
@@ -142,7 +145,7 @@ class SwitchingSignals(object):
                         self._sig_ref_2,
                         self._sig_ref_1,
                         self._cal,
-                        self._blanking))
+                        self._blanking)) ^ self.polarity_mask
 
     def __init__(self, frequency, nchan):
 

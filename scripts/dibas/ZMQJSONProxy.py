@@ -152,7 +152,7 @@ class ZMQJSONProxyServer:
 
         while not done:
             try:
-                socks = dict(poller.poll(500))
+                socks = dict(poller.poll(60000))
 
                 if self.s in socks and socks[self.s] == zmq.POLLIN:
                     message = self.s.recv_json()
@@ -239,7 +239,7 @@ class ZMQJSONProxyClient(object):
         """
         msg = {'name': self._obj_name, 'proc': args[0], 'args': args[1:], 'kwargs': kwargs}
         self._sock.send_json(msg)
-        socks = dict(self._poller.poll(10000))
+        socks = dict(self._poller.poll(60000))
 
         if self._sock in socks and socks[self._sock] == zmq.POLLIN:
             repl = self._sock.recv_json()
