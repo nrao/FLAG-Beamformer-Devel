@@ -107,6 +107,7 @@ class Backend:
         self.setNoiseSource(NoiseSource.OFF)
         self.setNoiseTone1(NoiseTone.NOISE)
         self.setNoiseTone2(NoiseTone.NOISE)
+        self.setScanLength(30.0)
 
         self.params = {}
         self.params["frequency"]      = self.setValonFrequency
@@ -268,8 +269,7 @@ class Backend:
             for k in self.params.keys():
                 print k
             raise Exception(msg)
-
-
+            
     # generic help method
     def help_param(self, param = None):
 
