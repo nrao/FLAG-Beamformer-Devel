@@ -526,7 +526,11 @@ class GuppiCODDBackend(Backend):
         statusdata['OVERLAP' ] = self.overlap
 
         if self.parfile is not None:
-            statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
+            if self.parfile[0] == '/':
+                statusdata['PARFILE'] = self.parfile
+            else:
+                statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
+                
         statusdata['PFB_OVER'] = self.pfb_overlap
         statusdata['PKTFMT'  ] = self.packet_format
         statusdata['POL_TYPE'] = self.pol_type
@@ -553,7 +557,7 @@ class GuppiCODDBackend(Backend):
         regs = {}
         regs['SCALE_P0'] = int(self.scale_p0 * 65536)
         regs['SCALE_P1'] = int(self.scale_p1 * 65536)
-        regs['N_CHAN'   ] = int(math.log(self.nchan*self.num_nodes)/math.log(2))
+        regs['N_CHAN'  ] = int(math.log(self.nchan)/math.log(2))
         #regs['FFT_SHIFT'] = 0xaaaaaaaa (Set by config file)
 
         self.set_register(**regs)
