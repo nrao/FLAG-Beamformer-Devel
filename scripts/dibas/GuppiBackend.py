@@ -63,7 +63,6 @@ class GuppiBackend(Backend):
         self.params["nbin"]           = self.set_nbin
         self.params["obs_frequency"]  = self.set_obs_frequency
         self.params["obs_mode"]       = self.set_obs_mode
-        #self.params["overlap"]        = self.set_overlap
         self.params["only_i"      ]   = self.set_only_i
         self.params["offset_i"    ]   = self.set_offset_I
         self.params["offset_q"    ]   = self.set_offset_Q
@@ -367,7 +366,7 @@ class GuppiBackend(Backend):
         Calculates the hardware accumulation length.
         The register values must be in the range of 0 to 65535, in even powers of two, minus one.
         """
-        acc_length = 2**int(math.log(int(self.integration_time * self.bandwidth * 1E6/self.hw_nchan + 0.5))/math.log(2))-1
+        acc_length = 2**int(math.log(int(self.integration_time * abs(self.bandwidth) * 1E6/self.hw_nchan + 0.5))/math.log(2))-1
 
         if acc_length < 0 or acc_length > 65535:
             raise Exception("Hardware accumulation length too long. Reduce integration time or bandwidth.")
@@ -466,7 +465,7 @@ class GuppiBackend(Backend):
         """
         Calculates the TBIN status keyword
         """
-        self.tbin = float(self.acc_len * self.hw_nchan) / (self.bandwidth*1E6)
+        self.tbin = float(self.acc_len * self.hw_nchan) / (abs(self.bandwidth)*1E6)
 
     def tfold_dep(self):
         if 'COHERENT' == self.obs_mode:
@@ -505,6 +504,8 @@ class GuppiBackend(Backend):
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
         statusdata['DATADIR' ] = self.dataroot
+        statusdata['DATAHOST'] = self.datahost
+        statusdata['DATAPORT'] = self.dataport
         statusdata['PROJID'  ] = self.projectid
         statusdata['OBSERVER'] = self.observer
         statusdata['DS_TIME' ] = self.ds_time
@@ -532,7 +533,10 @@ class GuppiBackend(Backend):
         statusdata['POL_TYPE'] = self.pol_type
         statusdata['PFB_OVER'] = self.pfb_overlap
         if self.parfile is not None:
-            statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
+            if self.parfile[0] == '/':
+                statusdata['PARFILE'] = self.parfile
+            else:
+                statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
         statusdata['PKTFMT'  ] = self.packet_format
 
         statusdata['SCALE0'  ] = '1.0'
@@ -548,7 +552,7 @@ class GuppiBackend(Backend):
         regs = {}
 
         if not self.test_mode:
-            self.valon.set_frequency(0, self.bandwidth)
+            self.valon.set_frequency(0, abs(self.bandwidth))
         regs['ACC_LENGTH'] = self.acc_length
         regs['SCALE_I']    = int(self.scale_i*65536)
         regs['SCALE_Q']    = int(self.scale_q*65536)
