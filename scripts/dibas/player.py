@@ -84,20 +84,15 @@ class Bank(object):
         This method creates the status shared memory segment if necessary.
         If the segment exists, the state of the status memory is not modified.
         """
-        sts_path = self.dibas_dir + '/bin/init_status_memory'
-        sts_process = subprocess.Popen((sts_path,))
-        waits=0
-        # wait 10 seconds for the script to complete
-        ret = None
-        while waits < 5 and  ret == None:
-            ret = sts_process.poll()
-            waits = waits+1
-            time.sleep(1)
+        os.system(self.dibas_dir + '/bin/init_status_memory')
 
-        if ret is None or ret < 0:
-            raise Exception("Status memory buffer re-create failed " \
-                            " status = %s" % (ret))
 
+    def clear_shared_memory(self):
+        """
+        This method clears the status shared memory segment if necessary.
+        """
+        # os.system(self.dibas_dir + '/bin/x86_64-linux/check_vegas_status -C')
+        print 'not cleaning status memory -- fix this'
 
     def reformat_data_buffers(self, mode):
         """
@@ -270,6 +265,7 @@ class Bank(object):
         if mode:
             if mode in self.mode_data:
                 if force or mode != self.current_mode:
+                    self.check_shared_memory()
                     print "New mode specified!"
                     if self.current_mode:
                         old_hpc_program = self.mode_data[self.current_mode].hpc_program
@@ -278,6 +274,7 @@ class Bank(object):
                     self.current_mode = mode
                     new_hpc_program = self.mode_data[mode].hpc_program
                     if old_hpc_program != new_hpc_program:
+                        self.clear_shared_memory()
                         self.reformat_data_buffers(mode)
                     else:
                         print 'Not reformatting buffers'
