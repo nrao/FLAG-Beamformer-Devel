@@ -13,6 +13,16 @@ class GuppiBackend(Backend):
     """
     A class which implements some of the GUPPI specific parameter calculations.
     This class is specific to the Incoherent BOF designs.
+
+    GuppiBackend(theBank, theMode, theRoach, theValon, unit_test)
+
+    * *theBank:* A *BankData* object, bank data from the configuration file.
+    * *theMode:* A *ModeData* object, mode data from the configuration file
+    * *theRoach:* A *katcp_wrapper* object, the katcp client to the FPGA
+    * *theValon:* A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
+    * *unit_test:* Unit test flag; set to *True* if unit testing,
+      *False* if not. Allows unit testing without involving the
+      hardware.
     """
     def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
         """
@@ -74,7 +84,7 @@ class GuppiBackend(Backend):
         self.params["scale_v"     ]   = self.set_scale_V
         self.params["tfold"       ]   = self.set_tfold
         self.params["feed_polarization"] = self.setFeedPolarization
-        self.fft_params_dep()
+        self._fft_params_dep()
 
     ### Methods to set user or mode specified parameters
     ### Not sure how these map for GUPPI
@@ -223,22 +233,22 @@ class GuppiBackend(Backend):
         A place to hang the dependency methods.
         """
 
-        self.hw_nchan_dep()
-        self.acc_len_dep()
-        self.chan_bw_dep()
-        self.ds_time_dep()
-        self.ds_freq_dep()
-        self.pfb_overlap_dep()
-        self.pol_type_dep()
-        self.tbin_dep()
-        self.only_I_dep()
-        self.packet_format_dep()
-        self.npol_dep()
-        self.tfold_dep()
-        self.node_bandwidth_dep()
+        self._hw_nchan_dep()
+        self._acc_len_dep()
+        self._chan_bw_dep()
+        self._ds_time_dep()
+        self._ds_freq_dep()
+        self._pfb_overlap_dep()
+        self._pol_type_dep()
+        self._tbin_dep()
+        self._only_I_dep()
+        self._packet_format_dep()
+        self._npol_dep()
+        self._tfold_dep()
+        self._node_bandwidth_dep()
 
-        self.set_registers()
-        self.set_status_keys()
+        self._set_registers()
+        self._set_status_keys()
 
         # program I2C: input filters, noise source, noise or tone
         self.set_if_bits()
@@ -253,6 +263,9 @@ class GuppiBackend(Backend):
             self.arm_roach()
 
     def earliest_start(self):
+        """
+        Returns the earliest time this backend can start.
+        """
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
         return earliest_start
@@ -261,22 +274,22 @@ class GuppiBackend(Backend):
         """
         start(self, starttime = None)
 
-        starttime: a datetime object
+        *starttime:* a datetime object
 
         --OR--
 
-        starttime: a tuple or list(for ease of JSON serialization) of
+        *starttime:* a tuple or list(for ease of JSON serialization) of
         datetime compatible values: (year, month, day, hour, minute,
         second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
-        appropriate time, based on 'starttime'.  If 'starttime' is not
+        appropriate time, based on *starttime*.  If *starttime* is not
         on a PPS boundary it is bumped up to the next PPS boundary.  If
-        'starttime' is not given, the earliest possible start time is
+        *starttime* is not given, the earliest possible start time is
         used.
 
-        start() will require a needed arm delay time, which is specified
-        in every mode section of the configuration file as
+        *start()* will require a needed arm delay time, which is
+        specified in every mode section of the configuration file as
         'needed_arm_delay'. During this delay it tells the HPC program
         to start its net, accum and disk threads, and waits for the HPC
         program to report that it is receiving data. It then calculates
@@ -361,7 +374,7 @@ class GuppiBackend(Backend):
 
     # Algorithmic dependency methods, not normally called by users
 
-    def acc_len_dep(self):
+    def _acc_len_dep(self):
         """
         Calculates the hardware accumulation length.
         The register values must be in the range of 0 to 65535, in even powers of two, minus one.
@@ -374,7 +387,7 @@ class GuppiBackend(Backend):
             self.acc_length = acc_length
             self.acc_len = self.acc_length+1
 
-    def chan_bw_dep(self):
+    def _chan_bw_dep(self):
         """
         Calculates the CHAN_BW status keyword
         Result is bandwidth of each channel in MHz
@@ -386,7 +399,7 @@ class GuppiBackend(Backend):
         #    chan_bw = -1.0 * chan_bw
         self.chan_bw = chan_bw
 
-    def ds_time_dep(self):
+    def _ds_time_dep(self):
         """
         Calculate the down-sampling time status keyword
         """
@@ -399,7 +412,7 @@ class GuppiBackend(Backend):
         # Paul indicated that in incoherent modes ds_time should always be 1
         self.ds_time = 1
 
-    def ds_freq_dep(self):
+    def _ds_freq_dep(self):
         """
         Calculate the DS_FREQ status keyword.
         This is used only when an observer wants to reduce the number of channels
@@ -411,7 +424,7 @@ class GuppiBackend(Backend):
         else:
             self.ds_freq = 1
 
-    def hw_nchan_dep(self):
+    def _hw_nchan_dep(self):
         """
         Can't find direct evidence for this, but seemed logical ...
         """
@@ -421,13 +434,13 @@ class GuppiBackend(Backend):
             self.hw_nchan = self.nchan
         self.node_nchan = self.hw_nchan
 
-    def pfb_overlap_dep(self):
+    def _pfb_overlap_dep(self):
         """
         Randy/Jason indicated that the new guppi designs will have 12 taps in all modes.
         """
         self.pfb_overlap = 12
 
-    def pol_type_dep(self):
+    def _pol_type_dep(self):
         """
         Calculates the POL_TYPE status keyword.
         Depends upon a synthetic mode name having FAST4K for that mode, otherwise
@@ -440,7 +453,7 @@ class GuppiBackend(Backend):
         else:
             self.pol_type = 'IQUV'
 
-    def npol_dep(self):
+    def _npol_dep(self):
         """
         Calculates the number of polarizations to be recorded.
         Most cases it is all four, except in FAST4K, or when the user
@@ -452,7 +465,7 @@ class GuppiBackend(Backend):
         elif self.only_i:
             self.npol = 1
 
-    def node_bandwidth_dep(self):
+    def _node_bandwidth_dep(self):
         """
         Calculations the bandwidth seen by this HPC node
         """
@@ -461,19 +474,19 @@ class GuppiBackend(Backend):
         else:
             self.node_bandwidth = self.bandwidth
 
-    def tbin_dep(self):
+    def _tbin_dep(self):
         """
         Calculates the TBIN status keyword
         """
         self.tbin = float(self.acc_len * self.hw_nchan) / (abs(self.bandwidth)*1E6)
 
-    def tfold_dep(self):
+    def _tfold_dep(self):
         if 'COHERENT' == self.obs_mode:
             self.fold_time = 1
 
 
 
-    def packet_format_dep(self):
+    def _packet_format_dep(self):
         """
         Calculates the PKTFMT status keyword
         """
@@ -483,7 +496,7 @@ class GuppiBackend(Backend):
             self.packet_format = '1SFA'
 
 
-    def only_I_dep(self):
+    def _only_I_dep(self):
         """
         Calculates the ONLY_I status keyword
         """
@@ -493,7 +506,7 @@ class GuppiBackend(Backend):
         elif self.obs_mode.upper() not in ["SEARCH", "COHERENT_SEARCH"]:
             self.only_i = 0
 
-    def set_status_keys(self):
+    def _set_status_keys(self):
         """
         Collect the status keywords
         """
@@ -548,7 +561,7 @@ class GuppiBackend(Backend):
 
         self.set_status(**statusdata)
 
-    def set_registers(self):
+    def _set_registers(self):
         regs = {}
 
         if not self.test_mode:
@@ -566,7 +579,7 @@ class GuppiBackend(Backend):
 
         self.set_register(**regs)
 
-    def fft_params_dep(self):
+    def _fft_params_dep(self):
         """
         Calculate the FFTLEN, and BLOCSIZE status keywords
         """

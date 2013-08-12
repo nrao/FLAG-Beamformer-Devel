@@ -26,21 +26,21 @@ def convertToMHz(f):
 class VegasBackend(Backend):
     """
     A class which implements some of the VEGAS specific parameter calculations.
+
+    VegasBackend(theBank, theMode, theRoach = None, theValon = None)
+
+    Where:
+
+    * *theBank:* Instance of specific bank configuration data BankData.
+    * *theMode:* Instance of specific mode configuration data ModeData.
+    * *theRoach:* Instance of katcp_wrapper
+    * *theValon:* instance of ValonKATCP
+    * *unit_test:* Set to true to unit test. Will not attempt to talk to
+      roach, shared memory, etc.
     """
     def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
         """
         Creates an instance of the vegas internals.
-
-        VegasBackend(theBank, theMode, theRoach = None, theValon = None)
-
-        Where:
-
-        theBank: Instance of specific bank configuration data BankData.
-        theMode: Instance of specific mode configuration data ModeData.
-        theRoach: Instance of katcp_wrapper
-        theValon: instance of ValonKATCP
-        unit_test: Set to true to unit test. Will not attempt to talk to
-        roach, shared memory, etc.
         """
 
         # mode_number may be treated as a constant; the Player will
@@ -116,8 +116,9 @@ class VegasBackend(Backend):
 
     def setPolarization(self, polar):
         """
-        setPolarization(x)
-        where x is a string 'CROSS', 'SELF1', 'SELF2', or 'SELF'
+        setPolarization(self, polar)
+
+        *x* is a string 'CROSS', 'SELF1', 'SELF2', or 'SELF'
         """
 
         try:
@@ -134,10 +135,15 @@ class VegasBackend(Backend):
         self.nchan = nchan
 
     def setADCsnap(self, snap):
+        """
+        """
         self.adc_snap = snap
 
     # TBF: What does nspectra do?
     def setNumberSpectra(self, nspectra):
+        """
+        Number of sub-bands.
+        """
         self.nspectra = nspectra
 
     def setIntegrationTime(self, int_time):
@@ -151,19 +157,27 @@ class VegasBackend(Backend):
         This command writes calculated values to the hardware and status memory.
         This command should be run prior to the first scan to properly setup
         the hardware.
+
+        The sequence of commands to set up a measurement is thus typically::
+
+          be.set_param(...)
+          be.set_param(...)
+          ...
+          be.set_param(...)
+          be.prepare()
         """
         # calculate the fpga_clock and sampler frequency
-        self.sampler_frequency_dep()
-        self.chan_bw_dep()
-        self.obs_bw_dep()
+        self._sampler_frequency_dep()
+        self._chan_bw_dep()
+        self._obs_bw_dep()
 
         # Switching Signals info. Switching signals should have been
         # specified prior to prepare():
-        self.setSSKeys()
+        self._setSSKeys()
         # program I2C: input filters, noise source, noise or tone
         self.set_if_bits()
         # now update all the status keywords needed for this mode:
-        self.set_state_table_keywords()
+        self._set_state_table_keywords()
 
         # set the roach registers:
         if self.roach:
@@ -183,14 +197,14 @@ class VegasBackend(Backend):
             else:
                 raise Exception("Valon frequency of %f is invalid" % f)
 
-            
+
     # Algorithmic dependency methods, not normally called by a users
 
-    def chan_bw_dep(self):
+    def _chan_bw_dep(self):
         self.chan_bw = self.sampler_frequency / (self.nchan * 2)
         self.frequency_resolution = abs(self.chan_bw)
 
-    def sampler_frequency_dep(self):
+    def _sampler_frequency_dep(self):
         """
         Computes the effective frequency of the A/D sampler based on mode
         """
@@ -218,17 +232,19 @@ class VegasBackend(Backend):
 
     def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
         """
-        add_switching_state(duration, blank, cal, sig):
+        add_switching_state(duration, blank, cal, sig_ref_1):
 
         Add a description of one switching phase.
         Where:
-            duration is the length of this phase in seconds,
-            blank is the state of the blanking signal (True = blank, False = no blank)
-            cal is the state of the cal signal (True = cal, False = no cal)
-            sig is the state of the sig_ref signal (True = ref, false = sig)
+
+        * *duration* is the length of this phase in seconds,
+        * *blank* is the state of the blanking signal (True = blank, False = no blank)
+        * *cal* is the state of the cal signal (True = cal, False = no cal)
+        * *sig_ref_1* is the state of the sig_ref signal (True = ref, false = sig)
 
         Example to set up a 8 phase signal (4-phase if blanking is not
-        considered) with blanking, cal, and sig/ref, total of 400 mS:
+        considered) with blanking, cal, and sig/ref, total of 400 mS::
+
           be = Backend(None) # no real backend needed for example
           be.clear_switching_states()
           be.add_switching_state(0.01, blank = True,  cal = True,  sig_ref_1 = True)
@@ -249,18 +265,19 @@ class VegasBackend(Backend):
 
         adds a complete GBT style switching signal description.
 
-        period: The complete period length of the switching signal.
-        ss_list: A list of GBT phase components. Each component is a tuple:
-        (phase_start, sig_ref, cal, blanking_time)
-        There is one of these tuples per GBT style phase.
+        * *period:* The complete period length of the switching signal.
+        * *ss_list:* A list of GBT phase components. Each component is a tuple:
+          (phase_start, sig_ref, cal, blanking_time)
+          There is one of these tuples per GBT style phase.
 
-        Example:
-        b.set_gbt_ss(period = 0.1,
-                     ss_list = ((0.0, SWbits.SIG, SWbits.CALON, 0.025),
-                                (0.25, SWbits.SIG, SWbits.CALOFF, 0.025),
-                                (0.5, SWbits.REF, SWbits.CALON, 0.025),
-                                (0.75, SWbits.REF, SWbits.CALOFF, 0.025))
-                    )
+        Example::
+
+         b.set_gbt_ss(period = 0.1,
+                      ss_list = ((0.0, SWbits.SIG, SWbits.CALON, 0.025),
+                                 (0.25, SWbits.SIG, SWbits.CALOFF, 0.025),
+                                 (0.5, SWbits.REF, SWbits.CALON, 0.025),
+                                 (0.75, SWbits.REF, SWbits.CALOFF, 0.025))
+                     )
 
         """
         try:
@@ -317,7 +334,7 @@ class VegasBackend(Backend):
         print "BLANK  :", blline
 
 
-    def setSSKeys(self):
+    def _setSSKeys(self):
         self.sskeys.clear()
         states = self.ss.gbt_phase_starts()
         cal = states['cal']
@@ -326,27 +343,27 @@ class VegasBackend(Backend):
         empty_list = [0 for i in range(self.nPhases)] # For sig_ref_2, or I or E as appropriate
 
         for i in range(len(states['blanking'])):
-            self.set_status_str('_SBLK_%02d' % (i+1), states['blanking'][i])
+            self._set_status_str('_SBLK_%02d' % (i+1), states['blanking'][i])
 
         for i in range(len(cal)):
-            self.set_status_str('_SCAL_%02d' % (i+1), cal[i])
+            self._set_status_str('_SCAL_%02d' % (i+1), cal[i])
 
         for i in range(len(states['phase-starts'])):
-            self.set_status_str('_SPHS_%02d' % (i+1), states['phase-starts'][i])
+            self._set_status_str('_SPHS_%02d' % (i+1), states['phase-starts'][i])
 
         for i in range(len(sig_ref_1)):
-            self.set_status_str('_SSRF_%02d' % (i+1), sig_ref_1[i])
+            self._set_status_str('_SSRF_%02d' % (i+1), sig_ref_1[i])
 
         master = self.i_am_master # TBF! Make sure this exists...
-        self.setEcal(empty_list if master else cal)
-        self.setEsigRef1(empty_list if master else sig_ref_1)
-        self.setEsigRef2(empty_list)
-        self.setIcal(cal if master else empty_list)
-        self.setIsigRef1(sig_ref_1 if master else empty_list)
-        self.setIsigRef2(empty_list)
+        self._setEcal(empty_list if master else cal)
+        self._setEsigRef1(empty_list if master else sig_ref_1)
+        self._setEsigRef2(empty_list)
+        self._setIcal(cal if master else empty_list)
+        self._setIsigRef1(sig_ref_1 if master else empty_list)
+        self._setIsigRef2(empty_list)
         # self.sskeys now populated, and will be written with other status keys/vals.
 
-    def setEcal(self, cals):
+    def _setEcal(self, cals):
         """
         External CAL
 
@@ -355,9 +372,9 @@ class VegasBackend(Backend):
         0 indicates the external cal is OFF
         """
         for i in range(len(cals)):
-            self.set_status_str('_AECL_%02d' % (i+1), cals[i])
+            self._set_status_str('_AECL_%02d' % (i+1), cals[i])
 
-    def setEsigRef1(self, sr):
+    def _setEsigRef1(self, sr):
         """
         External Sig/Ref 1
 
@@ -366,9 +383,9 @@ class VegasBackend(Backend):
         0 indicates SIG
         """
         for i in range(len(sr)):
-            self.set_status_str('_AESA_%02d' % (i+1), sr[i])
+            self._set_status_str('_AESA_%02d' % (i+1), sr[i])
 
-    def setEsigRef2(self, sr):
+    def _setEsigRef2(self, sr):
         """
         External Sig/Ref 2
 
@@ -377,9 +394,9 @@ class VegasBackend(Backend):
         0 indicates SIG
         """
         for i in range(len(sr)):
-            self.set_status_str('_AESB_%02d' % (i+1), sr[i])
+            self._set_status_str('_AESB_%02d' % (i+1), sr[i])
 
-    def setIcal(self, cals):
+    def _setIcal(self, cals):
         """
         Internal CAL
 
@@ -388,9 +405,9 @@ class VegasBackend(Backend):
         0 indicates the external cal is OFF
         """
         for i in range(len(cals)):
-            self.set_status_str('_AICL_%02d' % (i+1), cals[i])
+            self._set_status_str('_AICL_%02d' % (i+1), cals[i])
 
-    def setIsigRef1(self, sr):
+    def _setIsigRef1(self, sr):
         """
         Internal Sig/Ref 1
 
@@ -399,9 +416,9 @@ class VegasBackend(Backend):
         0 indicates SIG
         """
         for i in range(len(sr)):
-            self.set_status_str('_AISA_%02d' % (i+1), sr[i])
+            self._set_status_str('_AISA_%02d' % (i+1), sr[i])
 
-    def setIsigRef2(self, sr):
+    def _setIsigRef2(self, sr):
         """
         Internal Sig/Ref 2
 
@@ -410,21 +427,21 @@ class VegasBackend(Backend):
         0 indicates SIG
         """
         for i in range(len(sr)):
-            self.set_status_str('_AISB_%02d' % (i+1), sr[i])
+            self._set_status_str('_AISB_%02d' % (i+1), sr[i])
 
-    def obs_bw_dep(self):
+    def _obs_bw_dep(self):
         """
         Observation bandwidth dependency
         """
         self.obs_bw = self.chan_bw * self.nchan
 
-    def set_status_str(self, x, y):
+    def _set_status_str(self, x, y):
         """
         Add/update an item to the status memory keyword list
         """
         self.sskeys[x] = str(y)
 
-    def set_state_table_keywords(self):
+    def _set_state_table_keywords(self):
         """
         Gather status sets here
         Not yet sure what to place here...
@@ -534,7 +551,7 @@ class VegasBackend(Backend):
 
     def earliest_start(self):
         """
-        Reports earliest possible start time, in UTC
+        Reports earliest possible start time, in UTC, for this backend.
         """
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
@@ -544,28 +561,31 @@ class VegasBackend(Backend):
         """
         start(self, starttime = None)
 
-        starttime: a datetime object, representing a UTC start time.
+        *starttime:* a *datetime* object, representing a UTC start time.
 
         --OR--
 
-        starttime: a tuple or list(for ease of JSON serialization) of
+        *starttime:* a tuple or list(for ease of JSON serialization) of
         datetime compatible values: (year, month, day, hour, minute,
         second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
-        appropriate time, based on 'starttime'.  If 'starttime' is not
+        appropriate time, based on *starttime*.  If *starttime* is not
         on a PPS boundary it is bumped up to the next PPS boundary.  If
-        'starttime' is not given, the earliest possible start time is
+        *starttime* is not given, the earliest possible start time is
         used.
 
-        start() will require a needed arm delay time, which is specified
-        in every mode section of the configuration file as
-        'needed_arm_delay'. During this delay it tells the HPC program
+        *start()* will require a needed arm delay time, which is
+        specified in every mode section of the configuration file as
+        *needed_arm_delay*. During this delay it tells the HPC program
         to start its net, accum and disk threads, and waits for the HPC
         program to report that it is receiving data. It then calculates
         the time it needs to sleep until just after the penultimate PPS
         signal. At that time it wakes up and arms the ROACH. The ROACH
         should then send the initial packet at that time.
+
+        If this function cannot start the measurement by *starttime*, an
+        exception is thrown.
         """
 
         if self.hpc_process is None:

@@ -13,12 +13,20 @@ class GuppiCODDBackend(Backend):
     """
     A class which implements some of the GUPPI specific parameter calculations.
     This class is specific to the coherent mode BOF designs.
+
+    GuppiCODDBackend(theBank, theMode, theRoach, theValon, unit_test)
+
+    * *theBank:* A *BankData* object, bank data from the configuration file.
+    * *theMode:* A *ModeData* object, mode data from the configuration file
+    * *theRoach:* A *katcp_wrapper* object, the katcp client to the FPGA
+    * *theValon:* A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
+    * *unit_test:* Unit test flag; set to *True* if unit testing,
+      *False* if not. Allows unit testing without involving the
+      hardware.
     """
     def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
         """
-        Creates an instance of the vegas internals.
-        GuppiBackend( bank )
-        Where bank is the instance of the player's Bank.
+        Creates an instance of the class.
         """
         Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
         # This needs to happen on construction so that status monitors can
@@ -204,25 +212,25 @@ class GuppiCODDBackend(Backend):
         A place to hang the dependency methods.
         """
 
-        self.node_nchan_dep()
-        self.acc_len_dep()
-        self.node_bandwidth_dep()
-        self.chan_bw_dep()
-        self.ds_time_dep()
-        self.ds_freq_dep()
-        self.pfb_overlap_dep()
-        self.pol_type_dep()
-        self.tbin_dep()
-        self.only_I_dep()
-        self.packet_format_dep()
-        self.npol_dep()
-        self.tfold_dep()
-        self.node_rf_frequency_dep()
-        self.fft_params_dep()
+        self._node_nchan_dep()
+        self._acc_len_dep()
+        self._node_bandwidth_dep()
+        self._chan_bw_dep()
+        self._ds_time_dep()
+        self._ds_freq_dep()
+        self._pfb_overlap_dep()
+        self._pol_type_dep()
+        self._tbin_dep()
+        self._only_I_dep()
+        self._packet_format_dep()
+        self._npol_dep()
+        self._tfold_dep()
+        self._node_rf_frequency_dep()
+        self._fft_params_dep()
 
-        self.set_status_keys()
+        self._set_status_keys()
         self.set_if_bits()
-        
+
         if self.hpc_process is None:
             self.start_hpc()
             time.sleep(5)
@@ -324,13 +332,13 @@ class GuppiCODDBackend(Backend):
 
     # Algorithmic dependency methods, not normally called by users
 
-    def acc_len_dep(self):
+    def _acc_len_dep(self):
         """
         In CODD mode, acc_len is always 1
         """
         self.acc_len = 1
 
-    def chan_bw_dep(self):
+    def _chan_bw_dep(self):
         """
         Calculates the CHAN_BW status keyword
         Result is bandwidth of each PFM channel in MHz
@@ -340,7 +348,7 @@ class GuppiCODDBackend(Backend):
         chan_bw = self.node_bandwidth / float(self.node_nchan)
         self.chan_bw = chan_bw
 
-    def ds_time_dep(self):
+    def _ds_time_dep(self):
         """
         Calculate the down-sampling time status keyword
         """
@@ -351,7 +359,7 @@ class GuppiCODDBackend(Backend):
         else:
             self.ds_time = 1
 
-    def ds_freq_dep(self):
+    def _ds_freq_dep(self):
         """
         Calculate the DS_FREQ status keyword.
         This is used only when an observer wants to reduce the number of channels
@@ -363,7 +371,7 @@ class GuppiCODDBackend(Backend):
         else:
             self.ds_freq = 1
 
-    def node_nchan_dep(self):
+    def _node_nchan_dep(self):
         """
         Calculates the number of channels received by this node.
         """
@@ -372,13 +380,13 @@ class GuppiCODDBackend(Backend):
         else:
             self.node_nchan = self.nchan
 
-    def pfb_overlap_dep(self):
+    def _pfb_overlap_dep(self):
         """
         Randy/Jason indicated that the new guppi designs will have 12 taps in all modes.
         """
         self.pfb_overlap = 12
 
-    def pol_type_dep(self):
+    def _pol_type_dep(self):
         """
         Calculates the POL_TYPE status keyword.
         Depends upon a synthetic mode name having FAST4K for that mode, otherwise
@@ -391,7 +399,7 @@ class GuppiCODDBackend(Backend):
         else:
             self.pol_type = 'IQUV'
 
-    def npol_dep(self):
+    def _npol_dep(self):
         """
         Calculates the number of polarizations to be recorded.
         Most cases it is all four, except in FAST4K, or when the user
@@ -403,7 +411,7 @@ class GuppiCODDBackend(Backend):
         elif self.only_i:
             self.npol = 1
 
-    def node_bandwidth_dep(self):
+    def _node_bandwidth_dep(self):
         """
         Calculations the bandwidth seen by this HPC node
         """
@@ -412,18 +420,18 @@ class GuppiCODDBackend(Backend):
         else:
             self.node_bandwidth = self.bandwidth
 
-    def tbin_dep(self):
+    def _tbin_dep(self):
         """
         Calculates the TBIN status keyword
         """
         self.tbin = float(self.acc_len * self.node_nchan) / abs(self.node_bandwidth*1E6)
 
-    def tfold_dep(self):
+    def _tfold_dep(self):
         if 'COHERENT' == self.obs_mode:
             self.fold_time = 1
 
 
-    def packet_format_dep(self):
+    def _packet_format_dep(self):
         """
         Calculates the PKTFMT status keyword
         """
@@ -433,7 +441,7 @@ class GuppiCODDBackend(Backend):
             self.packet_format = '1SFA'
 
 
-    def only_I_dep(self):
+    def _only_I_dep(self):
         """
         Calculates the ONLY_I status keyword
         """
@@ -443,13 +451,13 @@ class GuppiCODDBackend(Backend):
         elif self.obs_mode.upper() not in ["SEARCH", "COHERENT_SEARCH"]:
             self.only_i = 0
 
-    def node_bandwidth_dep(self):
+    def _node_bandwidth_dep(self):
         """
         Calculates the bandwidth seen by this HPC node
         """
         self.node_bandwidth =  self.bandwidth/self.num_nodes
 
-    def node_rf_frequency_dep(self):
+    def _node_rf_frequency_dep(self):
         """
         The band is divided amoung the various nodes like so:
          ^       ^^       ^^     ctr freq    ^^
@@ -469,7 +477,7 @@ class GuppiCODDBackend(Backend):
                                  self.node_number * self.node_bandwidth + \
                                  0.5*self.node_bandwidth - self.chan_bw/2.0
 
-    def fft_params_dep(self):
+    def _fft_params_dep(self):
         """
         Calculate the OVERLAP, FFTLEN, and BLOCSIZE status keywords
         """
@@ -488,7 +496,7 @@ class GuppiCODDBackend(Backend):
             self.blocsize = 33554432 # defaults
 
 
-    def set_status_keys(self):
+    def _set_status_keys(self):
         """
         Collect and set the status memory keywords
         """
@@ -500,7 +508,7 @@ class GuppiCODDBackend(Backend):
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
         statusdata["DATAHOST" ] = self.datahost;
-        statusdata["DATAPORT" ] = self.dataport;        
+        statusdata["DATAPORT" ] = self.dataport;
         statusdata['DATADIR' ] = self.dataroot
         statusdata['PROJID'  ] = self.projectid
         statusdata['OBSERVER'] = self.observer
@@ -530,7 +538,7 @@ class GuppiCODDBackend(Backend):
                 statusdata['PARFILE'] = self.parfile
             else:
                 statusdata['PARFILE'] = '%s/%s' % (self.pardir, self.parfile)
-                
+
         statusdata['PFB_OVER'] = self.pfb_overlap
         statusdata['PKTFMT'  ] = self.packet_format
         statusdata['POL_TYPE'] = self.pol_type
@@ -551,7 +559,7 @@ class GuppiCODDBackend(Backend):
         """
         if not self.cdd_master():
             return
-            
+
         if self.valon:
             self.valon.set_frequency(0, abs(self.bandwidth))
         regs = {}
@@ -567,9 +575,10 @@ class GuppiCODDBackend(Backend):
     def fft_size_params(self,rf,bw,nchan,dm,max_databuf_mb=128):
         """
         fft_size_params(rf,bw,nchan,dm,max_databuf_mb=128):
-            Returns a tuple of size parameters (fftlen, overlap, blocsize)
-            given the input rf (center of band) in MHz, bw, nchan,
-            DM, and optional max databuf size in MB.
+
+        Returns a tuple of size parameters (fftlen, overlap, blocsize)
+        given the input rf (center of band) in MHz, bw, nchan, DM, and
+        optional max databuf size in MB.
         """
         # Overlap needs to be rounded to a integer number of packets
         # This assumes 8-bit 2-pol data (4 bytes per samp) and 8

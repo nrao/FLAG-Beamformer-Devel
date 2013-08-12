@@ -60,34 +60,36 @@ class ConfigData(object):
         """
         read_kv_pairs(self, config, section, kvkey)
 
-        config: an open ConfigParser object
-        section: the name of a section in the config file
-        kvkey: the key of keys
+        *config:* an open ConfigParser object
+        *section:* the name of a section in the config file
+        *kvkey:* the key of keys
 
-        returns: A dictionary of kv pairs, empty if 'kvkey' is not
+        returns: A dictionary of kv pairs, empty if *kvkey* is not
         there, or if it doesn't have any value, or if any of the values
         are not themselves keys in the section.
 
-        Looks in the ConfigParser object for a key-of-keys 'kvkey' which
+        Looks in the ConfigParser object for a key-of-keys *kvkey* which
         list a set of arbitrary keys to be read that the program does
         not know about. The value associated with this key is a comma
         delimited list of keys. The function parses this, then iterates
         over the keys to obtain the values, returning a dictionary of
-        key/value pairs:
+        key/value pairs. Given an entry in a configuration file's
+        section [MODE1] as follows::
 
-        shmkeys = foo,bar,baz
-        foo = frog
-        bar = cat
-        baz = dog
+         shmkeys = foo,bar,baz
+         foo = frog
+         bar = cat
+         baz = dog
 
-        -> {'bar': 'cat', 'baz': 'dog', 'foo': 'frog'}
+        then::
 
-        In the example above, 'shmkeys' is the key-of-keys, and
-        'foo,bar,baz' are the arbitrary keys. The function will then
-        know to read these keys. This allows any arbitrary key/value
-        pair to be stored in the configuration and have it be read.  An
-        example application is kv pairs to be stored in the DIBAS shared
-        status memory.
+         cf.read_kv_pairs(config, 'MODE1', 'shmkeys')
+         -> {'bar': 'cat', 'baz': 'dog', 'foo': 'frog'}
+
+        These may then be used in any way by the Player code. One use,
+        as implied in this example, is to store these values in shared
+        status memory. Another use is to read register/value pairs to be
+        directly written to the FPGA.
         """
         try:
             # get the keys, stripping out any spaces
@@ -109,39 +111,60 @@ class ConfigData(object):
 
 class BankData(ConfigData):
     """
-    Container for all Bank specific data:
-    datahost        : The 10Gbs IP address for the roach
-    dataport        : The 10Gbs port for the roach
-    dest_ip         : The 10Gbs HPC IP address
-    dest_port       : The 10Gbs HPC port
-    katcp_ip        : The KATCP host, on the 1Gbs network
-    katcp_port      : The KATCP port on the 1Gbs network
-    synth_port      : The Valon synthesizer serial port
-    synth_ref       : Valon internal/external reference setting
-    synth_ref_freq  : Valon reference frequency
-    synth_vco_range : Valon VCO range
-    synth_rf_level  : Valon RF ouput level
-    synth_options   : Valon option flags/values
+    Container for all Bank specific data.
     """
     def __init__(self):
         self.name = None
+        """The bank name"""
         self.datahost = None
+        """The 10Gbs IP address for the roach"""
         self.dataport = None
+        """The 10Gbs port for the roach"""
         self.dest_ip = None
+        """The 10Gbs HPC IP address"""
         self.dest_port = None
+        """The KATCP host, on the 1Gbs network"""
         self.katcp_ip = None
+        """The KATCP host, on the 1Gbs network"""
         self.katcp_port = None
+        """The KATCP port on the 1Gbs network"""
         self.synth = None
+        """The location of the Valon serial port: 'katcp' (on roach) or 'local' (on hpc machine)"""
         self.synth_port = None
+        """The Valon serial port device (i.e. /dev/ttyS1)"""
         self.synth_ref = None
+        """The reference frequency: 'internal' or 'external'"""
         self.synth_ref_freq = None
+        """The frequency of the Valon's external reference"""
         self.synth_vco_range = None
+        """Valon VCO range"""
         self.synth_rf_level = None
+        """The Valon RF level, in dBm. Legal values are -4, -1, 2, and 5"""
         self.synth_options = None
+        """
+        List of Valon options. With the exception of the reference
+        frequency multiplier, all of these are flags which either are
+        clear (0) or set (1): doubler, halver, multiplier, low-spur
+        """
         self.mac_base = (2 << 40) + (2 << 32)
+        """
+        The base mac address used to compute individual mac addresses
+        for the roaches.
+        """
         self.shmkvpairs = None
+        """
+        Arbitrary shared memory key/value pairs. Read from the config
+        file and placed in shared status memory.
+        """
         self.roach_kvpairs = None
+        """
+        Arbitrary FPGA register key/value pairs. Read from the config
+        file and written directly to the FPGA.
+        """
         self.i_am_master = None
+        """
+        Switching Signals master flag. *True* if this bank is the master.
+        """
 
     def __repr__(self):
         return "BankData (name=%s, datahost=%s, dataport=%i, dest_ip=%s, dest_port=%i, " \
@@ -169,6 +192,11 @@ class BankData(ConfigData):
                str(self.i_am_master))
 
     def load_config(self, config, bank):
+        """
+        Given the open *ConfigFile* object *config*, loads data for
+        *bank*. *config* normally is opened with the config file at
+        ``$DIBAS_DIR/etc/config/dibas.conf``
+        """
         self.name = bank
         self.datahost = config.get(bank, 'datahost').lstrip('"').rstrip('"')
         self.dataport = config.getint(bank, 'dataport')
@@ -189,39 +217,91 @@ class BankData(ConfigData):
 
 class ModeData(ConfigData):
     """
-    Container for all Mode specific data:
-    acc_len           :
-    filter_bw         :
-    frequency         : The Valon frequency
-    bof               : The ROACH bof file for this mode
-    sg_period         :
-    reset_phase       : The sequence of commands,data that reset the roach
-    arm_phase         : The sequence of commands,data that arm the roach
-    postarm_phase     : The sequence of commands,data sent after arming
-    master_slave_sels : The map of master/slave select values, keyed to
-                        [master/slave][int/ext switching signal][int/ext blanking]
+    Container for all Mode specific data.
     """
 
     def __init__(self):
         self.mode = None
+        """Mode name"""
         self.acc_len = None
+        """BOF file specific value"""
         self.filter_bw = None
+        """Filter bandwidth"""
         self.frequency = None
+        """Valon frequency"""
         self.nchan = None
+        """Number of channels, BOF specific value"""
         self.bof = None
+        """BOF file for this mode"""
         self.sg_period = None
+        """BOF specific value"""
         self.reset_phase = []
+        """Sequence of FPGA register writes necessary to reset the ROACH."""
         self.arm_phase = []
+        """Sequence of FPGA register writes necessary to arm the ROACH."""
         self.postarm_phase = []
+        """Sequence of FPGA register writes required post-arm."""
         self.master_slave_sels = AutoVivification()
+        """
+        This dictionary contains the master/slave select values.
+
+        The value chosen depends on whether the backend is master, what
+        the switching signal source is (internal/external), and what the
+        blanking source is (internal/external).
+
+        Typical config file entry::
+
+          0x00,0x00,0x00,0x0E,0x00,0x00
+
+        The order of the elements is as follows, where 'm' is master,
+        's' is slave, 'int' is internal, and 'ext' is external:
+
+          m/int/int, m/int/ext, m/ext/ext, s/int/int, s/int/ext, s/ext/ext
+
+        A typical use would be: ``ssg_ms_sel =
+        self.mode.master_slave_sels[master][ss_source][bl_source]``
+        where *master* is the master flag (0=slave, 1=master),
+        *ss_source* is the switching signal source (0=internal or
+        1=external), and *bl_source* is the blanking source (0=internal
+        or 1=external)
+        """
         self.needed_arm_delay = 0
+        """
+        The time needed by the backend to arm in this mode.
+        """
         self.cdd_mode = None
+        """
+        Flag, whether this mode is a coherent de-dispersion mode.
+        """
         self.cdd_roach = None
+        """
+        The roach that takes data for the coherent de-dispersion modes.
+        """
         self.cdd_roach_ips = []
+        """
+        The IP addresses of the onboard network adapter for the CoDD
+        roach. The CoDD roach has 8 of these.
+        """
         self.cdd_hpcs = []
+        """
+        The IP addresses of the HPC computers that are the end-points
+        for each the CoDD ROACH's network adapters. There are 8 of
+        these.
+        """
         self.cdd_master_hpc = None
+        """
+        In CoDD mode, the HPC that will control the ROACH. Since theCoDD
+        modes only use 1 ROACH but 8 HPC machines, one must be
+        designated to be the controller.
+        """
         self.shmkvpairs = None
+        """
+        Arbitrary shared memory keys to be placed into status shared memory for this mode.
+        """
         self.roach_kvpairs = None
+        """
+        Arbitrary FPGA register/value pairs that are to be written to the FPGA for this mode.
+        """
 
 
     def __repr__(self):
@@ -245,6 +325,11 @@ class ModeData(ConfigData):
              str(self.roach_kvpairs))
 
     def load_config(self, config, mode):
+        """
+        Given the open *ConfigFile* object *config*, loads data for
+        *mode*. *config* normally is opened with the config file at
+        ``$DIBAS_DIR/etc/config/dibas.conf``
+        """
         try:
             self.acc_len = config.getint(mode, 'acc_len')
         except:
@@ -318,7 +403,7 @@ class ModeData(ConfigData):
         # If this mode has a list of HPC machines for CODD operation, fetch
         # the dest_ip and dest_port entries from the corresponding Bank sections.
         # The resulting list is in the order of ports, i.e the first entry in the
-        # cdd_hpcs list specifies the IP_0 and PT_0 registers of the CODD bof.            
+        # cdd_hpcs list specifies the IP_0 and PT_0 registers of the CODD bof.
         if self.cdd_hpcs is not None:
             self.cdd_hpc_ip_info = []
             for i in self.cdd_hpcs:
@@ -330,4 +415,3 @@ class ModeData(ConfigData):
                     print "No dest_ip/dest_port information for cdd Bank %s" % i
                     pass
                     #raise Exception("No dest_ip/dest_port information for cdd Bank %s" % i)
-                    
