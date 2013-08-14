@@ -8,6 +8,17 @@
 
 #include "vegas_thread_args.h"
 
+#ifndef VEGAS_NUMA
+#define ACCUM_THREAD_CORE 1
+#define MANAGER_THREAD_CORE 2
+#define FITS_THREAD_CORE 3
+#define GPU_THREAD_CORE 4
+#define NET_THREAD_CORE 5
+#endif
+
+#define FITS_PRIORITY (-20)
+#define NET_PRIORITY (-20)
+
 /** SIGINT handling capability */
 extern int run;
 #ifdef __cplusplus /* C++ prototypes */

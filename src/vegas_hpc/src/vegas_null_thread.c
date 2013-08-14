@@ -60,7 +60,7 @@ void vegas_null_thread(void *_args) {
     cpu_set_t cpuset, cpuset_orig;
     sched_getaffinity(0, sizeof(cpu_set_t), &cpuset_orig);
     CPU_ZERO(&cpuset);
-    CPU_SET(6, &cpuset);
+    CPU_SET(GPU_THREAD_CORE, &cpuset);
     rv = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
     if (rv<0) { 
         vegas_error("vegas_null_thread", "Error setting cpu affinity.");

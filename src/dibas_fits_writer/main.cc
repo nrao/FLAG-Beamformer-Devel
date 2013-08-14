@@ -29,12 +29,18 @@
 #include <stdlib.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <errno.h>
 #include <time.h>
+#include <sched.h>
 
 #include "VegasFitsIO.h"
+// #include "vegas_threads.h"
+#define FITS_THREAD_CORE 3
+#define FITS_PRIORITY (-20)
 
 int run = 0;
 int srv_run = 1;
@@ -104,6 +110,22 @@ int main(int argc, char **argv)
         perror("open");
         exit(1);
     }
+    /* Set cpu affinity */
+    cpu_set_t cpuset, cpuset_orig;
+    sched_getaffinity(0, sizeof(cpu_set_t), &cpuset_orig);
+    CPU_ZERO(&cpuset);
+    CPU_SET(FITS_THREAD_CORE, &cpuset);
+    rv = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+    if (rv<0) { 
+        perror("sched_setaffinity");
+    }
+
+    /* Set priority */
+    rv = setpriority(PRIO_PROCESS, 0, FITS_PRIORITY);
+    if (rv<0) {
+        perror("set_priority");
+    }
+
     printf("vegas_fits_writer started\n");
 
     run=1;
