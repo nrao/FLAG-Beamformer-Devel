@@ -28,7 +28,7 @@
 
 #include<stdint.h>
 
-/// The first 8 bytes of the SPEAD header as viewed in little-endian format
+/// The first 8 bytes of the SPEAD header as viewed in little-endian format without byte swapping
 /// Note: members wider than a single byte must be reorder for little-endian form when reading/writing
 struct _SPEAD_HEADER                  
 {
@@ -41,8 +41,8 @@ struct _SPEAD_HEADER
 };
 typedef struct _SPEAD_HEADER SPEAD_HEADER;
 
-/// Item pointer entry in host (little-endian) format
-struct _ItemPointer                // 8 bytes
+/// Item pointer entry in host (little-endian) format after item table byte swap
+struct _ItemPointer
 {
     unsigned long item_address:40; ///< 40 bits of spead item address
     unsigned item_identifier:23;   ///< 23 bit identifier
@@ -78,21 +78,32 @@ typedef struct _VegasSpeadPacketHeader VegasSpeadPacketHeader;
 #define SWITCHING_STATE_ID          0x24
 #define PAYLOAD_DATA_OFFSET_ID      0x25
 
-/// Additional data structures for handling non-SPEAD packets into fake SPEAD's
+/// Additional data structures for handling non-SPEAD packets (LBW)
+/// Not sure where this is otherwise documented. The LBW header
+/// appears to follow the convention:
+/// +-----------------------------------------+
+/// | unused:12 | status:4 | fpga_counter:48  |
+/// +-----------------------------------------+
+/// | unused:12 | status:4 | fpga_counter:48  |
+/// +-----------------------------------------+
+/// |  8192 bytes of data                     |
+/// +-----------------------------------------+
+/// The second 8 bytes is a duplicate of the first 8 bytes, and is
+/// ignored by the HPC software.
 
 /// The structure of a raw LBW packet header after byte swapping
-struct _LBW_PacketWire
+struct _LBW_Packet
 {
     uint64_t time_counter:48;
-    uint8_t  status:8;
+    uint8_t  status:8;        // only lower 4 bits are used
     uint8_t  notused:8;
 };
-typedef struct _LBW_PacketWire LBW_PacketWire;
+typedef struct _LBW_Packet LBW_Packet;
 
 /// A union to easly perform the header 8 byte-swap
 union _LBW_endian
 {
-    LBW_PacketWire le;
+    LBW_Packet le;
     int64_t header;
 };
 typedef union _LBW_endian LBW_endian;
