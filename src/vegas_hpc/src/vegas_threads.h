@@ -1,4 +1,4 @@
-/* vegas_threads.h
+/** vegas_threads.h
  *
  * Definitions, routines common to 
  * all thread functions.
@@ -19,11 +19,17 @@
 #define FITS_PRIORITY (-20)
 #define NET_PRIORITY (-20)
 
-/* SIGINT handling capability */
+/** SIGINT handling capability */
 extern int run;
+#ifdef __cplusplus /* C++ prototypes */
+extern "C" {
+#endif
 extern void cc(int sig);
+#ifdef __cplusplus /* C++ prototypes */
+}
+#endif
 
-/* Safe lock/unlock functions for status shared mem. */
+/** Safe lock/unlock functions for status shared mem. */
 #define vegas_status_lock_safe(s) \
     pthread_cleanup_push((void *)vegas_status_unlock, s); \
     vegas_status_lock(s);
@@ -31,16 +37,26 @@ extern void cc(int sig);
     vegas_status_unlock(s); \
     pthread_cleanup_pop(0);
 
-/* Exit handler that updates status buffer */
+/** Exit handler that updates status buffer */
 #ifndef STATUS_KEY
 #  define STATUS_KEY "XXXSTAT"
 #  define TMP_STATUS_KEY 1
 #endif
+
+#ifdef __cplusplus /* C++ prototypes */
+extern "C" {
+#endif
+
 static void set_exit_status(struct vegas_status *s) {
     vegas_status_lock(s);
     hputs(s->buf, STATUS_KEY, "exiting");
     vegas_status_unlock(s);
 }
+
+#ifdef __cplusplus /* C++ prototypes */
+}
+#endif
+
 #if TMP_STATUS_KEY
 #  undef STATUS_KEY
 #  undef TMP_STATUS_KEY

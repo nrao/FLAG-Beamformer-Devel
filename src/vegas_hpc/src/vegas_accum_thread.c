@@ -127,6 +127,10 @@ void vegas_accum_thread(void *_args) {
     struct sdfits_data_columns data_cols[NUM_SW_STATES];
     int payload_type = 0;
     int i, j, k, rv;
+    int use_scanlen;
+    double fpgafreq;
+    double scan_length_seconds;
+
 
     /* Get arguments */
     struct vegas_thread_args *args = (struct vegas_thread_args *)_args;
@@ -209,6 +213,7 @@ void vegas_accum_thread(void *_args) {
 
     /* Read nchan and nsubband from status shared memory */
     vegas_read_obs_params(st.buf, &gp, &sf);
+    use_scanlen = read_scan_length(st.buf, &fpgafreq, &scan_length_seconds);
 
     /* Allocate memory for vector accumulators */
     create_accumulators(&accumulator, sf.hdr.nchan, sf.hdr.nsubband);
@@ -228,8 +233,12 @@ void vegas_accum_thread(void *_args) {
     int heap, accumid, struct_offset, array_offset;
     char *hdr_in=NULL, *hdr_out=NULL;
     struct databuf_index *index_in, *index_out;
+    uint64_t scan_length_time_counter;
+    uint64_t raw_time_counter, last_raw_time_counter = 0;
+    uint64_t upper_timer_bits = 0;
 
     int nblock_int=0, npacket=0, n_pkt_drop=0, n_heap_drop=0;
+    int debug_tick = 0;
 
     signal(SIGINT,cc);
     while (run) {
@@ -273,7 +282,8 @@ void vegas_accum_thread(void *_args) {
             index_out = (struct databuf_index*)vegas_databuf_index(db_out, curblock_out);
             index_out->num_datasets = 0;
             index_out->array_size = sf.hdr.nsubband * sf.hdr.nchan * NUM_STOKES * 4;
-
+            
+            scan_length_time_counter = 0;
             first=0;
         }
 
@@ -303,14 +313,29 @@ void vegas_accum_thread(void *_args) {
             accumid = freq_heap->status_bits & 0x7;         
 
             /*Debug: print heap */
-/*            printf("%d, %d, %d, %d, %d, %d\n", freq_heap->time_cntr, freq_heap->spectrum_cntr,
+#if 0
+            printf("%d, %d, %d, %d, %d, %d\n", freq_heap->time_cntr, freq_heap->spectrum_cntr,
                 freq_heap->integ_size, freq_heap->mode, freq_heap->status_bits,
                 freq_heap->payload_data_off);
-*/
+#endif
 
             /* If we have accumulated for long enough, write vectors to output block */
             if(accum_time >= reqd_exposure)
             {
+#if 0            
+                // DEBUG status of switching signals
+                char swstatbuf[64];
+                sprintf(swstatbuf, "%c %c %c %c",                       
+                        freq_heap->status_bits & 0x2 ? 'R' : 'S',
+                        freq_heap->status_bits & 0x1 ? 'N' : 'C',
+                        freq_heap->status_bits & 0x8 ? 'B' : 'L',
+                        debug_tick ? '+' : '=');
+                debug_tick = !debug_tick;
+                vegas_status_lock_safe(&st);
+                hputs(st.buf, "SWSIGSTA", swstatbuf);
+                vegas_status_unlock_safe(&st);
+                // end debug
+#endif                 
                 for(i = 0; i < NUM_SW_STATES; i++)
                 {
                     /*If a particular accumulator is dirty, write it to output buffer */
@@ -323,7 +348,7 @@ void vegas_accum_thread(void *_args) {
                             (index_out->array_size + sizeof(struct sdfits_data_columns)) > 
                             db_out->block_size)
                         {
-                            printf("Accumulator finished with output block %d\n", curblock_out);
+                            // printf("Accumulator finished with output block %d\n", curblock_out);
 
                             /* Write block number to status buffer */
                             vegas_status_lock_safe(&st);
@@ -338,6 +363,26 @@ void vegas_accum_thread(void *_args) {
 
                             /* Close out current integration */
                             vegas_databuf_set_filled(db_out, curblock_out);
+
+                            if (use_scanlen)
+                            {
+                                double scan_length_clock;
+                                if (last_raw_time_counter > raw_time_counter)
+                                {
+                                    /* 40 bit time counter has rolled over */
+                                    upper_timer_bits += 1LL<<40;   
+                                }
+                                last_raw_time_counter = raw_time_counter;
+                                scan_length_time_counter = upper_timer_bits + raw_time_counter;
+                                /* check if scan length has been reached */
+                                scan_length_clock = (double)(scan_length_time_counter) / fpgafreq;
+                                if (scan_length_clock > scan_length_seconds)
+                                {
+                                    printf("Scanlength completed %f, %f, %f\n", 
+                                           scan_length_seconds, scan_length_clock, fpgafreq);
+                                    pthread_exit(0);
+                                }
+                            }
 
                             /* Wait for next output buf */
                             curblock_out = (curblock_out + 1) % db_out->n_block;
@@ -384,6 +429,7 @@ void vegas_accum_thread(void *_args) {
                         index_out->disk_buf[index_out->num_datasets].struct_offset = struct_offset;
                         index_out->disk_buf[index_out->num_datasets].array_offset = array_offset;
 
+                        raw_time_counter = data_cols[0].time_counter;
                         /*Copy sdfits_data_columns struct to disk buffer */
                         memcpy(vegas_databuf_data(db_out, curblock_out) + struct_offset,
                                 &data_cols[i], sizeof(struct sdfits_data_columns));
@@ -408,6 +454,7 @@ void vegas_accum_thread(void *_args) {
                 reset_accumulators(accumulator, data_cols, accum_dirty,
                                 sf.hdr.nsubband, sf.hdr.nchan);
             }
+            
 
             /* Only add spectrum to accumulator if blanking bit is low */
             if((freq_heap->status_bits & 0x08) == 0)
@@ -491,7 +538,9 @@ void vegas_accum_thread(void *_args) {
         /* Done with current input block */
         vegas_databuf_set_free(db_in, curblock_in);
         curblock_in = (curblock_in + 1) % db_in->n_block;
-
+        /* If the SCANLEN keyword is present in status memory use it
+           to determin when to end the scan.
+         */
         /* Check for cancel */
         pthread_testcancel();
     }

@@ -1,6 +1,6 @@
 #ifndef _VEGAS_THREAD_ARGS_H
 #define _VEGAS_THREAD_ARGS_H
-/* Generic thread args type with input/output buffer
+/** Generic thread args type with input/output buffer
  * id numbers.  Not all threads have both a input and a
  * output.
  */

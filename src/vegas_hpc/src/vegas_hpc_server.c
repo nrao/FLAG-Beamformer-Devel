@@ -49,6 +49,7 @@ void *vegas_null_thread(void *args);
 void *vegas_pfb_thread(void *args);
 void *vegas_accum_thread(void *args);
 void *vegas_rawdisk_thread(void *args);
+void *vegas_sdfits_thread(void *args);
 
 /* Useful thread functions */
 
@@ -59,59 +60,154 @@ int check_thread_exit(struct vegas_thread_args *args, int nthread) {
     return(rv);
 }
 
-void init_hbw_mode(struct vegas_thread_args *args, int *nthread) {
-    vegas_thread_args_init(&args[0]); // net
-    vegas_thread_args_init(&args[1]); // accum
-    args[0].output_buffer = 2;
-    args[1].input_buffer = args[0].output_buffer;
-    args[1].output_buffer = 3;
-    *nthread = 2;
+#define NET_THREAD 0
+
+#define HBW_ACCUM_THREAD 1
+#define HBW_DISK_THREAD 2
+
+#define LBW_PFB_THREAD 1
+#define LBW_ACCUM_THREAD 2
+#define LBW_DISK_THREAD 3
+
+#define MONITOR_NULL_THREAD 1
+
+#define HBW_NET_BUFFER (2)
+#define LBW_NET_BUFFER (1)
+#define LBW_PFB_BUFFER (2)
+
+/// For the accumulator case, the manager always looks in buffer 3 for accumulator output
+#define ACCUM_BUFFER (3)
+
+/** Resize the blocks in the disk input buffer, based on the exposure parameter */
+void configure_accumulator_buffer_size(struct vegas_status *stat, struct vegas_databuf *dbuf_acc)
+{
+    // When the manager is present, it will adjust the block size, if not we set it here.
+#if 1
+    /* Resize the blocks in the disk input buffer, based on the exposure parameter */
+    struct vegas_params vegas_p;
+    struct sdfits sf;
+    int64_t num_exp_per_blk;
+    int64_t disk_block_size;
+    
+    vegas_status_lock(stat);
+    vegas_read_obs_params(stat->buf, &vegas_p, &sf);
+    vegas_read_subint_params(stat->buf, &vegas_p, &sf);
+    vegas_status_unlock(stat);
+    
+    num_exp_per_blk = (int)(ceil(DISK_WRITE_INTERVAL / sf.data_columns.exposure));
+    disk_block_size = num_exp_per_blk * (sf.hdr.nchan * sf.hdr.nsubband * 4 * 4);
+    if (disk_block_size > (int64_t)(32*1024*1024))
+    {
+        disk_block_size = disk_block_size > (int64_t)(32*1024*1024);
+    }
+    vegas_conf_databuf_size(dbuf_acc, disk_block_size);
+#endif
 }
 
+void init_hbw_mode(struct vegas_thread_args *args, int *nthread) 
+{
+    *nthread = 0;
+    vegas_thread_args_init(&args[NET_THREAD]); // net
+    *nthread = *nthread + 1;
+    vegas_thread_args_init(&args[HBW_ACCUM_THREAD]); // accum
+    *nthread = *nthread + 1;
+
+    args[NET_THREAD].output_buffer = HBW_NET_BUFFER;
+    args[HBW_ACCUM_THREAD].input_buffer = args[NET_THREAD].output_buffer;
+    args[HBW_ACCUM_THREAD].output_buffer = ACCUM_BUFFER;
+     
+#if !defined(EXT_DISK)
+        vegas_thread_args_init(&args[HBW_DISK_THREAD]); // fits writer
+        *nthread = *nthread + 1;
+        args[HBW_DISK_THREAD].input_buffer = args[HBW_ACCUM_THREAD].output_buffer;
+#endif
+}
+
+
 void init_lbw_mode(struct vegas_thread_args *args, int *nthread) {
-    vegas_thread_args_init(&args[0]); // net
-    vegas_thread_args_init(&args[1]); // pfb
-    vegas_thread_args_init(&args[2]); // accum
-    args[0].output_buffer = 1;
-    args[1].input_buffer = args[0].output_buffer;
-    args[1].output_buffer = 2;
-    args[2].input_buffer = args[1].output_buffer;
-    args[2].output_buffer = 3;
-    *nthread = 3;
+    *nthread = 0;
+    vegas_thread_args_init(&args[NET_THREAD]); // net
+    *nthread = *nthread + 1;
+    vegas_thread_args_init(&args[LBW_PFB_THREAD]); // pfb
+    *nthread = *nthread + 1;
+    vegas_thread_args_init(&args[LBW_ACCUM_THREAD]); // accum
+    *nthread = *nthread + 1;
+
+    args[NET_THREAD].output_buffer = LBW_NET_BUFFER;
+    args[LBW_PFB_THREAD].input_buffer = args[NET_THREAD].output_buffer;
+    args[LBW_PFB_THREAD].output_buffer = LBW_PFB_BUFFER;
+    args[LBW_ACCUM_THREAD].input_buffer = args[LBW_PFB_THREAD].output_buffer;
+    args[LBW_ACCUM_THREAD].output_buffer = ACCUM_BUFFER;
+    
+#if !defined(EXT_DISK)
+        vegas_thread_args_init(&args[LBW_DISK_THREAD]); // fits writer
+        *nthread = *nthread + 1;
+        args[LBW_DISK_THREAD].input_buffer = args[HBW_ACCUM_THREAD].output_buffer;
+#endif
 }
 
 void init_monitor_mode(struct vegas_thread_args *args, int *nthread) {
-    vegas_thread_args_init(&args[0]); // net
-    vegas_thread_args_init(&args[1]); // null
-    args[0].output_buffer = 1;
-    args[1].input_buffer = args[0].output_buffer;
+    vegas_thread_args_init(&args[NET_THREAD]); // net
+    vegas_thread_args_init(&args[MONITOR_NULL_THREAD]); // null
+    args[NET_THREAD].output_buffer = HBW_NET_BUFFER;
+    args[MONITOR_NULL_THREAD].input_buffer = args[NET_THREAD].output_buffer;
     *nthread = 2;
 }
 
-void start_hbw_mode(struct vegas_thread_args *args, pthread_t *ids) {
+
+void start_lbw_mode(struct vegas_thread_args *args, pthread_t *ids) 
+{
     // TODO error checking...
     int rv;
-    rv = pthread_create(&ids[0], NULL, vegas_net_thread, (void*)&args[0]);
-    rv = pthread_create(&ids[1], NULL, vegas_accum_thread, (void*)&args[1]);
+    rv = pthread_create(&ids[NET_THREAD], NULL, vegas_net_thread, (void*)&args[NET_THREAD]);
+    rv = pthread_create(&ids[LBW_PFB_THREAD], NULL, vegas_pfb_thread, (void*)&args[LBW_PFB_THREAD]);
+    rv = pthread_create(&ids[LBW_ACCUM_THREAD], NULL, vegas_accum_thread, (void*)&args[LBW_ACCUM_THREAD]);
+#ifdef RAW_DISK
+    rv = pthread_create(&ids[LBW_DISK_THREAD], NULL, vegas_rawdisk_thread, (void *)&args[LBW_DISK_THREAD]);
+#elif defined NULL_DISK
+    rv = pthread_create(&ids[LBW_DISK_THREAD], NULL, vegas_null_thread, (void *)&args[LBW_DISK_THREAD]);
+#elif defined EXT_DISK
+    rv = 0;
+#elif FITS_TYPE == PSRFITS
+    rv = pthread_create(&ids[LBW_DISK_THREAD], NULL, vegas_psrfits_thread, (void *)&args[LBW_DISK_THREAD]);
+#elif FITS_TYPE == SDFITS
+    rv = pthread_create(&ids[LBW_DISK_THREAD], NULL, vegas_sdfits_thread, (void *)&args[LBW_DISK_THREAD]);
+#endif
+
 }
 
-void start_lbw_mode(struct vegas_thread_args *args, pthread_t *ids) {
+extern void *_ZN15VegasFitsThread3runEP17vegas_thread_args(void *);
+
+void start_hbw_mode(struct vegas_thread_args *args, pthread_t *ids) 
+{
     // TODO error checking...
     int rv;
-    rv = pthread_create(&ids[0], NULL, vegas_net_thread, (void*)&args[0]);
-    rv = pthread_create(&ids[1], NULL, vegas_pfb_thread, (void*)&args[1]);
-    rv = pthread_create(&ids[2], NULL, vegas_accum_thread, (void*)&args[2]);
+    rv = pthread_create(&ids[NET_THREAD], NULL, vegas_net_thread, (void*)&args[NET_THREAD]);
+    rv = pthread_create(&ids[HBW_ACCUM_THREAD], NULL, vegas_accum_thread, (void*)&args[HBW_ACCUM_THREAD]);
+
+#ifdef RAW_DISK
+    rv = pthread_create(&ids[HBW_DISK_THREAD], NULL, vegas_rawdisk_thread, (void *)&args[HBW_DISK_THREAD]);
+#elif defined NULL_DISK
+    rv = pthread_create(&ids[HBW_DISK_THREAD], NULL, vegas_null_thread, (void *)&args[HBW_DISK_THREAD]);
+#elif defined EXT_DISK
+    rv = 0;
+#elif FITS_TYPE == PSRFITS
+    rv = pthread_create(&ids[HBW_DISK_THREAD], NULL, vegas_psrfits_thread, (void *)&args[HBW_DISK_THREAD]);
+#elif FITS_TYPE == SDFITS
+    rv = pthread_create(&ids[HBW_DISK_THREAD], NULL, vegas_sdfits_thread, (void *)&args[HBW_DISK_THREAD]);
+#endif
+
 }
 
 void start_monitor_mode(struct vegas_thread_args *args, pthread_t *ids) {
     // TODO error checking...
     int rv;
-    rv = pthread_create(&ids[0], NULL, vegas_net_thread, (void*)&args[0]);
-    rv = pthread_create(&ids[1], NULL, vegas_null_thread, (void*)&args[1]);
+    rv = pthread_create(&ids[NET_THREAD], NULL, vegas_net_thread, (void*)&args[NET_THREAD]);
+    rv = pthread_create(&ids[MONITOR_NULL_THREAD], NULL, vegas_null_thread, (void*)&args[MONITOR_NULL_THREAD]);
 }
 
-void stop_threads(struct vegas_thread_args *args, pthread_t *ids,
-        unsigned nthread) {
+void stop_threads(struct vegas_thread_args *args, pthread_t *ids, unsigned nthread) 
+{
     unsigned i;
     for (i=0; i<nthread; i++) pthread_cancel(ids[i]);
     for (i=0; i<nthread; i++) pthread_kill(ids[i], SIGINT);
@@ -165,6 +261,7 @@ int main(int argc, char *argv[]) {
     const int netbuf_id = 1;
     const int pfbbuf_id = 2;
     const int accbuf_id = 3;
+    
     if (rv!=VEGAS_OK) {
         fprintf(stderr, "Error connecting to vegas_status\n");
         exit(1);
@@ -177,7 +274,7 @@ int main(int argc, char *argv[]) {
     vegas_databuf_clear(dbuf_net);
     dbuf_pfb = vegas_databuf_attach(pfbbuf_id);
     if (dbuf_pfb==NULL) {
-        fprintf(stderr, "Error connecting to vegas_databuf (accum input)\n");
+        fprintf(stderr, "Error connecting to vegas_databuf (pfb output)\n");
         exit(1);
     }
     vegas_databuf_clear(dbuf_pfb);
@@ -195,7 +292,11 @@ int main(int argc, char *argv[]) {
     int nthread_cur = 0;
     struct vegas_thread_args args[MAX_THREAD];
     pthread_t thread_id[MAX_THREAD];
-    for (i=0; i<MAX_THREAD; i++) thread_id[i] = 0;
+    for (i=0; i<MAX_THREAD; i++) 
+    {
+        thread_id[i] = 0;
+    }
+    memset(args, 0, sizeof(args));
 
     /* Print start time for logs */
     time_t curtime = time(NULL);
@@ -218,6 +319,9 @@ int main(int argc, char *argv[]) {
             run = 0;
             stop_threads(args, thread_id, nthread_cur);
             nthread_cur = 0;
+            vegas_status_lock(&stat);
+            hputs(stat.buf, "SCANSTAT", "stopped");
+            vegas_status_unlock(&stat);
         }
 
         // Heartbeat, status update
@@ -237,11 +341,14 @@ int main(int argc, char *argv[]) {
         fflush(stdout);
         fflush(stderr);
 
-        // Wait for data on fifo
-        struct pollfd pfd;
-        pfd.fd = command_fifo;
-        pfd.events = POLLIN;
-        rv = poll(&pfd, 1, 1000);
+        // Wait for commands on fifo or stdin
+        struct pollfd pfd[2];
+        pfd[0].fd = command_fifo;
+        pfd[0].events = POLLIN;
+        pfd[1].fd = fileno(stdin);
+        pfd[1].events = POLLIN;
+
+        rv = poll(pfd, 2, 1000);
         if (rv==0) { continue; }
         else if (rv<0) {
             if (errno!=EINTR) perror("poll");
@@ -251,7 +358,8 @@ int main(int argc, char *argv[]) {
         // If we got POLLHUP, it means the other side closed its
         // connection.  Close and reopen the FIFO to clear this
         // condition.  Is there a better/recommended way to do this?
-        if (pfd.revents==POLLHUP) { 
+        if (pfd[0].revents==POLLHUP) 
+        { 
             close(command_fifo);
             command_fifo = open(vegas_DAQ_CONTROL, O_RDONLY | O_NONBLOCK);
             if (command_fifo<0) {
@@ -262,10 +370,25 @@ int main(int argc, char *argv[]) {
             }
             continue;
         }
-
-        // Read the command
+        // clear the command
         memset(cmd, 0, MAX_CMD_LEN);
-        rv = read(command_fifo, cmd, MAX_CMD_LEN-1);
+        for (i=0; i<2; ++i)
+        {
+            rv = 0;
+            if (pfd[i].revents & POLLIN)
+            {
+                if (read(pfd[i].fd, cmd, MAX_CMD_LEN-1)<1)
+                    continue;
+                else
+                {
+                    rv = 1;
+                    break;
+                }
+            }
+        }
+
+
+        // rv = read(command_fifo, cmd, MAX_CMD_LEN-1);
         if (rv==0) { continue; }
         else if (rv<0) {
             if (errno==EAGAIN) { continue; }
@@ -280,13 +403,17 @@ int main(int argc, char *argv[]) {
         // Process the command 
         if (strncasecmp(cmd,"QUIT",MAX_CMD_LEN)==0) {
             // Exit program
-            printf("Exit\n");
-            run = 0;
             stop_threads(args, thread_id, nthread_cur);
             cmd_wait=0;
+            printf("Stop observations\n");
+            vegas_status_lock(&stat);
+            hputs(stat.buf, "SCANSTAT", "stopped");
+            vegas_status_unlock(&stat);
+            nthread_cur = 0;
+            printf("Exit\n");
+            run = 0;            
             continue;
-        } 
-        
+        }     
         else if (strncasecmp(cmd,"START",MAX_CMD_LEN)==0 ||
                 strncasecmp(cmd,"MONITOR",MAX_CMD_LEN)==0) {
             // Start observations
@@ -308,6 +435,9 @@ int main(int argc, char *argv[]) {
                 }
                 printf("  obs_mode = %s\n", obs_mode);
 
+                /* Resize the blocks in the disk input buffer, based on the exposure parameter */
+                configure_accumulator_buffer_size(&stat, dbuf_acc);
+
                 // Clear out data bufs
                 vegas_databuf_clear(dbuf_net);
                 vegas_databuf_clear(dbuf_pfb);
@@ -317,19 +447,28 @@ int main(int argc, char *argv[]) {
                 // Do it
                 run = 1;
                 if (strncasecmp(obs_mode, "HBW", 4)==0) {
+                    vegas_status_lock(&stat);
                     hputs(stat.buf, "BW_MODE", "high");
                     hputs(stat.buf, "SWVER", "1.4");
+                    hputs(stat.buf, "SCANSTAT", "running");
+                    vegas_status_unlock(&stat);
                     init_hbw_mode(args, &nthread_cur);
                     start_hbw_mode(args, thread_id);
-                } else if (strncasecmp(obs_mode, "LBW", 4)==0) {
+                    
+                } else if (strncasecmp(obs_mode, "LBW", 4)==0) {                
+                    vegas_status_lock(&stat);
                     hputs(stat.buf, "BW_MODE", "low");
                     hputs(stat.buf, "SWVER", "1.4");
-
+                    hputs(stat.buf, "SCANSTAT", "running");
+                    vegas_status_unlock(&stat);
                     init_lbw_mode(args, &nthread_cur);
                     start_lbw_mode(args, thread_id);
                 } else if (strncasecmp(obs_mode, "MONITOR", 8)==0) {
                     init_monitor_mode(args, &nthread_cur);
                     start_monitor_mode(args, thread_id);
+                    vegas_status_lock(&stat);
+                    hputs(stat.buf, "SCANSTAT", "stopped");
+                    vegas_status_unlock(&stat);
                 } else {
                     printf("  unrecognized obs_mode!\n");
                 }
@@ -343,6 +482,9 @@ int main(int argc, char *argv[]) {
             printf("Stop observations\n");
             run = 0;
             stop_threads(args, thread_id, nthread_cur);
+            vegas_status_lock(&stat);
+            hputs(stat.buf, "SCANSTAT", "stopped");
+            vegas_status_unlock(&stat);
             nthread_cur = 0;
         } 
         
@@ -360,6 +502,7 @@ int main(int argc, char *argv[]) {
 
     vegas_status_lock(&stat);
     hputs(stat.buf, "DAQSTATE", "exiting");
+    hputs(stat.buf, "SCANSTAT", "stopped");
     vegas_status_unlock(&stat);
 
     curtime = time(NULL);

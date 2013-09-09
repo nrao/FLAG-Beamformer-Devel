@@ -136,7 +136,7 @@ void vegas_conf_databuf_size(struct vegas_databuf *d, size_t new_block_size)
     return;
 }
 
-
+/** Detach from the shared memory databuffer */
 int vegas_databuf_detach(struct vegas_databuf *d) {
     int rv = shmdt(d);
     if (rv!=0) {
@@ -209,6 +209,9 @@ char *vegas_databuf_data(struct vegas_databuf *d, int block_id) {
 }
 #endif
 
+/** Attach to the specified data buffer.
+ *  Returns the address of the databuffer if successful , or zero on error.
+ */
 struct vegas_databuf *vegas_databuf_attach(int databuf_id) {
 
     /* Get shmid */
@@ -252,6 +255,10 @@ int vegas_databuf_total_status(struct vegas_databuf *d) {
 
 }
 
+/** Wait until the specified data block becomes free.
+ *  This will return 0 on success, or VEGAS_TIMEOUT if the buffer
+ *  was not made free within 250ms.
+ */
 int vegas_databuf_wait_free(struct vegas_databuf *d, int block_id) {
     int rv;
     struct sembuf op;
@@ -272,14 +279,14 @@ int vegas_databuf_wait_free(struct vegas_databuf *d, int block_id) {
     return(0);
 }
 
-int vegas_databuf_wait_filled(struct vegas_databuf *d, int block_id) {
-    /* This needs to wait for the semval of the given block
+    /** This needs to wait for the semval of the given block
      * to become > 0, but NOT immediately decrement it to 0.
      * Probably do this by giving an array of semops, since
      * (afaik) the whole array happens atomically:
      * step 1: wait for val=1 then decrement (semop=-1)
      * step 2: increment by 1 (semop=1)
      */
+int vegas_databuf_wait_filled(struct vegas_databuf *d, int block_id) {
     int rv;
     struct sembuf op[2];
     op[0].sem_num = op[1].sem_num = block_id;
@@ -301,11 +308,11 @@ int vegas_databuf_wait_filled(struct vegas_databuf *d, int block_id) {
     return(0);
 }
 
-int vegas_databuf_set_free(struct vegas_databuf *d, int block_id) {
-    /* This function should always succeed regardless of the current
+    /** This function should always succeed regardless of the current
      * state of the specified databuf.  So we use semctl (not semop) to set
      * the value to zero.
      */
+int vegas_databuf_set_free(struct vegas_databuf *d, int block_id) {
     int rv;
     union semun arg;
     arg.val = 0;
@@ -317,11 +324,11 @@ int vegas_databuf_set_free(struct vegas_databuf *d, int block_id) {
     return(0);
 }
 
-int vegas_databuf_set_filled(struct vegas_databuf *d, int block_id) {
-    /* This function should always succeed regardless of the current
+    /** This function should always succeed regardless of the current
      * state of the specified databuf.  So we use semctl (not semop) to set
      * the value to one.
      */
+int vegas_databuf_set_filled(struct vegas_databuf *d, int block_id) {
     int rv;
     union semun arg;
     arg.val = 1;

@@ -24,7 +24,7 @@ CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
 
 NVCCFLAGS = -arch=sm_20 -I$(CUDA)/include -I/opt/local/include -I$(VEGAS_INCL)
 
-LIBS = -L. -L$(PYSLALIB) -L/home/pulsar64/presto/lib -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -L$(VEGAS_LIB_GCC) -lcfitsio -lsla -lm -lpthread -lg2c
+LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread
 CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread
 
 PROGS = check_vegas_databuf check_vegas_status clean_vegas_shmem
@@ -42,9 +42,9 @@ all: $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw vegas_hpc_server
 clean:
 	rm -f $(PROGS) $(THREAD_PROGS) *~ *.o sdfits.tgz test_psrfits_0*.fits *.ptx
 INSTALL_DIR = ../bin
-install: $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw
+install: $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw vegas_hpc_server
 	mkdir -p $(INSTALL_DIR) && \
-	cp -f $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw $(INSTALL_DIR)
+	cp -f $(PROGS) $(THREAD_PROGS) vegas_hpc_server vegas_hpc_lbw $(INSTALL_DIR)
 sdfits.tgz: sdfits.h read_sdfits.c \
     vegas_SDFITS_template.txt \
 	tar cvzf $@ $^
@@ -58,9 +58,17 @@ vegas_hpc_lbw: vegas_hpc_lbw.c $(THREAD_OBJS) $(OBJS) $(CUDA_OBJS)
 	$(CC) $(CFLAGS) $(CUDA_CFLAGS) $< -o $@ $(THREAD_OBJS) \
 		$(CUDA_OBJS) $(OBJS) $(LIBS) $(CUDA_LIBS)
 
-vegas_hpc_server: vegas_hpc_server.c $(THREAD_OBJS) $(OBJS) $(CUDA_OBJS)
-	$(CC) $(CFLAGS) $(CUDA_CFLAGS) $< -o $@ $(THREAD_OBJS) \
+vegas_hpc_server: vegas_hpc_server.o $(THREAD_OBJS) $(OBJS) $(CUDA_OBJS)
+	$(CXX) $(CFLAGS) $(CUDA_CFLAGS) -o $@ vegas_hpc_server.o $(FITSIOLIB) $(THREAD_OBJS) \
 		$(CUDA_OBJS) $(OBJS) $(LIBS) $(CUDA_LIBS)
+help:
+	echo "CFLAGS=" $(CFLAGS)
+	echo "LIBS=" $(LIBS)
+	echo "CUDA_LIBS=" $(CUDA_LIBS)
+	echo "OPT_FLAGS=" $(OPT_FLAGS)
+	echo "To build for use with external disk writer try:"
+	echo "$(MAKE) EXT_DISK=1"
+
 
 .SECONDEXPANSION:
 $(PROGS): $$@.c $(OBJS)
