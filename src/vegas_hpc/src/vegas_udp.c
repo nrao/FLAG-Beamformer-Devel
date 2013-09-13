@@ -13,16 +13,155 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <errno.h>
+#include <stdint.h>
+#include <endian.h>
+#include <execinfo.h>
 
 #include "vegas_udp.h"
 #include "vegas_databuf.h"
 #include "vegas_error.h"
 #include "vegas_defines.h"
+#include "spead_packet.h"
+#include "spead_heap.h"
+
+
+/// A (fake) SPEAD header template for low-bw mode non-SPEAD packets
+const unsigned char sphead[] = { 
+    SPEAD_MAGIC_HEAD_CHAR,                         0x00, 0x00, 0x00, 0x08, // 0
+    0x80, 0x00, HEAP_COUNTER_ID,             0x00, 0x00, 0x00, 0x00, 0x00, // 1 (pkt num)
+    0x80, 0x00, HEAP_SIZE_ID,                0x00, 0x00, 0x00, 0x20, 0x20, // 2
+    0x80, 0x00, HEAP_OFFSET_ID,              0x00, 0x00, 0x00, 0x00, 0x00, // 3
+    0x80, 0x00, PAYLOAD_OFFSET_ID,           0x00, 0x00, 0x00, 0x20, 0x00, // 4
+    0x80, 0x00, TIME_STAMP_ID,               0x00, 0x00, 0x00, 0x00, 0x00, // 5 (abs time?)
+    0x80, 0x00, SPECTRUM_COUNTER_ID,         0x00, 0x00, 0x00, 0x00, 0x0D, // 6
+    0x80, 0x00, SPECTRUM_PER_INTEGRATION_ID, 0x00, 0x00, 0x00, 0x00, 0x00, // 7
+    0x00, 0x00, MODE_NUMBER_ID,              0x00, 0x00, 0x00, 0x00, 0x00  // 8 
+};
+
 
 #ifdef NEW_GBT
-#define BYTE_ARR_TO_UINT(array, idx) (ntohl(((unsigned int*)(array))[idx]))
+// #define BYTE_ARR_TO_UINT(array, idx) (ntohl(((unsigned int*)(array))[idx]))
 #endif
 
+// This is actually faster than the macro expansion of above, plus it conforms with
+// C99 standards.
+union __XXY
+{
+    const int*  iptr;
+    const char* cptr;
+};
+static inline unsigned int BYTE_ARR_TO_UINT(const char *p1, int idx)
+{
+    union __XXY x;
+    x.cptr = p1;
+    return ntohl(x.iptr[idx]);
+}
+
+/// Extract the number of items in the SPEAD header.
+static uint32_t ok_packets =0;
+static uint32_t error_packets=0;
+
+int32_t num_spead_items(const VegasSpeadPacketHeader *sptr)
+{
+    //Check that the header is valid
+    if( BYTE_ARR_TO_UINT((const char *)sptr, 0) != SPEAD_MAGIC_HEAD )
+    {
+        vegas_error("num_spead_items()", "Spead header missing\n");
+        return (VEGAS_ERR_PACKET);
+    }
+
+    int32_t num_items = (int32_t)be16toh(sptr->spead_header.num_items);
+    if (num_items > 10)
+    {
+        void *bt[32];
+        int nentries;
+        
+        int i;
+        char *ptr;
+        
+        vegas_error("num_spead_items", "num_items > 10");
+        
+        nentries = backtrace(bt,sizeof(bt) / sizeof(bt[0]));
+        backtrace_symbols_fd(bt,nentries,fileno(stdout));
+
+        error_packets++;
+        ptr = (char *)&sptr->spead_header;
+        for (i=0; i<8; ++i)
+        {
+            printf("%x ", 0xff & *ptr);
+            ptr++;
+        }
+        printf("good=%d, bad=%d\n ", ok_packets, error_packets);
+        // pthread_exit(0);
+        return (VEGAS_ERR_PACKET); // error code
+    }
+    ok_packets++;
+
+    return num_items;
+}
+
+/// The SPEAD header item table is big endian. 
+/// This byte swaps the item table prior to further processing.
+int byte_swap_spead_header(struct vegas_udp_packet *p)
+{
+    int32_t num_items;
+    int32_t i;
+
+    VegasSpeadPacketHeader *sheader = (VegasSpeadPacketHeader *)p->data;
+
+    //Get number of items (from last 2 bytes of header)
+    num_items = num_spead_items(sheader);
+    if (num_items < 0)
+        return VEGAS_ERR_PACKET;
+        
+    // byte swap the ItemPointer table
+    uint64_t *pd;
+    pd = (uint64_t *)&sheader->items[0];
+    for (i=0; i<num_items; ++i)
+    {
+        *pd = be64toh(*pd);
+        ++pd;
+    }
+    return(VEGAS_OK);
+}
+
+/// Take a low bandwidth packet and insert a SPEAD header onto it.
+/// The resulting packet is in SPEAD format, with the item table in host byte order.
+void lbw_packet_to_host_spead(struct vegas_udp_packet *b)
+{
+    
+    // Index into the raw data buffer to find the LBW header. Remembering in
+    // the LBW mode we record the packet at an offset from the start of the
+    // packet data buffer.
+    LBW_endian *wire = (LBW_endian *)&b->data[sizeof(sphead)-2*sizeof(uint64_t)];
+    // Convert to host order. LBW_endian union allows for relocation of status bits
+    wire->header = be64toh(wire->header);
+    
+    uint64_t tmcounter = wire->le.time_counter;
+    uint8_t  status_bits = wire->le.status & 0xF; // Status is lower 4 bits.
+    
+    // What are these constants ? JJB
+    // It apears that the first field is the FPGA counter, which increments
+    // by 0x800 in each packet. Hence the packet sequence number is tmcounter
+    // (48 bits) shifted down by 8 (a 40 bit value which now fits into a 
+    // SPEAD item_address field. Not sure what the subtract 10 does.
+    uint64_t pktnum = (tmcounter-10) / 2048;
+    
+    // Now insert the fake spead header from the template
+	memcpy(b->data,sphead,sizeof(sphead));
+
+    byte_swap_spead_header(b);    
+    // Index to the start of the pointer table
+    ItemPointer *hdr_ptr = (ItemPointer *)&b->data[sizeof(SPEAD_HEADER)];
+    hdr_ptr[0].item_address = pktnum;                ///< 40 bit HEAP_COUNTER_ID field
+    hdr_ptr[3].item_address = 8192;                  ///< PAYLOAD_OFFSET_ID
+    hdr_ptr[4].item_address = tmcounter;             ///< Lower 40 bits of FPGA counter TIME_STAMP_ID     
+    hdr_ptr[6].item_address = status_bits;           ///< SPECTRUM_PER_INTEGRATION_ID ?
+    
+    b->packet_size = 8192 + 72; // 8202 - sizeof(int64_t) + 
+}
+
+/// Initialize the UDP socket connection
 int vegas_udp_init(struct vegas_udp_params *p) {
 
     /* Resolve sender hostname */
@@ -92,10 +231,16 @@ int vegas_udp_init(struct vegas_udp_params *p) {
     return(VEGAS_OK);
 }
 
+/// Wait for a UDP network packet. Times out once a second.
+/// @return { VEGAS_OK, VEGAS_TIMEOUT, VEGAS_ERR_SYS }
 int vegas_udp_wait(struct vegas_udp_params *p) {
     int rv = poll(&p->pfd, 1, 1000); /* Timeout 1sec */
-    if (rv==1) { return(VEGAS_OK); } /* Data ready */
-    else if (rv==0) { return(VEGAS_TIMEOUT); } /* Timed out */
+    if (rv==1) { 
+        return(VEGAS_OK); /* Data ready */
+    } 
+    else if (rv==0) { 
+        return(VEGAS_TIMEOUT); /* Timed out */
+    } 
     else { 
         /* EINTR is not actually an error */
         if (errno == EINTR) {
@@ -106,75 +251,80 @@ int vegas_udp_wait(struct vegas_udp_params *p) {
     }  
 }
 
-const unsigned char sphead[] = { 
-    0x53, 0x04, 0x03, 0x05,   0x00, 0x00, 0x00, 0x08, // 0
-    0x80, 0x00, 0x01, 0x00,   0x00, 0x00, 0x00, 0x00, // 1 (pkt num)
-    0x80, 0x00, 0x02, 0x00,   0x00, 0x00, 0x20, 0x20, // 2
-    0x80, 0x00, 0x03, 0x00,   0x00, 0x00, 0x00, 0x00, // 3
-    0x80, 0x00, 0x04, 0x00,   0x00, 0x00, 0x20, 0x00, // 4
-    0x80, 0x00, 0x20, 0x00,   0x00, 0x00, 0x00, 0x00, // 5 (abs time?)
-    0x80, 0x00, 0x21, 0x00,   0x00, 0x00, 0x00, 0x0D, // 6
-    0x80, 0x00, 0x22, 0x00,   0x00, 0x00, 0x00, 0x00, // 7
-    0x00, 0x00, 0x23, 0x00,   0x00, 0x00, 0x00, 0x00  // 8 
-};
-
-int vegas_udp_recv(struct vegas_udp_params *p, struct vegas_udp_packet *b, char bw_mode[]) {
+/// Receives the network packet and processes the packet filling the udp_packet structure.
+/// The resulting packet has a SPEAD header, and the item table is in host byte order
+int vegas_udp_recv(struct vegas_udp_params *p, struct vegas_udp_packet *b, char bw_mode[]) 
+{
     int rv = 0;
-    char tempbuf[VEGAS_MAX_PACKET_SIZE]; /* for lbw */
-    int bw = (strncmp(bw_mode, "high", 4) == 0);
-    if (bw) /* hbw */
+    int hbw = (strncmp(bw_mode, "high", 4) == 0);
+    if (hbw) /* high bandwidth mode */
     {
         rv = recv(p->sock, b->data, VEGAS_MAX_PACKET_SIZE, 0);
     }
     else    /* lbw */
     {
-        rv = recv(p->sock, tempbuf, VEGAS_MAX_PACKET_SIZE, 0);
+        // Copy the packet into the databuffer offset so that we don't need to recopy
+        // the data later. A 72 byte SPEAD header will be prepended, so we leave
+        // space for that, but we need to offset backwards to allow for the 16 byte LBW header
+        // off the wire. Bottom line is that real data should land at correct offset
+        rv = recv(p->sock, &b->data[sizeof(sphead) - sizeof(uint64_t) * 2], VEGAS_MAX_PACKET_SIZE, 0);
         if (8208 != rv) /* sanity check */
         {
             return VEGAS_ERR_PACKET;
         }
     }
+    // record the actual packet length received
     b->packet_size = rv;
-    if (rv==-1) { return(VEGAS_ERR_SYS); }
-    else if (p->packet_size) {
-#ifdef SPEAD
-
+    
+    if (rv==-1) 
+    { 
+        // error receiving packet
+        return(VEGAS_ERR_SYS); 
+    }
+    else if (p->packet_size) 
+    {
+        // expected packet size is non-zero -- good. Are we expecting SPEAD packets?
+        // If not the else cases below return an error, as the next stages
+        // expect SPEAD packets.
     	if (strncmp(p->packet_format, "SPEAD", 5) == 0)
 	    {
-    	    if (!bw)    /* only for lbw */
+            int32_t is_ok;
+    	    if (!hbw)    /* only for lbw */
 	        {
-	            memcpy(b->data,sphead,72); // copy the header template
-	            unsigned int *hdr = (unsigned int *) b->data;
-                unsigned long tmcounter = ((unsigned long) (ntohl(((unsigned int*) tempbuf)[0])) << 32) + ntohl(((unsigned int*) tempbuf)[1]);
-				unsigned long pktnum = (tmcounter - 10) / 2048;
-                unsigned long status_bits = (unsigned long) (tempbuf[1] & 0x0F);
-                hdr[1*2+0] = hdr[1*2+0] | htonl((unsigned int) ((pktnum >> 32) & 0x00000000000000FF));
-	            hdr[1*2+1] = htonl((unsigned int) (pktnum & 0x00000000FFFFFFFF));
-	            hdr[5*2+1] = htonl((tmcounter - 10) & 0x000000FFFFFFFFFF);
-                hdr[7*2+1] = htonl((unsigned int) (status_bits & 0x0000000F));
-	            b->packet_size = 8192+72;
-
-	            char *in = tempbuf+16;          /* skip 16-byte header */
-	            char *out = b->data + 72;       /* skip 72-byte header */
-                (void) memcpy(out, in, 8192);   /* copy data */
+                // Insert fake spead header and byte swap the item table to host order
+                // since we synthesize the header, this should never fail
+                is_ok = VEGAS_OK;
+                lbw_packet_to_host_spead(b);                
     	    }
-            return vegas_chk_spead_pkt_size(b);
+            else
+            {
+                // In HBW mode the spead header is already there, so just byte swap the item table
+                is_ok = byte_swap_spead_header(b);
+            }
+            if (is_ok < 0)
+                return(VEGAS_ERR_PACKET);
+            else 
+                return vegas_chk_spead_pkt_size(b);
         }
 		else if (rv!=p->packet_size)
 			return(VEGAS_ERR_PACKET);
 		else
-            return(VEGAS_OK);
-#else
-        if (rv!=p->packet_size) { return(VEGAS_ERR_PACKET); }
-        else { return(VEGAS_OK); }
-#endif
+        {
+            // invalid mode
+            return(VEGAS_ERR_PACKET);
+            // return(VEGAS_OK);
+        }
     } else { 
-        p->packet_size = rv;
-        return(VEGAS_OK); 
+        // expecting zero length packets ??
+        return(VEGAS_ERR_PACKET);
     }
 }
 
-unsigned long long change_endian64(const unsigned long long *d) {
+/// Byte swap a 64 bit value
+unsigned long long change_endian64(const unsigned long long *d) 
+{
+#if 0
+    // painful and unecessary
     unsigned long long tmp;
     char *in=(char *)d, *out=(char *)&tmp;
     int i;
@@ -182,7 +332,17 @@ unsigned long long change_endian64(const unsigned long long *d) {
         out[i] = in[7-i];
     }
     return(tmp);
+#else
+    return be64toh(*d);
+#endif 
 }
+
+/// @defgroup GUPPI ''GUPPI style (non-spead format) processing routines.''
+/// These appear to all be guppi 1SFA style packet related functions. Since
+/// the LBW packets fake a SPEAD header, different methods should
+/// apply here. Just in case we ifdef them out to prevent mistakes.
+// @{
+#ifndef SPEAD
 
 unsigned long long vegas_udp_packet_seq_num(const struct vegas_udp_packet *p) {
     // XXX Temp for new baseband mode, blank out top 8 bits which 
@@ -223,6 +383,7 @@ size_t vegas_udp_packet_datasize(size_t packet_size) {
         return(packet_size - 2*sizeof(unsigned long long));
 }
 
+
 char *vegas_udp_packet_data(const struct vegas_udp_packet *p) {
     /* This is valid for all vegas packet formats
      * PASP has 16 bytes of header rather than 8.
@@ -237,7 +398,7 @@ unsigned long long vegas_udp_packet_flags(const struct vegas_udp_packet *p) {
                 + p->packet_size - sizeof(unsigned long long)));
 }
 
-/* Copy the data portion of a vegas udp packet to the given output
+/** Copy the data portion of a vegas udp packet to the given output
  * address.  This function takes care of expanding out the 
  * "missing" channels in 1SFA packets.
  */
@@ -269,7 +430,7 @@ void vegas_udp_packet_data_copy(char *out, const struct vegas_udp_packet *p) {
     }
 }
 
-/* Copy function for baseband data that does a partial
+/** Copy function for baseband data that does a partial
  * corner turn (or transpose) based on nchan.  In this case
  * out should point to the beginning of the data buffer.
  * block_pkt_idx is the seq number of this packet relative
@@ -358,7 +519,8 @@ void parkes_to_vegas(struct vegas_udp_packet *b, const int acc_len,
     }
     memcpy(b->data + sizeof(long long), tmp, sizeof(char) * npol * nchan);
 }
-
+#endif
+// @}
 
 #ifdef SPEAD
 
@@ -373,49 +535,73 @@ int vegas_chk_spead_pkt_size(const struct vegas_udp_packet *p)
 
     //Confirm we have enough bytes for header + 3 fields
     if(p->packet_size < 8*4)
+    {
+        printf("packet size less than 32 bytes\n");
         return (VEGAS_ERR_PACKET);
+    }
     
     //Check that the header is valid
     if( BYTE_ARR_TO_UINT(p->data, 0) != spead_hdr_upr )
+    {
+        printf("Spead header missing\n");
         return (VEGAS_ERR_PACKET);
+    }
 
-    //Get number of items (from last 2 bytes of header)
-    num_items = p->data[6]<<8 | p->data[7];
+    VegasSpeadPacketHeader *sptr = (VegasSpeadPacketHeader *)p->data;
+    //Get number of items from the header
+    num_items = (int)num_spead_items(sptr);
 
     payload_size = -1;
 
     //Get packet payload length, by searching through the fields
-    for(i = 8; i < (8 + num_items*8); i+=8)
+    for(i = 0; i<num_items; ++i)
     {
-        //If we found the packet payload length item
-        if( (p->data[i+1]<<8 | p->data[i+2]) == 4 )
+        //If we found the packet payload length item    
+        if (sptr->items[i].item_identifier == PAYLOAD_OFFSET_ID)
         {
-            payload_size = BYTE_ARR_TO_UINT(p->data, i/4 + 1);
+            payload_size = sptr->items[i].item_address;
             break;
         }
     }
     
     if(payload_size == -1)
+    {
+        printf("payload offset not found\n");
         return (VEGAS_ERR_PACKET);
+    }
 
     //Confirm that packet size is correct
-    if(p->packet_size != 8 + num_items*8 + payload_size)
+    if(p->packet_size != sizeof(SPEAD_HEADER) + num_items*sizeof(ItemPointer) + payload_size)
+    {
+        printf("packet_size does not match sum of header and payload\n");
+        printf("packet_size=%ld, expected %ld, payloadsize=%d, nitems=%d\n",
+               p->packet_size, sizeof(SPEAD_HEADER) + num_items*sizeof(ItemPointer) + payload_size,
+               payload_size, num_items);
         return (VEGAS_ERR_PACKET);
-
+    }
+        
+    // Confirm the data_size is correct
+    if ((p->packet_size - (sizeof(SPEAD_HEADER) + num_items*sizeof(ItemPointer))) != vegas_spead_packet_datasize(p))
+    {
+        printf("VEGAS_ERR_PACKET %s, %d\n", __FILE__, __LINE__);
+        return (VEGAS_ERR_PACKET);
+    }
     return (VEGAS_OK);
 }
 
 unsigned int vegas_spead_packet_heap_cntr(const struct vegas_udp_packet *p)
 {
-    int i;
-
+    const VegasSpeadPacketHeader *sptr = (VegasSpeadPacketHeader *)p->data;
+    //Get number of items from the header (num_items always in BE order)
+    uint32_t i, num_items = num_spead_items(sptr);
+    
     //Get heap counter, by searching through the fields
-    for(i = 8; i < (8 + 4*8); i+=8)
+    for(i = 0; i<num_items; ++i)
     {
-        //If we found the heap counter item
-        if( (p->data[i+1]<<8 | p->data[i+2]) == 1 )
+        //If we found the packet payload length item    
+        if (sptr->items[i].item_identifier == HEAP_COUNTER_ID)
         {
-            return BYTE_ARR_TO_UINT(p->data, i/4 + 1);
+            return ((uint32_t)sptr->items[i].item_address);
         }
     }
     
@@ -425,15 +611,17 @@ unsigned int vegas_spead_packet_heap_cntr(const struct vegas_udp_packet *p)
 
 unsigned int vegas_spead_packet_heap_offset(const struct vegas_udp_packet *p)
 {
-    int i;
+    const VegasSpeadPacketHeader *sptr = (VegasSpeadPacketHeader *)p->data;
+    //Get number of items from the header (num_items always in BE order)
+    uint32_t i, num_items = num_spead_items(sptr);
 
     //Get heap offset, by searching through the fields
-    for(i = 8; i < (8 + 4*8); i+=8)
+    for(i = 0; i<num_items; ++i)
     {
-        //If we found the heap offset item
-        if( (p->data[i+1]<<8 | p->data[i+2]) == 3 )
+        //If we found the packet payload length item    
+        if (sptr->items[i].item_identifier == HEAP_OFFSET_ID)
         {
-            return BYTE_ARR_TO_UINT(p->data, i/4 + 1);
+            return ((uint32_t)sptr->items[i].item_address);
         }
     }
     
@@ -447,55 +635,65 @@ unsigned int vegas_spead_packet_seq_num(int heap_cntr, int heap_offset, int pack
 }
 
 
+/// Return a pointer to the begining of the payload, accounting for
+/// variable length SPEAD headers
 char* vegas_spead_packet_data(const struct vegas_udp_packet *p)
 {
-    return (char*)(p->data + 5*8);
+    VegasSpeadPacketHeader *sptr = (VegasSpeadPacketHeader *)p->data;
+    size_t data_offset = sizeof(SPEAD_HEADER) + num_spead_items(sptr)*sizeof(ItemPointer);
+    return (char*)(p->data + data_offset);
 }
 
 
+/// Find the size of the data in this packet, omitting header bytes
 unsigned int vegas_spead_packet_datasize(const struct vegas_udp_packet *p)
 {
-    return p->packet_size - 5*8;
+    VegasSpeadPacketHeader *sptr = (VegasSpeadPacketHeader *)p->data;   
+    return p->packet_size - sizeof(SPEAD_HEADER) - num_spead_items(sptr)*sizeof(ItemPointer);
 }
 
 
 int vegas_spead_packet_copy(struct vegas_udp_packet *p, char *header_addr,
                             char* payload_addr, char bw_mode[])
 {
-    int i, num_items;
     char* pkt_payload;
     int payload_size, offset;
-    int bw = (strncmp(bw_mode, "high", 4) == 0);
+    int hbw = (strncmp(bw_mode, "high", 4) == 0);
+    VegasSpeadPacketHeader *sptr = (VegasSpeadPacketHeader *)p->data; 
+    // ItemPointer *hdr_items = (ItemPointer *)header_addr;
+    spead_heap_entry *sheap =  (spead_heap_entry *)header_addr; 
+    uint32_t i, num_items = num_spead_items(sptr);
+  
+    /* Copy header. No reversing of byte order is necessary 
+     * as the packet header is now in host order. Some convertion is
+     * necessary as the spead_heap fields dont exactly match the field
+     * widths in the spead packet header.
+     */
+              
+    for(i = 0; i < num_items-4; i++)
+    {   
+        // If this is the spec per integration item, add 1 in hbw mode        
+        if (hbw && sptr->items[i+4].item_identifier == SPECTRUM_PER_INTEGRATION_ID)
+            ++sptr->items[i+4].item_address;
 
-    num_items = p->data[6]<<8 | p->data[7];
+        // Convert the address mode bit into a value seen as a byte:       
+        sheap[i].addr_mode = (uint8_t) sptr->items[i+4].item_address_mode ? 0x80 : 0x0;
+        // Get the lower 16 bits of the id. 
+        // Note this truncates the 23 bit identifier field to 16 bits
+        sheap[i].item_id   = (uint16_t)sptr->items[i+4].item_identifier;
+        // split the 40 bit item into lower and upper portions
+        sheap[i].item_lower32 = (uint32_t)sptr->items[i+4].item_address;
+        sheap[i].item_top8  = (uint8_t)(sptr->items[i+4].item_address >> 32);
 
-    /* Copy header, reversing both the ID and value of each field */
-    for(i = 0; i < num_items - 4; i++)
-    {
-        header_addr[0]
-                = vegas_spead_packet_data(p)[i*8];                                  //mode byte
-        *((unsigned short *)(header_addr + 1))
-                = ntohs(*(unsigned short *)(vegas_spead_packet_data(p) + i*8 + 1)); //ID (16 bits)
-        header_addr[3]
-                = vegas_spead_packet_data(p)[i*8 + 3];                              //pad byte
-        *((unsigned int *)(header_addr + 4))
-                = ntohl(*(unsigned int *)(vegas_spead_packet_data(p) + i*8 + 4));   //value (32 bits)
-        if (bw && (*((unsigned short *)(header_addr + 1)) == 0x22)) {    // 0x22 is Integration_size
-            *((unsigned int *)(header_addr + 4)) += 1;                  // for hbw modes add 1 here so FPGA doesn't have to
-        }
-//        printf("%d : %d  ",*((unsigned short *)(header_addr + 1)),*((unsigned int *)(header_addr + 4)));
-        header_addr = (char*)(header_addr + 8);
     }
-//    printf("\n");
     
 
     /* Copy payload */
-    
-    pkt_payload = vegas_spead_packet_data(p) + (num_items - 4) * 8;
-    payload_size = vegas_spead_packet_datasize(p) - (num_items - 4) * 8;
+    pkt_payload  = vegas_spead_packet_data(p);
+    payload_size = vegas_spead_packet_datasize(p);
 
-    /* If high-bandwidth mode */
-    if(bw)
+    /* If high-bandwidth mode, byte swap the int32_t data into little endian form. */
+    if(hbw)
     {
         for(offset = 0; offset < payload_size; offset += 4)
         {
@@ -511,9 +709,9 @@ int vegas_spead_packet_copy(struct vegas_udp_packet *p, char *header_addr,
     return 0;
 }
 
-#endif
+#endif // endif SPEAD
 
-
+/// Close the UDP socket
 int vegas_udp_close(struct vegas_udp_params *p) {
     close(p->sock);
     return(VEGAS_OK);

@@ -22,6 +22,11 @@
 #if defined __cplusplus
 extern "C"
 #endif
+int init_cuda_context(void);
+
+#if defined __cplusplus
+extern "C"
+#endif
 int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, int num_chans);
 
 #if defined __cplusplus
@@ -50,4 +55,3 @@ int is_blanked(int heap_start, int num_heaps);
 void cleanup_gpu();
 
 #endif
-
