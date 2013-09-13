@@ -293,7 +293,8 @@ void do_pfb(struct vegas_databuf *db_in,
         /* Sanity check for the first iteration */
         if ((g_iBlockInDataSize % (g_iNumSubBands * g_nchan * sizeof(char4))) != 0)
         {
-            (void) fprintf(stderr, "ERROR: Data size mismatch!\n");
+            (void) fprintf(stderr, "ERROR: Data size mismatch! BlockInDataSize=%d NumSubBands=%d nchan=%d\n",
+                                    g_iBlockInDataSize, g_iNumSubBands, g_nchan);
             run = 0;
             return;
         }
@@ -443,6 +444,7 @@ void do_pfb(struct vegas_databuf *db_in,
          
                 /* Write new heap header fields */
                 freq_heap_out->time_cntr_id = 0x20;
+                freq_heap_out->time_cntr_top8 = first_time_heap_in_accum->time_cntr_top8;
                 freq_heap_out->time_cntr = first_time_heap_in_accum->time_cntr;
                 freq_heap_out->spectrum_cntr_id = 0x21;
                 freq_heap_out->spectrum_cntr = g_iTotHeapOut;
@@ -493,6 +495,7 @@ void do_pfb(struct vegas_databuf *db_in,
      
             /* Write new heap header fields */
             freq_heap_out->time_cntr_id = 0x20;
+            freq_heap_out->time_cntr_top8 = first_time_heap_in_accum->time_cntr_top8;
             freq_heap_out->time_cntr = first_time_heap_in_accum->time_cntr;
             freq_heap_out->spectrum_cntr_id = 0x21;
             freq_heap_out->spectrum_cntr = g_iTotHeapOut;
@@ -647,12 +650,20 @@ void zero_accumulator()
 
 int get_accumulated_spectrum_from_device(char *out)
 {
+    /* copy the negative frequencies out first */
     CUDASafeCall(cudaMemcpy(out,
-                                       g_pf4SumStokes_d,
-                                       (g_iNumSubBands
-                                        * g_nchan
-                                        * sizeof(float4)),
-                                       cudaMemcpyDeviceToHost));
+                            g_pf4SumStokes_d + (g_iNumSubBands * g_nchan / 2),
+                            (g_iNumSubBands
+                             * (g_nchan / 2)
+                             * sizeof(float4)),
+                            cudaMemcpyDeviceToHost));
+    /* copy the positive frequencies out */
+    CUDASafeCall(cudaMemcpy(out + (g_iNumSubBands * (g_nchan / 2) * sizeof(float4)),
+                            g_pf4SumStokes_d,
+                            (g_iNumSubBands
+                             * (g_nchan / 2)
+                             * sizeof(float4)),
+                            cudaMemcpyDeviceToHost));
 
     return VEGAS_OK;
 }
