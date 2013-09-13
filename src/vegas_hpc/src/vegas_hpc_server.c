@@ -25,6 +25,7 @@
 #include "vegas_status.h"
 #include "vegas_databuf.h"
 #include "vegas_params.h"
+#include "pfb_gpu.h"
 
 #include "vegas_thread_main.h"
 
@@ -309,6 +310,10 @@ int main(int argc, char *argv[]) {
     srv_run=1;
     signal(SIGINT, srv_cc);
     signal(SIGTERM, srv_quit);
+    
+    init_cuda_context();
+    hputs(stat.buf, "GPUCTXIN", "TRUE");
+
 
     /* Loop over recv'd commands, process them */
     int cmd_wait=1;
