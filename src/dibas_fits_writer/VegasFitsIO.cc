@@ -188,7 +188,7 @@ VegasFitsIO::readPrimaryHeaderKeywords()
         printf("NCHAN not set in status memory\n");
         ival=1024;
     }
-    setNumberChannels(1024);
+    setNumberChannels(ival);
     if (hgets(status_buffer, "MODE", sizeof(value), value) == 0)
     {
         sprintf(value, "MODE1");

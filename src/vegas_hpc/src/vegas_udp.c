@@ -141,16 +141,24 @@ void lbw_packet_to_host_spead(struct vegas_udp_packet *b)
     uint8_t  status_bits = wire->le.status & 0xF; // Status is lower 4 bits.
     
     // What are these constants ? JJB
+    // It apears that the first field is the FPGA counter, which increments
+    // by 0x800 in each packet. Hence the packet sequence number is tmcounter
+    // (48 bits) shifted down by 8 (a 40 bit value which now fits into a 
+    // SPEAD item_address field. Not sure what the subtract 10 does.
     uint64_t pktnum = (tmcounter-10) / 2048;
     
     // Now insert the fake spead header from the template
 	memcpy(b->data,sphead,sizeof(sphead));
-    
+
+    byte_swap_spead_header(b);    
     // Index to the start of the pointer table
     ItemPointer *hdr_ptr = (ItemPointer *)&b->data[sizeof(SPEAD_HEADER)];
-    hdr_ptr[0].item_address = pktnum;                ///< HEAP_COUNTER_ID field
-    hdr_ptr[2].item_address = (tmcounter - 10)/2048; ///< TIMESTAMP_ID field
-    hdr_ptr[6].item_address = status_bits;           ///< SPECTRUM_PER_INTEGRATION_ID
+    hdr_ptr[0].item_address = pktnum;                ///< 40 bit HEAP_COUNTER_ID field
+    hdr_ptr[3].item_address = 8192;                  ///< PAYLOAD_OFFSET_ID
+    hdr_ptr[4].item_address = tmcounter;             ///< Lower 40 bits of FPGA counter TIME_STAMP_ID     
+    hdr_ptr[6].item_address = status_bits;           ///< SPECTRUM_PER_INTEGRATION_ID ?
+    
+    b->packet_size = 8192 + 72; // 8202 - sizeof(int64_t) + 
 }
 
 /// Initialize the UDP socket connection
@@ -566,6 +574,9 @@ int vegas_chk_spead_pkt_size(const struct vegas_udp_packet *p)
     if(p->packet_size != sizeof(SPEAD_HEADER) + num_items*sizeof(ItemPointer) + payload_size)
     {
         printf("packet_size does not match sum of header and payload\n");
+        printf("packet_size=%ld, expected %ld, payloadsize=%d, nitems=%d\n",
+               p->packet_size, sizeof(SPEAD_HEADER) + num_items*sizeof(ItemPointer) + payload_size,
+               payload_size, num_items);
         return (VEGAS_ERR_PACKET);
     }
         

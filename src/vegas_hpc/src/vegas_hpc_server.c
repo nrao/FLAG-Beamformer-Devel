@@ -25,6 +25,7 @@
 #include "vegas_status.h"
 #include "vegas_databuf.h"
 #include "vegas_params.h"
+#include "pfb_gpu.h"
 
 #include "vegas_thread_main.h"
 
@@ -35,6 +36,7 @@ void usage() {
             "Usage: vegas_daq_server [options]\n"
             "Options:\n"
             "  -h, --help        This message\n"
+            "  -r, --resize-obuf   HPC will resize the output buffer block  when starting a scan\n"
            );
 }
 
@@ -220,15 +222,21 @@ int main(int argc, char *argv[]) {
 
     static struct option long_opts[] = {
         {"help",   0, NULL, 'h'},
+        {"resize-obuf", 0, NULL, 'r'},
         {0,0,0,0}
     };
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"h",long_opts,&opti))!=-1) {
+    /* resize output buffer based on status memory setup */
+    int do_dbuf_resize = 0;
+    while ((opt=getopt_long(argc,argv,"hs",long_opts,&opti))!=-1) {
         switch (opt) {
             default:
             case 'h':
                 usage();
                 exit(0);
+                break;
+            case 'r':
+                do_dbuf_resize =1;
                 break;
         }
     }
@@ -309,6 +317,10 @@ int main(int argc, char *argv[]) {
     srv_run=1;
     signal(SIGINT, srv_cc);
     signal(SIGTERM, srv_quit);
+    
+    init_cuda_context();
+    hputs(stat.buf, "GPUCTXIN", "TRUE");
+
 
     /* Loop over recv'd commands, process them */
     int cmd_wait=1;
@@ -436,7 +448,8 @@ int main(int argc, char *argv[]) {
                 printf("  obs_mode = %s\n", obs_mode);
 
                 /* Resize the blocks in the disk input buffer, based on the exposure parameter */
-                configure_accumulator_buffer_size(&stat, dbuf_acc);
+                if (do_dbuf_resize)
+                    configure_accumulator_buffer_size(&stat, dbuf_acc);
 
                 // Clear out data bufs
                 vegas_databuf_clear(dbuf_net);

@@ -19,18 +19,14 @@ ifdef EXT_DISK
 	OPT_FLAGS += -DEXT_DISK
 endif
 
-# Always build for an external disk writer
-OPT_FLAGS += -DEXT_DISK
-
-CXX=gcc
-#FITSIOLIB=./vegas_fitsio/libVegasFitsIO.a
-FITSIOLIB=
-CFLAGS = -g3  -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
+CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
 		-I$(PYSLALIB) -I$(VEGAS_DIR)/src -I/opt/local/include $(OPT_FLAGS)
 
-NVCCFLAGS = -arch=sm_20 -I$(CUDA)/include -I/opt/local/include -I$(VEGAS_INCL)
+NVCCFLAGS  = -gencode arch=compute_35,code=sm_35
+#NVCCFLAGS  = -arch=compute_35 -code=compute_35
+NVCCFLAGS += -I$(CUDA)/include -I/opt/local/include -I$(VEGAS_INCL)
 
-LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread 
+LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread
 CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread
 
 PROGS = check_vegas_databuf check_vegas_status clean_vegas_shmem

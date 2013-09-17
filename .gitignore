@@ -4,3 +4,7 @@ src/guppi_daq/python/possem_wrap.c
 *.mat
 *.swp
 *.old
+*.log
+*.autosave
+*.txt
+*.htm

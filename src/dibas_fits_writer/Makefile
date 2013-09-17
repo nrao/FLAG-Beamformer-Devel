@@ -1,9 +1,7 @@
 
 OPT_FLAGS=
 
-CUDADIR=/opt/local/cuda42
-
-USER_INCLUDES += -I$(CUDADIR)include
+USER_INCLUDES += -I$(CUDA)include
 USER_INCLUDES += -I/opt/local/include
 USER_INCLUDES += -I$(PYSLALIB)
 # Relative path include to vegas_hpc/src
@@ -20,23 +18,21 @@ CUDA_COMPILE=nvcc
 
 C__FLAGS=-g -Wall -D_GNU_SOURCE -I. $(USER_INCLUDES) $(OPT_FLAGS)  
 CXXFLAGS=-g -pthread  -Wall -I. $(USER_INCLUDES) -I/usr/include/cfitsio
-CUDA_FLAGS= -I. $(USER_INCLUDES) -arch=sm_20 -I$(CUDA)/include 
+CUDA_FLAGS= -I. $(USER_INCLUDES) -arch=sm_35 -I$(CUDA)/include 
 
-#LIBRARYTARGET=lib$(THISDIR).a
-#SHAREDLIBRARYTARGET=lib$(THISDIR).so
 EXECUTABLE=vegasFitsWriter
 
 all: $(EXECUTABLE)
 
-#EXTRA_SOURCES =$(HPC_PATH)/vegas_status.c
-#EXTRA_SOURCES+=$(HPC_PATH)/vegas_databuf.c
-#EXTRA_SOURCES+=$(HPC_PATH)/vegas_error.c
-#EXTRA_SOURCES+=$(HPC_PATH)/vegas_params.c
-#EXTRA_SOURCES+=$(HPC_PATH)/vegas_thread_args.c
-#EXTRA_SOURCES+=$(HPC_PATH)/vegas_time.c
-#EXTRA_SOURCES+=$(HPC_PATH)/hput.c
-#EXTRA_SOURCES+=$(HPC_PATH)/hget.c
-#EXTRA_SOURCES+=$(HPC_PATH)/sla.c
+EXTRA_SOURCES =vegas_status.c
+EXTRA_SOURCES+=vegas_databuf.c
+EXTRA_SOURCES+=vegas_error.c
+EXTRA_SOURCES+=vegas_params.c
+EXTRA_SOURCES+=vegas_thread_args.c
+EXTRA_SOURCES+=vegas_time.c
+EXTRA_SOURCES+=hput.c
+EXTRA_SOURCES+=hget.c
+EXTRA_SOURCES+=sla.c
 # Extra objects
 EXTRA_OBJECTS =vegas_status.o
 EXTRA_OBJECTS+=vegas_databuf.o
@@ -48,9 +44,10 @@ EXTRA_OBJECTS+=hput.o
 EXTRA_OBJECTS+=hget.o
 EXTRA_OBJECTS+=sla.o
 #
-VPATH=$(HPC_PATH)
+vpath %.c $(HPC_PATH)
 # Generate the C Source file list from the files in the current directory.
 C__SOURCES  += $(wildcard *.c )
+C__SOURCES  += $(EXTRA_SOURCES)
 CXXSOURCES  += $(wildcard *.cc )
 CUDA_SOURCES += $(wildcard *.cu)
 C__OBJECTS = ${C__SOURCES:.c=.o} 
@@ -99,3 +96,8 @@ help:
 	@echo "CXXOBJECTS are $(CXXOBJECTS)"
 	@echo "CUDA_SOURCES are $(CUDA_SOURCES)"
 	@echo "CUDA_OBJECTS are $(CUDA_OBJECTS)"
+	@echo "EXTRA_OBJECTS are $(EXTRA_OBJECTS)"
+	@echo "EXTRA_SOURCES are $(EXTRA_SOURCES)"
+
+doc:
+	@doxygen doxfile.conf

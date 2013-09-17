@@ -78,7 +78,43 @@ void __CUDASafeCall(cudaError_t iCUDARet,
                                                                   __LINE__,   \
                                                                   &cleanup_gpu)
 
-/* Initialize all necessary memory, etc for doing PFB 
+#define CUDA_SAFE_CALL(call) \
+do { \
+    cudaError_t err = call; \
+    if (cudaSuccess != err) { \
+        fprintf (stderr, "Cuda error in file '%s' in line %i : %s.", \
+                 __FILE__, __LINE__, cudaGetErrorString(err) ); \
+        exit(EXIT_FAILURE); \
+    } \
+} while (0)
+
+
+extern "C"
+int init_cuda_context(void)
+{
+    int iDevCount = 0;
+
+    /* since CUDASafeCall() calls cudaGetErrorString(),
+       it should not be used here - will cause crash if no CUDA device is
+       found */
+    (void) cudaGetDeviceCount(&iDevCount);
+    if (0 == iDevCount)
+    {
+        (void) fprintf(stderr, "ERROR: No CUDA-capable device found!\n");
+        return EXIT_FAILURE;
+    }
+
+    /* just use the first device */
+    printf("pfb_gpu.cu: CUDA_SAFE_CALL(cudaSetDevice(0))\n");
+    CUDA_SAFE_CALL(cudaSetDevice(0));
+    printf("pfb_gpu.cu: CUDA_SAFE_CALL(cudaFree(0)\n");
+    CUDA_SAFE_CALL(cudaFree(0));
+    printf("#################### GPU CONTEXT INITIALIZED ####################\n");
+    return EXIT_SUCCESS;
+}
+
+
+/* Initialize all necessary memory, etc for doing PFB
  * at the given params.
  */
 extern "C"
@@ -89,6 +125,7 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
     cufftResult iCUFFTRet = CUFFT_SUCCESS;
     int iRet = EXIT_SUCCESS;
     int iMaxThreadsPerBlock = 0;
+    const char *coeff_dir;
 
     g_buf_in_block_size = input_block_sz;
     g_buf_out_block_size = output_block_sz;
@@ -107,10 +144,12 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
     }
 
     /* just use the first device */
-    CUDASafeCall(cudaSetDevice(0));
+    printf("pfb_gpu.cu: CUDA_SAFE_CALL(cudaSetDevice(0))\n");
+    CUDA_SAFE_CALL(cudaSetDevice(0));
 
-    CUDASafeCall(cudaGetDeviceProperties(&stDevProp, 0));
+    CUDA_SAFE_CALL(cudaGetDeviceProperties(&stDevProp, 0));
     iMaxThreadsPerBlock = stDevProp.maxThreadsPerBlock;
+    printf("pfb_gpu.cu: iMaxThreadsPerBlock = %i\n", iMaxThreadsPerBlock);
 
     g_pfPFBCoeff = (float *) malloc(g_iNumSubBands
                                           * VEGAS_NUM_TAPS
@@ -125,22 +164,39 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
     }
 
     /* allocate memory for the filter coefficient array on the device */
-    CUDASafeCall(cudaMalloc((void **) &g_pfPFBCoeff_d,
+
+    printf("pfb_gpu.cu: before CUDA_SAFE_CALL(cudaFree(0))\n");
+    CUDA_SAFE_CALL(cudaFree(0));
+    printf("pfb_gpu.cu: after CUDA_SAFE_CALL(cudaFree(0))\n");
+
+    printf("pfb_gpu.cu:  before CUDA_SAFE_CALL(cudaMalloc((void...\n");
+    printf("%i, %i, %i, %i\n", g_iNumSubBands, VEGAS_NUM_TAPS,  g_nchan, sizeof(float));
+    CUDA_SAFE_CALL(cudaMalloc((void **) &g_pfPFBCoeff_d,
                                        g_iNumSubBands
                                        * VEGAS_NUM_TAPS
                                        * g_nchan
                                        * sizeof(float)));
+    printf("pfb_gpu.cu:  CUDA_SAFE_CALL(cudaMalloc((void...\n");
 
     /* read filter coefficients */
+    /* Locate the coefficient directory. If the environment variable CONFIG_DIR
+       is not set, look in the current working directory.
+     */
+    if ((coeff_dir = getenv("CONFIG_DIR")) == NULL)
+    {
+        coeff_dir = ".";
+    }
     /* build file name */
     (void) sprintf(g_acFileCoeff,
-                   "%s_%s_%d_%d_%d%s",
+                   "%s/%s_%s_%d_%d_%d%s",
+                   coeff_dir,                   
                    FILE_COEFF_PREFIX,
                    FILE_COEFF_DATATYPE,
                    VEGAS_NUM_TAPS,
                    g_nchan,
                    g_iNumSubBands,
                    FILE_COEFF_SUFFIX);
+
     g_iFileCoeff = open(g_acFileCoeff, O_RDONLY);
     if (g_iFileCoeff < EXIT_SUCCESS)
     {
@@ -165,7 +221,7 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
     (void) close(g_iFileCoeff);
 
     /* copy filter coefficients to the device */
-    CUDASafeCall(cudaMemcpy(g_pfPFBCoeff_d,
+    CUDA_SAFE_CALL(cudaMemcpy(g_pfPFBCoeff_d,
                g_pfPFBCoeff,
                g_iNumSubBands * VEGAS_NUM_TAPS * g_nchan * sizeof(float),
                cudaMemcpyHostToDevice));
@@ -176,12 +232,13 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
        NOTE: the actual data in a 32MB block will be only
        (num_heaps * heap_size), but since we don't know that value until data
        starts flowing, allocate the maximum possible size */
-    CUDASafeCall(cudaMalloc((void **) &g_pc4Data_d,
+    CUDA_SAFE_CALL(cudaMalloc((void **) &g_pc4Data_d,
                                        (g_buf_in_block_size
                                         + ((VEGAS_NUM_TAPS - 1)
                                            * g_iNumSubBands
                                            * g_nchan
                                            * sizeof(char4)))));
+    printf("pfb_gpu.cu: CUDA_SAFE_CALL(cudaMalloc((void...)\n");
     g_pc4DataRead_d = g_pc4Data_d;
 
     /* calculate kernel parameters */
@@ -191,15 +248,17 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
     g_dimGPFB.x = (g_iNumSubBands * g_nchan) / iMaxThreadsPerBlock;
     g_dimGAccum.x = (g_iNumSubBands * g_nchan) / iMaxThreadsPerBlock;
 
-    CUDASafeCall(cudaMalloc((void **) &g_pf4FFTIn_d,
+    CUDA_SAFE_CALL(cudaMalloc((void **) &g_pf4FFTIn_d,
                                  g_iNumSubBands * g_nchan * sizeof(float4)));
-    CUDASafeCall(cudaMalloc((void **) &g_pf4FFTOut_d,
+    CUDA_SAFE_CALL(cudaMalloc((void **) &g_pf4FFTOut_d,
                                  g_iNumSubBands * g_nchan * sizeof(float4)));
-    CUDASafeCall(cudaMalloc((void **) &g_pf4SumStokes_d,
+    CUDA_SAFE_CALL(cudaMalloc((void **) &g_pf4SumStokes_d,
                                  g_iNumSubBands * g_nchan * sizeof(float4)));
-    CUDASafeCall(cudaMemset(g_pf4SumStokes_d,
+    CUDA_SAFE_CALL(cudaMemset(g_pf4SumStokes_d,
                                  '\0',
                                  g_iNumSubBands * g_nchan * sizeof(float4)));
+
+    printf("pfb_gpu.cu: 4 CUDA_SAFE_CALL(cudaMalloc...) calls\n");
 
     /* create plan */
     iCUFFTRet = cufftPlanMany(&g_stPlan,
@@ -220,6 +279,7 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
         return EXIT_FAILURE;
     }
 
+    printf("#################### GPU INIT COMPLETE ####################\n");
     return EXIT_SUCCESS;
 }
 
@@ -263,7 +323,7 @@ void do_pfb(struct vegas_databuf *db_in,
     num_in_heaps_gpu_buffer = index_in->num_heaps + num_in_heaps_tail;
 
     /* Calculate the maximum number of output heaps per block */
-    g_iMaxNumHeapOut = (g_buf_out_block_size - (sizeof(struct time_spead_heap) * MAX_HEAPS_PER_BLK)) / (g_iNumSubBands * g_nchan * sizeof(float4)); 
+    g_iMaxNumHeapOut = (g_buf_out_block_size - (sizeof(struct time_spead_heap) * MAX_HEAPS_PER_BLK)) / (g_iNumSubBands * g_nchan * sizeof(float4));
 
     hdr_out = vegas_databuf_header(db_out, g_iPFBCurBlockOut);
     index_out = (struct databuf_index*)vegas_databuf_index(db_out, g_iPFBCurBlockOut);
@@ -293,17 +353,18 @@ void do_pfb(struct vegas_databuf *db_in,
         /* Sanity check for the first iteration */
         if ((g_iBlockInDataSize % (g_iNumSubBands * g_nchan * sizeof(char4))) != 0)
         {
-            (void) fprintf(stderr, "ERROR: Data size mismatch!\n");
+            (void) fprintf(stderr, "ERROR: Data size mismatch! BlockInDataSize=%d NumSubBands=%d nchan=%d\n",
+                                    g_iBlockInDataSize, g_iNumSubBands, g_nchan);
             run = 0;
             return;
         }
-        CUDASafeCall(cudaMemcpy(g_pc4Data_d,
+        CUDA_SAFE_CALL(cudaMemcpy(g_pc4Data_d,
                                 payload_addr_in,
                                 g_iBlockInDataSize,
                                 cudaMemcpyHostToDevice));
         /* duplicate the last (VEGAS_NUM_TAPS - 1) segments at the end for
            the next iteration */
-        CUDASafeCall(cudaMemcpy(g_pc4Data_d + (g_iBlockInDataSize / sizeof(char4)),
+        CUDA_SAFE_CALL(cudaMemcpy(g_pc4Data_d + (g_iBlockInDataSize / sizeof(char4)),
                                 g_pc4Data_d + (g_iBlockInDataSize / sizeof(char4)) - ((VEGAS_NUM_TAPS - 1) * g_iNumSubBands * g_nchan),
                                 ((VEGAS_NUM_TAPS - 1) * g_iNumSubBands * g_nchan * sizeof(char4)),
                                 cudaMemcpyDeviceToDevice));
@@ -329,11 +390,11 @@ void do_pfb(struct vegas_databuf *db_in,
     else
     {
         /* If this is not the first run, need to handle block boundary, while doing the PFB */
-        CUDASafeCall(cudaMemcpy(g_pc4Data_d,
+        CUDA_SAFE_CALL(cudaMemcpy(g_pc4Data_d,
                                 g_pc4Data_d + (g_iBlockInDataSize / sizeof(char4)),
                                 ((VEGAS_NUM_TAPS - 1) * g_iNumSubBands * g_nchan * sizeof(char4)),
                                 cudaMemcpyDeviceToDevice));
-        CUDASafeCall(cudaMemcpy(g_pc4Data_d + ((VEGAS_NUM_TAPS - 1) * g_iNumSubBands * g_nchan),
+        CUDA_SAFE_CALL(cudaMemcpy(g_pc4Data_d + ((VEGAS_NUM_TAPS - 1) * g_iNumSubBands * g_nchan),
                                 payload_addr_in,
                                 g_iBlockInDataSize,
                                 cudaMemcpyHostToDevice));
@@ -393,7 +454,7 @@ void do_pfb(struct vegas_databuf *db_in,
         DoPFB<<<g_dimGPFB, g_dimBPFB>>>(g_pc4DataRead_d,
                                         g_pf4FFTIn_d,
                                         g_pfPFBCoeff_d);
-        CUDASafeCall(cudaThreadSynchronize());
+        CUDA_SAFE_CALL(cudaThreadSynchronize());
         iCUDARet = cudaGetLastError();
         if (iCUDARet != cudaSuccess)
         {
@@ -405,7 +466,7 @@ void do_pfb(struct vegas_databuf *db_in,
             run = 0;
             break;
         }
-         
+
         iRet = do_fft();
         if (iRet != VEGAS_OK)
         {
@@ -440,9 +501,10 @@ void do_pfb(struct vegas_databuf *db_in,
                 payload_addr_out = (char*)(vegas_databuf_data(db_out, g_iPFBCurBlockOut) +
                                     sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK +
                                     (index_out->heap_size - sizeof(struct freq_spead_heap)) * g_iHeapOut);
-         
+
                 /* Write new heap header fields */
                 freq_heap_out->time_cntr_id = 0x20;
+                freq_heap_out->time_cntr_top8 = first_time_heap_in_accum->time_cntr_top8;
                 freq_heap_out->time_cntr = first_time_heap_in_accum->time_cntr;
                 freq_heap_out->spectrum_cntr_id = 0x21;
                 freq_heap_out->spectrum_cntr = g_iTotHeapOut;
@@ -480,7 +542,7 @@ void do_pfb(struct vegas_databuf *db_in,
                 g_iPrevBlankingState = TRUE;
             }
         }
-
+        // printf("g_iSpecPerAcc=%d, acc_len=%d\n",g_iSpecPerAcc,acc_len);
         if (g_iSpecPerAcc == acc_len)
         {
             /* dump to buffer */
@@ -490,9 +552,10 @@ void do_pfb(struct vegas_databuf *db_in,
             payload_addr_out = (char*)(vegas_databuf_data(db_out, g_iPFBCurBlockOut) +
                                 sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK +
                                 (index_out->heap_size - sizeof(struct freq_spead_heap)) * g_iHeapOut);
-     
+
             /* Write new heap header fields */
             freq_heap_out->time_cntr_id = 0x20;
+            freq_heap_out->time_cntr_top8 = first_time_heap_in_accum->time_cntr_top8;
             freq_heap_out->time_cntr = first_time_heap_in_accum->time_cntr;
             freq_heap_out->spectrum_cntr_id = 0x21;
             freq_heap_out->spectrum_cntr = g_iTotHeapOut;
@@ -622,7 +685,7 @@ int accumulate()
 
     Accumulate<<<g_dimGAccum, g_dimBAccum>>>(g_pf4FFTOut_d,
                                              g_pf4SumStokes_d);
-    CUDASafeCall(cudaThreadSynchronize());
+    CUDA_SAFE_CALL(cudaThreadSynchronize());
     iCUDARet = cudaGetLastError();
     if (iCUDARet != cudaSuccess)
     {
@@ -636,7 +699,7 @@ int accumulate()
 
 void zero_accumulator()
 {
-    CUDASafeCall(cudaMemset(g_pf4SumStokes_d,
+    CUDA_SAFE_CALL(cudaMemset(g_pf4SumStokes_d,
                                        '\0',
                                        (g_iNumSubBands
                                        * g_nchan
@@ -647,13 +710,20 @@ void zero_accumulator()
 
 int get_accumulated_spectrum_from_device(char *out)
 {
+    /* copy the negative frequencies out first */
     CUDASafeCall(cudaMemcpy(out,
-                                       g_pf4SumStokes_d,
-                                       (g_iNumSubBands
-                                        * g_nchan
-                                        * sizeof(float4)),
-                                       cudaMemcpyDeviceToHost));
-
+                            g_pf4SumStokes_d + (g_iNumSubBands * g_nchan / 2),
+                            (g_iNumSubBands
+                             * (g_nchan / 2)
+                             * sizeof(float4)),
+                            cudaMemcpyDeviceToHost));
+    /* copy the positive frequencies out */
+    CUDASafeCall(cudaMemcpy(out + (g_iNumSubBands * (g_nchan / 2) * sizeof(float4)),
+                            g_pf4SumStokes_d,
+                            (g_iNumSubBands
+                             * (g_nchan / 2)
+                             * sizeof(float4)),
+                            cudaMemcpyDeviceToHost));
     return VEGAS_OK;
 }
 
@@ -712,7 +782,7 @@ void __CUDASafeCall(cudaError_t iCUDARet,
     return;
 }
 
-/* 
+/*
  * Frees up any allocated memory.
  */
 void cleanup_gpu()
@@ -750,4 +820,3 @@ void cleanup_gpu()
 
     return;
 }
-

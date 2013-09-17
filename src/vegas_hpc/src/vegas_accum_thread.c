@@ -322,7 +322,7 @@ void vegas_accum_thread(void *_args) {
             /* If we have accumulated for long enough, write vectors to output block */
             if(accum_time >= reqd_exposure)
             {
-#if 0            
+#if 1            
                 // DEBUG status of switching signals
                 char swstatbuf[64];
                 sprintf(swstatbuf, "%c %c %c %c",                       
