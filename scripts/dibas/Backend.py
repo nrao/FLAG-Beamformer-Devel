@@ -304,6 +304,21 @@ class Backend:
             for k in self.params.keys():
                 print k
             raise Exception(msg)
+    def get_param(self,param):
+        """
+        get_param(self, param)
+
+        Return the value of a parameter, if available, or None if the
+        parameter does not exist.
+
+        * *param:* The parameter, a string. If not provided, or if set
+          to *None*, *help_param()* will return a dictionary of all
+          parameters and their doc strings.
+        """
+        if param in self.param_values:
+            return self.param_values[param]
+        else:
+            return None
 
     # generic help method
     def help_param(self, param = None):
