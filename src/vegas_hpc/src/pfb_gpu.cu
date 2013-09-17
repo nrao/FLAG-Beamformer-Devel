@@ -179,10 +179,10 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
     printf("pfb_gpu.cu:  CUDA_SAFE_CALL(cudaMalloc((void...\n");
 
     /* read filter coefficients */
-    /* Locate the coefficient directory. If the environment variable PFB_COEFF_DIR
+    /* Locate the coefficient directory. If the environment variable CONFIG_DIR
        is not set, look in the current working directory.
      */
-    if ((coeff_dir = getenv("PFB_COEFF_DIR")) == NULL)
+    if ((coeff_dir = getenv("CONFIG_DIR")) == NULL)
     {
         coeff_dir = ".";
     }
