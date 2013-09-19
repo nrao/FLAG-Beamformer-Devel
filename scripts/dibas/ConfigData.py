@@ -29,7 +29,32 @@
 ######################################################################
 
 import ConfigParser
+import socket
 from datetime import datetime, timedelta
+
+def _hostname_to_ip(hostname):
+    """
+    _hostname_to_ip(hostname)
+
+    Takes a hostname string and returns an IP address string::
+
+    ip = _hostname_to_ip('vegasr2-1')
+    print(ip)
+    10.17.0.64
+    """
+    return socket.gethostbyaddr(hostname)[2][0]
+
+def _ip_string_to_int(ip):
+    """
+    _ip_string_to_int(ip)
+
+    Takes an IP address in string representation and returns an unsigned integer representation:
+
+    iip = _ip_string_to_int('10.17.0.51')
+    print(hex(iip))
+    0x0A110040
+    """
+    return sum(map(lambda x, y: x << y, [int(p) for p in ip.split('.')], [24, 16, 8, 0]))
 
 class AutoVivification(dict):
     """
@@ -198,14 +223,16 @@ class BankData(ConfigData):
         ``$DIBAS_DIR/etc/config/dibas.conf``
         """
         self.name = bank
-        self.datahost = config.get(bank, 'datahost').lstrip('"').rstrip('"')
-        self.dataport = config.getint(bank, 'dataport')
-        self.dest_ip = int(config.get(bank, 'dest_ip'), 0)
-        self.dest_port = config.getint(bank, 'dest_port')
-        self.katcp_ip = config.get(bank, 'katcp_ip').lstrip('"').rstrip('"')
+        self.datahost = _hostname_to_ip(config.get(bank, 'data_source_host').lstrip().rstrip())
+        self.dataport = config.getint(bank, 'data_source_port')
+        self.dest_ip = _ip_string_to_int(
+            _hostname_to_ip(
+                config.get(bank, 'data_destination_host').lstrip().rstrip()))
+        self.dest_port = config.getint(bank, 'data_destination_port')
+        self.katcp_ip = config.get(bank, 'katcp_ip').lstrip().rstrip()
         self.katcp_port = config.getint(bank, 'katcp_port')
         self.synth = config.get(bank, 'synth')
-        self.synth_port = config.get(bank, 'synth_port').lstrip('"').rstrip('"')
+        self.synth_port = config.get(bank, 'synth_port').lstrip().rstrip()
         self.synth_ref = 1 if config.get(bank, 'synth_ref') == 'external' else 0
         self.synth_ref_freq = config.getint(bank, 'synth_ref_freq')
         self.synth_vco_range = [int(i) for i in config.get(bank, 'synth_vco_range').split(',')]
@@ -378,7 +405,9 @@ class ModeData(ConfigData):
 
         try:
             self.cdd_roach = config.get(mode, 'cdd_roach')
-            self.cdd_roach_ips = config.get(mode, 'cdd_roach_ips').split(',')
+            self.cdd_roach_ips = [_hostname_to_ip(hn.lstrip().rstrip())
+                                  for hn in
+                                  config.get(mode, 'cdd_data_interfaces').split(',')]
             self.cdd_hpcs = config.get(mode, 'cdd_hpcs').split(',')
             self.cdd_master_hpc = config.get(mode, 'cdd_master_hpc')
         except ConfigParser.NoOptionError:
@@ -408,8 +437,10 @@ class ModeData(ConfigData):
             self.cdd_hpc_ip_info = []
             for i in self.cdd_hpcs:
                 try:
-                    d_ip = int(config.get(i, 'dest_ip'),0)
-                    dprt = int(config.get(i, 'dest_port'),0)
+                    d_ip = _ip_string_to_int(
+                        _hostname_to_ip(
+                            config.get(i, 'data_destination_host').lstrip().rstrip()))
+                    dprt = config.getint(i, 'data_destination_port')
                     self.cdd_hpc_ip_info.append( (d_ip, dprt) )
                 except:
                     print "No dest_ip/dest_port information for cdd Bank %s" % i
