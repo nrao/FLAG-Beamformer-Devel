@@ -1,4 +1,3 @@
-
 import struct
 import ctypes
 import binascii
@@ -63,20 +62,20 @@ class GuppiCODDBackend(Backend):
         self.datadir = '/lustre/gbtdata/JUNK' # Needs integration with projectid
 
         # register set methods
-        self.params["bandwidth"]      = self.set_bandwidth
-        self.params["dm"]             = self.set_dm
-        self.params["integration_time"] = self.set_integration_time
-        self.params["nbin"]           = self.set_nbin
-        self.params["num_channels"]   = self.set_nchannels
-        self.params["obs_frequency"]  = self.set_obs_frequency
-        self.params["obs_mode"]       = self.set_obs_mode
-        self.params["par_file"]       = self.set_par_file
-        self.params["scale_p0"]       = self.set_scale_P0
-        self.params["scale_p1"]       = self.set_scale_P1
-        self.params["tfold"       ]   = self.set_tfold
-        self.params["only_i"  ]       = self.set_only_i
-        self.params["feed_polarization"] = self.setFeedPolarization
-        self.params["_node_number"] = self.setNodeNumber
+        self.params["bandwidth"         ] = self.set_bandwidth
+        self.params["dm"                ] = self.set_dm
+        self.params["integration_time"  ] = self.set_integration_time
+        self.params["nbin"              ] = self.set_nbin
+        self.params["num_channels"      ] = self.set_nchannels
+        self.params["obs_frequency"     ] = self.set_obs_frequency
+        self.params["obs_mode"          ] = self.set_obs_mode
+        self.params["par_file"          ] = self.set_par_file
+        self.params["scale_p0"          ] = self.set_scale_P0
+        self.params["scale_p1"          ] = self.set_scale_P1
+        self.params["tfold"             ] = self.set_tfold
+        self.params["only_i"            ] = self.set_only_i
+        self.params["feed_polarization" ] = self.setFeedPolarization
+        self.params["_node_number"      ] = self.setNodeNumber
 
         # Fill-in defaults if they exist
         if 'OBS_MODE' in self.mode.shmkvpairs.keys():
@@ -327,8 +326,15 @@ class GuppiCODDBackend(Backend):
             self.arm_roach()
         self.scan_running = True
 
+    def scan_status(self):
+        """
+        Returns the current state of a scan, as a tuple:
+        (scan_running (bool), 'NETSTAT=' (string), and 'DISKSTAT=' (string))
+        """
 
-
+        return (self.scan_running,
+                'NETSTAT=%s' % self.get_status('NETSTAT'),
+                'DISKSTAT=%s' % self.get_status('DISKSTAT'))
 
     # Algorithmic dependency methods, not normally called by users
 
@@ -394,7 +400,7 @@ class GuppiCODDBackend(Backend):
         """
         if 'COHERENT' in self.obs_mode.upper():
             self.pol_type = 'AABBCRCI'
-        elif 'FAST4K' in self.mode.mode.upper():
+        elif 'FAST4K' in self.mode.name.upper():
             self.pol_type = 'AA+BB'
         else:
             self.pol_type = 'IQUV'
@@ -406,7 +412,7 @@ class GuppiCODDBackend(Backend):
         has indicated they only want 1 stokes product)
         """
         self.npol = 4
-        if 'FAST4K' in self.mode.mode.upper():
+        if 'FAST4K' in self.mode.name.upper():
             self.npol   = 1
         elif self.only_i:
             self.npol = 1
@@ -435,7 +441,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculates the PKTFMT status keyword
         """
-        if 'FAST4K' in self.mode.mode.upper():
+        if 'FAST4K' in self.mode.name.upper():
             self.packet_format = 'FAST4K'
         else:
             self.packet_format = '1SFA'
@@ -446,7 +452,7 @@ class GuppiCODDBackend(Backend):
         Calculates the ONLY_I status keyword
         """
         # Note this requires that the config mode name contains 'FAST4K' in the name
-        if 'FAST4K' in self.mode.mode.upper():
+        if 'FAST4K' in self.mode.name.upper():
             self.only_i = 0
         elif self.obs_mode.upper() not in ["SEARCH", "COHERENT_SEARCH"]:
             self.only_i = 0

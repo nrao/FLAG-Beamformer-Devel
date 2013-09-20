@@ -1,6 +1,7 @@
 import ConfigParser
 
-from VegasBackend import VegasBackend, SWbits
+from VegasBackend import VegasBackend
+from Backend import SWbits
 from GuppiBackend import GuppiBackend
 from GuppiCODDBackend import GuppiCODDBackend
 from ConfigData import BankData, ModeData
