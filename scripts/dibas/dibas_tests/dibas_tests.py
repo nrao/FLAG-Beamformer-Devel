@@ -63,43 +63,44 @@ def test_VegasBackend():
     assert AlmostEqual(be.get_status("_SBLK_03"), 0.002, 1e-6)
     assert AlmostEqual(be.get_status("_SBLK_04"), 0.002, 1e-6)
 
-    assert be.get_status("_SCAL_01") == '1'
-    assert be.get_status("_SCAL_02") == '0'
-    assert be.get_status("_SCAL_03") == '1'
-    assert be.get_status("_SCAL_04") == '0'
+    assert Equal(be.get_status("_SCAL_01"), '1')
+    assert Equal(be.get_status("_SCAL_02"), '0')
+    assert Equal(be.get_status("_SCAL_03"), '1')
+    assert Equal(be.get_status("_SCAL_04"), '0')
 
     assert AlmostEqual(be.get_status("_SPHS_01"), 0, 1e-6)
     assert AlmostEqual(be.get_status("_SPHS_02"), 0.25, 1e-6)
     assert AlmostEqual(be.get_status("_SPHS_03"), 0.5, 1e-6)
     assert AlmostEqual(be.get_status("_SPHS_04"), 0.75, 1e-6)
 
-    assert be.get_status("_SSRF_01") == '1'
-    assert be.get_status("_SSRF_02") == '1'
-    assert be.get_status("_SSRF_03") == '0'
-    assert be.get_status("_SSRF_04") == '0'
+    assert Equal(be.get_status("_SSRF_01"), '0')
+    assert Equal(be.get_status("_SSRF_02"), '0')
+    assert Equal(be.get_status("_SSRF_03"), '1')
+    assert Equal(be.get_status("_SSRF_04"), '1')
 
-    assert be.get_status('BANKNAM')  == 'BANKA'
-    assert be.get_status('MODENUM')  == 'MODE1'
-    assert be.get_status("BW_MODE")  == "HBW"
+    assert Equal(be.get_status('BANKNAM') , 'BANKA')
+    assert Equal(be.get_status('MODENUM') , 'MODE1')
+    assert Equal(be.get_status("BW_MODE") , "high")
 
     assert AlmostEqual(be.get_status("CHAN_BW"), chan_bw, 1e-6)
     assert AlmostEqual(be.get_status("EFSAMPFR"), sampler_frequency, 1e-6)
     assert AlmostEqual(be.get_status("EXPOSURE"), 0.1, 1e-6)
     assert AlmostEqual(be.get_status("FPGACLK"), frequency / 8, 1e-6)
-    assert be.get_status("OBSNCHAN") == str(nchan)
-    assert be.get_status("OBS_MODE") == "HBW"
-    assert be.get_status("PKTFMT")   == "SPEAD"
-    assert be.get_status("NCHAN")    == str(nchan)
-    assert be.get_status("NPOL")     == '2'
-    assert be.get_status("NSUBBAND") == '1' # mode 1 uses just one.
-    assert be.get_status("SUB0FREQ") == str(frequency / 2)
-    assert be.get_status("SUB1FREQ") == str(frequency / 2)
-    assert be.get_status("SUB2FREQ") == str(frequency / 2)
-    assert be.get_status("SUB3FREQ") == str(frequency / 2)
-    assert be.get_status("SUB4FREQ") == str(frequency / 2)
-    assert be.get_status("SUB5FREQ") == str(frequency / 2)
-    assert be.get_status("SUB6FREQ") == str(frequency / 2)
-    assert be.get_status("SUB7FREQ") == str(frequency / 2)
+
+    assert Equal(be.get_status("OBSNCHAN"), str(nchan))
+    assert Equal(be.get_status("OBS_MODE"), "HBW")
+    assert Equal(be.get_status("PKTFMT")  , "SPEAD")
+    assert Equal(be.get_status("NCHAN")   , str(nchan))
+    assert Equal(be.get_status("NPOL")    , '2')
+    assert Equal(be.get_status("NSUBBAND"), '1') # mode 1 uses just one.
+    assert Equal(be.get_status("SUB0FREQ"), str(frequency / 2))
+    assert Equal(be.get_status("SUB1FREQ"), str(frequency / 2))
+    assert Equal(be.get_status("SUB2FREQ"), str(frequency / 2))
+    assert Equal(be.get_status("SUB3FREQ"), str(frequency / 2))
+    assert Equal(be.get_status("SUB4FREQ"), str(frequency / 2))
+    assert Equal(be.get_status("SUB5FREQ"), str(frequency / 2))
+    assert Equal(be.get_status("SUB6FREQ"), str(frequency / 2))
+    assert Equal(be.get_status("SUB7FREQ"), str(frequency / 2))
 
     assert Equal(be.get_status("BASE_BW"), '1400') # from config file
     assert Equal(be.get_status("NOISESRC"), 'OFF')
@@ -111,33 +112,33 @@ def test_VegasBackend():
     assert AlmostEqual(be.get_status("SWPERINT"), 0.1 / ssg_duration)
     assert Equal(be.get_status("NMSTOKES"), 2)
 
-    assert be.get_status("CAL_DCYC") == DEFAULT_VALUE
-    assert be.get_status("CAL_FREQ") == DEFAULT_VALUE
-    assert be.get_status("CAL_MODE") == DEFAULT_VALUE
-    assert be.get_status("CAL_PHS")  == DEFAULT_VALUE
+    assert Equal(be.get_status("CAL_DCYC"), DEFAULT_VALUE)
+    assert Equal(be.get_status("CAL_FREQ"), DEFAULT_VALUE)
+    assert Equal(be.get_status("CAL_MODE"), DEFAULT_VALUE)
+    assert Equal(be.get_status("CAL_PHS") , DEFAULT_VALUE)
 
-    assert be.get_status("DATADIR")  == DEFAULT_VALUE
-    assert be.get_status("DATAHOST") == DEFAULT_VALUE
-    assert be.get_status("DATAPORT") == DEFAULT_VALUE
+    assert Equal(be.get_status("DATADIR") , '/tmp')
+    assert Equal(be.get_status("DATAHOST"), '10.17.0.71')
+    assert Equal(be.get_status("DATAPORT"), '60000')
 
     assert Equal(be.get_status("EFSAMPFR"), sampler_frequency)
     assert Equal(be.get_status("EXPOSURE"), 0.1)
-    assert be.get_status("FILENUM")  == DEFAULT_VALUE
+    assert Equal(be.get_status("FILENUM") , DEFAULT_VALUE)
     assert AlmostEqual(be.get_status("FPGACLK"), frequency / 8)
-    assert be.get_status("HWEXPOSR") == DEFAULT_VALUE
-    assert be.get_status("M_STTMJD") == DEFAULT_VALUE
-    assert be.get_status("M_STTOFF") == DEFAULT_VALUE
-    assert be.get_status("NBITS")    == DEFAULT_VALUE
-    assert be.get_status("NBITSADC") == DEFAULT_VALUE
+    assert Equal(be.get_status("HWEXPOSR"), DEFAULT_VALUE)
+    assert Equal(be.get_status("M_STTMJD"), '0')
+    assert Equal(be.get_status("M_STTOFF"), '0')
+    assert Equal(be.get_status("NBITS")   , '8')
+    assert Equal(be.get_status("NBITSADC"), '8')
 
-    assert be.get_status("NPKT")     == DEFAULT_VALUE
-    assert be.get_status("OBSBW")    == DEFAULT_VALUE
+    assert Equal(be.get_status("NPKT")    , DEFAULT_VALUE)
+    assert Equal(be.get_status("OBSBW")   , '1440000000.0')
 
-    assert be.get_status("OBSFREQ")  == DEFAULT_VALUE
-    assert be.get_status("OBSSEVER") == DEFAULT_VALUE
-    assert be.get_status("OBSID")    == DEFAULT_VALUE
+    assert Equal(be.get_status("OBSFREQ") , DEFAULT_VALUE)
+    assert Equal(be.get_status("OBSSEVER"), DEFAULT_VALUE)
+    assert Equal(be.get_status("OBSID")   , DEFAULT_VALUE)
 
-    assert be.get_status("SWVER")    == DEFAULT_VALUE
+    assert Equal(be.get_status("SWVER")   , DEFAULT_VALUE)
 
 
 def test_GUPPI_INCO_64_backend():
@@ -164,7 +165,7 @@ def test_GUPPI_INCO_64_backend():
     assert Equal(be.get_status('BLOCSIZE'), 33554432)
     assert Equal(be.get_status('CHAN_DM'), 0.0)
     assert Equal(be.get_status('CHAN_BW'), 12.5)
-    #assert Equal(be.get_status('DATADIR'), )
+    assert Equal(be.get_status('DATADIR'), '/tmp')
     assert Equal(be.get_status('DS_TIME'), 1)
 
     assert Equal(be.get_status('FFTLEN'), 16384)
@@ -223,27 +224,27 @@ def test_GUPPI_CODD_64_backend():
     assert Equal(be.get_status('OFFSET3'), '0.0')
     assert Equal(be.get_status('TFOLD'), '1.0')
     assert Equal(be.get_status('NRCVR'), '2')
-    assert Equal(be.get_status('FFTLEN'), 65536)
-    assert Equal(be.get_status('CHAN_BW'), '12.5')
+    assert Equal(be.get_status('FFTLEN'), 16384)
+    assert Equal(be.get_status('CHAN_BW'), 1.5625)
     assert Equal(be.get_status('NBIN'), '256')
-    assert Equal(be.get_status('OBSNCHAN'), '8')
+    assert Equal(be.get_status('OBSNCHAN'), '64')
     assert Equal(be.get_status('SCALE0'), '1.0')
     assert Equal(be.get_status('SCALE1'), '1.0')
     assert Equal(be.get_status('SCALE2'), '1.0')
     assert Equal(be.get_status('SCALE3'), '1.0')
     assert Equal(be.get_status('NPOL'), '4')
-    assert Equal(be.get_status('POL_TYPE'), 'AABBCRCI')
+    assert Equal(be.get_status('POL_TYPE'), 'IQUV')
     assert Equal(be.get_status('BANKNUM'), '0')
     assert Equal(be.get_status('ONLY_I'), '0')
-    assert Equal(be.get_status('BLOCSIZE'), 134094848)
+    assert Equal(be.get_status('BLOCSIZE'), 33554432)
     assert Equal(be.get_status('ACC_LEN'), '1')
-    assert Equal(be.get_status('OVERLAP'), 2048)
-    assert Equal(be.get_status('OBS_MODE'), 'COHERENT_SEARCH')
-    assert Equal(be.get_status('OBSFREQ'), '1043.75')
+    assert Equal(be.get_status('OVERLAP'), 0)
+    assert Equal(be.get_status('OBS_MODE'), 'SEARCH')
+    assert Equal(be.get_status('OBSFREQ'), 1149.21875)
     assert Equal(be.get_status('PFB_OVER'), '12')
     assert Equal(be.get_status('PARFILE'), './etc/config/example.par')
     assert Equal(be.get_status('OBSBW'), '100.0')
-    assert Equal(be.get_status('DS_TIME'), '512')
+    assert Equal(be.get_status('DS_TIME'),'64')
     assert Equal(be.get_status('PKTFMT'), '1SFA')
-    assert Equal(be.get_status('TBIN'), '1e-08')
+    assert Equal(be.get_status('TBIN'), '6.4e-07')
     assert Equal(be.get_status('CHAN_DM'), '0.0')

@@ -44,9 +44,7 @@ def _hostname_to_ip(hostname):
     """
     try:
         rval = socket.gethostbyaddr(hostname)[2][0]
-    except TypeError:
-        rval = None
-    except socket.gaierror:
+    except (TypeError, socket.gaierror):
         rval = None
 
     return rval
@@ -64,9 +62,7 @@ def _ip_string_to_int(ip):
     """
     try:
         rval = sum(map(lambda x, y: x << y, [int(p) for p in ip.split('.')], [24, 16, 8, 0]))
-    except TypeError:
-        rval = None
-    except AttributeError:
+    except (TypeError, AttributeError):
         rval = None
 
     return rval
@@ -185,11 +181,7 @@ class ConfigData(object):
 
             if val == 'N/A':
                 val = None
-        except ConfigParser.NoOptionError:
-            val = None
-        except TypeError:
-            val = None
-        except ValueError:
+        except (ConfigParser.NoOptionError, TypeError, ValueError):
             val = None
 
         # only record errors if in mandatory mode
@@ -336,6 +328,8 @@ class BankData(ConfigData):
                str(self.roach_kvpairs),
                str(self.i_am_master))
 
+
+
     def load_config(self, config, bank):
         """
         Given the open *ConfigFile* object *config*, loads data for
@@ -350,11 +344,9 @@ class BankData(ConfigData):
         self._mandatory()
         self.hpchost = self._get_string(bank, 'hpchost')
         self.player_port = self._get_int(bank, 'player_port')
-        self.has_roach = True if self._get_string(bank, 'has_roach') == 'true' else False
-        self.i_am_master = True if self._get_string('DEFAULTS', 'who_is_master') == bank else False
-        self.dest_ip = _ip_string_to_int(
-            _hostname_to_ip(
-                self._get_string(bank, 'data_destination_host')))
+        has_roach = self._get_string(bank, 'has_roach')
+        master = self._get_string('DEFAULTS', 'who_is_master')
+        data_destination_host = self._get_string(bank, 'data_destination_host')
         self.dest_port = self._get_int(bank, 'data_destination_port')
 
         # the following are mandatory only if 'self.has_roach' is True
@@ -368,19 +360,41 @@ class BankData(ConfigData):
         self.katcp_port = self._get_int(bank, 'katcp_port')
         self.synth = self._get_string(bank, 'synth')
         self.synth_port = self._get_string(bank, 'synth_port')
-        self.synth_ref = 1 if self._get_string(bank, 'synth_ref') == 'external' else 0
+        synth_ref = self._get_string(bank, 'synth_ref')
         self.synth_ref_freq = self._get_int(bank, 'synth_ref_freq')
-        self.synth_vco_range = [int(i) for i in self._get_string(bank, 'synth_vco_range').split(',')]
+        synth_vco_range = self._get_string(bank, 'synth_vco_range')
         self.synth_rf_level = self._get_int(bank, "synth_rf_level")
-        self.synth_options = [int(i) for i in self._get_string(bank, 'synth_options').split(',')]
+        synth_options = self._get_string(bank, 'synth_options')
 
         # These are optional in all cases:
         self._optional()
         self.shmkvpairs = self.read_kv_pairs(config, bank, 'shmkeys')
         self.roach_kvpairs = self.read_kv_pairs(config, bank, 'roach_reg_keys')
 
-        self.config = None
         self._throw_on_error()
+
+        # Now we have everything we need to do some processing.
+
+        # The mandatory stuff. If we're here, we have the values:
+        self.has_roach = True if has_roach == 'true' else False
+        self.i_am_master = True if master == bank else False
+        self.dest_ip = _ip_string_to_int(_hostname_to_ip(data_destination_host))
+
+        # The optional stuff. Might be 'None', ignore that. Print any
+        # other exceptions:
+        try:
+            self.synth_vco_range = [int(i) for i in synth_vco_range.split(',')] \
+                                   if synth_vco_range else None
+            self.synth_options = [int(i) for i in synth_options.split(',')] \
+                                 if synth_options else None
+            self.synth_ref = (1 if synth_ref == 'external' else 0) \
+                             if synth_ref else None
+        except Exception, e:
+            if self.has_roach:
+                print 'synth_vco_range =', synth_vco_range
+                print 'synth_options =', synth_options
+                print type(e), e
+
 
 class ModeData(ConfigData):
     """
@@ -500,78 +514,114 @@ class ModeData(ConfigData):
         """
         self.config = config
         self.errors = []
-
-        # First read all mandatory values
-        self._mandatory()
         self.name          = mode
-        self.filter_bw     = self._get_int(mode, 'filter_bw')
-        self.frequency     = self._get_float(mode, 'frequency')
-        self.nchan         = self._get_int(mode, 'nchan')
-        self.bof           = self._get_string(mode, 'bof_file')
-        self.backend_type  = self._get_string(mode, 'BACKEND')
 
-        self.hpc_program   = self._get_string(mode, 'hpc_program')
-        self.hpc_fifo_name = self._get_string(mode, 'hpc_fifo_name')
+        self._mandatory()
 
-        mssel = self._get_string(mode, 'master_slave_sel').split(',')
+        self.filter_bw               = self._get_int(mode,    'filter_bw')
+        self.frequency               = self._get_float(mode,  'frequency')
+        self.nchan                   = self._get_int(mode,    'nchan')
+        self.bof                     = self._get_string(mode, 'bof_file')
+        self.backend_type            = self._get_string(mode, 'BACKEND')
+        self.hpc_program             = self._get_string(mode, 'hpc_program')
+        self.hpc_fifo_name           = self._get_string(mode, 'hpc_fifo_name')
+        arm_delay                    = self._get_int(mode,    'needed_arm_delay')
+        self.gigabit_interface_name  = self._get_string(mode, 'gigabit_interface_name')
+        self.dest_ip_register_name   = self._get_string(mode, 'dest_ip_register_name')
+        self.dest_port_register_name = self._get_string(mode, 'dest_port_register_name')
+        arm_phase                    = self._get_string(mode, 'arm_phase')
 
-        self.master_slave_sels[1][0][0] = int(mssel[0], 0)
-        self.master_slave_sels[1][0][1] = int(mssel[1], 0)
-        self.master_slave_sels[1][1][1] = int(mssel[2], 0)
-        self.master_slave_sels[0][0][0] = int(mssel[3], 0)
-        self.master_slave_sels[0][0][1] = int(mssel[4], 0)
-        self.master_slave_sels[0][1][1] = int(mssel[5], 0)
+        self._optional()
 
-        arm_delay =  self._get_int(mode, 'needed_arm_delay')
+        reset_phase         = self._get_string(mode,           'reset_phase')
+        postarm_phase       = self._get_string(mode,           'postarm_phase')
+        self.shmkvpairs     = self.read_kv_pairs(config, mode, 'shmkeys')
+        self.roach_kvpairs  = self.read_kv_pairs(config, mode, 'roach_reg_keys')
+        self.acc_len        = self._get_int(mode,              'acc_len')
+        self.sg_period      = self._get_int(mode,              'sg_period')
+        mssel_string        = self._get_string(mode,           'master_slave_sel')
+        self.cdd_roach      = self._get_string(mode,           'cdd_roach')
+        cdd_data_interfaces = self._get_string(mode,           'cdd_data_interfaces')
+        cdd_hpcs            = self._get_string(mode,           'cdd_hpcs')
+        self.cdd_master_hpc = self._get_string(mode,           'cdd_master_hpc')
+
+        # this will throw if any key listed under 'self._mandatory()' did not load.
+        self._throw_on_error()
+
+        ######### Do some processing & validation now that we have the values #########
         self.needed_arm_delay = timedelta(seconds = arm_delay)
 
-        self.gigabit_interface_name = self._get_string(mode, 'gigabit_interface_name')
-        self.dest_ip_register_name = self._get_string(mode, 'dest_ip_register_name')
-        self.dest_port_register_name = self._get_string(mode, 'dest_port_register_name')
         # reset, arm and postarm phases; for ease of use, they
         # should be read, then the commands should be paired
         # with their parameters, eg ["sg_sync","0x12",
         # "wait","0.5", ...] should become [("sg_sync", "0x12"),
         # ("wait", "0.5"), ...]
-        arm_phase          = self._get_string(mode, 'arm_phase').split(',')
-        self.arm_phase     = zip(arm_phase[0::2], arm_phase[1::2])
+        ap = arm_phase.split(',')
+        self.arm_phase = zip(ap[0::2], ap[1::2])
 
-        # The rest of these are optional. Therefore if any processing is
-        # done based on their value that value should be checked.
-        self._optional()
-        reset_phase    = self._get_string(mode, 'reset_phase')
-        postarm_phase  = self._get_string(mode, 'postarm_phase')
-
-        if reset_phase:
+        if reset_phase: # optional
             rp = reset_phase.split(',')
             self.reset_phase   = zip(rp[0::2], rp[1::2])
+        else:
+            self.reset_phase = None
 
-        if postarm_phase:
+        if postarm_phase: # optional
             pap = postarm_phase.split(',')
             self.postarm_phase = zip(pap[0::2], pap[1::2])
+        else:
+            self.reset_phase = None
 
-        self.shmkvpairs    = self.read_kv_pairs(config, mode, 'shmkeys')
-        self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
+        mssel = mssel_string.split(',')
 
-        # Optional values. These values will be None if there are no
-        # keywords or values for them. Therefore possible 'None's should
-        # be handled manually.
+        if len(mssel) == 6:
+            self.master_slave_sels[1][0][0] = int(mssel[0], 0)
+            self.master_slave_sels[1][0][1] = int(mssel[1], 0)
+            self.master_slave_sels[1][1][1] = int(mssel[2], 0)
+            self.master_slave_sels[0][0][0] = int(mssel[3], 0)
+            self.master_slave_sels[0][0][1] = int(mssel[4], 0)
+            self.master_slave_sels[0][1][1] = int(mssel[5], 0)
+        else:
+            msg = \
+            """WARNING: The Master/Slave Select must have 6 values.  Please check
+            the configuration in section %s. All Master/Slave Select
+            values will be set to 0.
 
-        # Some modes use these, others don't:
-        self.acc_len   = self._get_int(mode, 'acc_len')
-        self.sg_period = self._get_int(mode, 'sg_period')
+            """
+            print msg % (self.name)
 
-        # For the Coherent Dedispersion Modes
-        self.cdd_roach      = self._get_string(mode, 'cdd_roach')
-        cdd_data_interfaces = self._get_string(mode, 'cdd_data_interfaces')
-        cdd_hpcs            = self._get_string(mode, 'cdd_hpcs')
-        self.cdd_master_hpc = self._get_string(mode, 'cdd_master_hpc')
+            self.master_slave_sels[1][0][0] = 0
+            self.master_slave_sels[1][0][1] = 0
+            self.master_slave_sels[1][1][1] = 0
+            self.master_slave_sels[0][0][0] = 0
+            self.master_slave_sels[0][0][1] = 0
+            self.master_slave_sels[0][1][1] = 0
 
-        # If these are missing set cdd_mode to False, otherwise True.
-        self.cdd_mode = not None in (self.cdd_roach,
-                                     cdd_data_interfaces,
-                                     cdd_hpcs,
-                                     self.cdd_master_hpc)
+        # Make a determination if this is a CODD mode. In these modes,
+        # the values in 'codd_mode_keys' are all not None:
+        codd_mode_keys = (self.cdd_roach,
+                          cdd_data_interfaces,
+                          cdd_hpcs,
+                          self.cdd_master_hpc)
+
+        if all(codd_mode_keys):   # All are True
+            self.cdd_mode = True
+        elif any(codd_mode_keys): # Some are, some are not. What was intended?
+            msg = \
+            """WARNING: Some but not all CODD mode keys detected in section
+            %s. This mode will therefore not be considered a CODD mode.
+            If this truly is a CODD mode it will not function
+            correctly. Check that the following keys are all present:
+
+            \t'cdd_roach'
+            \t'cdd_data_interfaces'
+            \t'cdd_hpcs'
+            \t'cdd_master_hpc'
+
+            """
+            print msg % (self.name)
+            self.cdd_mode = False
+        else:                     # All are False. Not CODD mode
+            self.cdd_mode = False
 
         if self.cdd_mode:
             self.cdd_roach_ips = [_hostname_to_ip(hn.lstrip().rstrip())
@@ -579,15 +629,11 @@ class ModeData(ConfigData):
                                   cdd_data_interfaces.split(',')]
             self.cdd_hpcs      = cdd_hpcs.split(',')
 
-        # Optional user-settable keys & roach registers:
-        self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
-        self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
+            # If this mode has a list of HPC machines for CODD operation, fetch
+            # the dest_ip and dest_port entries from the corresponding Bank sections.
+            # The resulting list is in the order of ports, i.e the first entry in the
+            # cdd_hpcs list specifies the IP_0 and PT_0 registers of the CODD bof.
 
-        # If this mode has a list of HPC machines for CODD operation, fetch
-        # the dest_ip and dest_port entries from the corresponding Bank sections.
-        # The resulting list is in the order of ports, i.e the first entry in the
-        # cdd_hpcs list specifies the IP_0 and PT_0 registers of the CODD bof.
-        if self.cdd_mode and self.cdd_hpcs is not None:
             self.cdd_hpc_ip_info = []
             for i in self.cdd_hpcs:
                 d_ip = _ip_string_to_int(
@@ -600,7 +646,3 @@ class ModeData(ConfigData):
                 else:
                     print "No dest_ip/dest_port information for cdd Bank %s" % i
                     raise Exception("No dest_ip/dest_port information for cdd Bank %s" % i)
-
-        self.config = None
-        # will throw if any key listed under 'self._mandatory()' did not load.
-        self._throw_on_error()
