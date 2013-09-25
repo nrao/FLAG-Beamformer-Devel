@@ -8,7 +8,7 @@ The DIBAS is a multi-mode instrument. Modes are selected by programming the FPGA
 
 Each BOF file has its own set of registers which do not necessarily do the same things and are not named the same way accross BOF files. The Backend classes exist to abstract away the differences and provide a common interface to all the BOF files.
 
-The Bank class uses a strategy pattern to deal with each different BOF file. When a mode is selected an object that derives from Backend is constructed and handles all requests to the Backend functions. Each Backend class implements the Backend interface as appropriate.  There are currently 4 backend classes:
+The Bank class uses a strategy pattern [strategy]_ to deal with each different BOF file. When a mode is selected an object that derives from Backend is constructed and handles all requests to the Backend functions. Each Backend class implements the Backend interface as appropriate.  There are currently 4 backend classes:
 
    * **Backend:** the base class
    * **VegasBackend:** provides spectral line modes, based on GBT VEGAS spectrometer
@@ -48,3 +48,5 @@ class GuppiCODDBackend
 .. autoclass:: GuppiCODDBackend.GuppiCODDBackend
    :members:
    :private-members:
+
+.. [strategy] *Design Patterns* by Erich Gamma et al.

@@ -1,28 +1,9 @@
-This is a Title
+Dealer
 ===============
-That has a paragraph about a main subject and is set when the '='
-is at least the same length of the title itself.
 
-Subject Subtitle
-----------------
-Subtitles are set with '-' and are required to have the same length
-of the subtitle itself, just like titles.
+The Dealer is a lightweight client to all the Players. It allows one script to control all the Players from one machine. The only requirement for the Dealer is the Dealer code itself, a current ZeroMQ python installation, and access to the ``dibas.conf`` configuration file.
 
-Lists can be unnumbered like:
-
- * Item Foo
- * Item Bar
-
-Or automatically numbered:
-
- #. Item 1
- #. Item 2
-
-Inline Markup
--------------
-Words can have *emphasis in italics* or be **bold** and you can define
-code samples with back quotes, like when you talk about a command: ``sudo``
-gives you super user powers!
+When first run, the Dealer connects to each Player specified in ``dibas.conf``, and dynamically obtains all the control functions exported by the Player, including KATCP and Valon functions, needed to run each Player (thus updates to the Player code will show up in the Dealer automatically). The user can then script all the Players at once, or address each one individually.
 
 Dealer documentation:
 ---------------------
