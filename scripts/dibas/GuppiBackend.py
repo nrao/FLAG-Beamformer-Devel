@@ -1,4 +1,3 @@
-
 import struct
 import ctypes
 import binascii
@@ -37,10 +36,14 @@ class GuppiBackend(Backend):
         # The default switching in the Backend ctor is a static SIG, NOCAL, and no blanking
 
         # defaults
-        self.obs_mode = 'SEARCH'
         self.max_databuf_size = 128 # in MBytes [Not sure where this ties in. Value from the manager]
+
+        self.obs_mode = 'SEARCH'
+        """Parameter 'obs_mode': GUPPI observation mode"""
         self.nchan = self.mode.nchan
+        """Parameter 'nchan': Number of channels"""
         self.integration_time = 40.96E-6
+        """Parameter 'integration_time': Lenght of integration, in seconds."""
         self.overlap = 0
         self.scale_i = 1
         self.scale_q = 1
@@ -51,7 +54,7 @@ class GuppiBackend(Backend):
         self.offset_u = 0
         self.offset_v = 0
         self.only_i = 0
-        self.set_bandwidth(1500.0)
+        self.Bandwidth = 1500.0
         self.chan_dm = 0.0
         self.rf_frequency = 2000.0
         self.nbin = 256
@@ -68,22 +71,22 @@ class GuppiBackend(Backend):
             self.pardir = '/tmp'
         self.parfile = 'example.par'
 
-        self.params["bandwidth"]      = self.set_bandwidth
-        self.params["integration_time"] = self.set_integration_time
-        self.params["nbin"]           = self.set_nbin
-        self.params["obs_frequency"]  = self.set_obs_frequency
-        self.params["obs_mode"]       = self.set_obs_mode
-        self.params["only_i"      ]   = self.set_only_i
-        self.params["offset_i"    ]   = self.set_offset_I
-        self.params["offset_q"    ]   = self.set_offset_Q
-        self.params["offset_u"    ]   = self.set_offset_U
-        self.params["offset_v"    ]   = self.set_offset_V
-        self.params["scale_i"     ]   = self.set_scale_I
-        self.params["scale_q"     ]   = self.set_scale_Q
-        self.params["scale_u"     ]   = self.set_scale_U
-        self.params["scale_v"     ]   = self.set_scale_V
-        self.params["tfold"       ]   = self.set_tfold
-        self.params["feed_polarization"] = self.setFeedPolarization
+        self.params["bandwidth"         ] = self.set_bandwidth
+        self.params["integration_time"  ] = self.set_integration_time
+        self.params["nbin"              ] = self.set_nbin
+        self.params["obs_frequency"     ] = self.set_obs_frequency
+        self.params["obs_mode"          ] = self.set_obs_mode
+        self.params["only_i"            ] = self.set_only_i
+        self.params["offset_i"          ] = self.set_offset_I
+        self.params["offset_q"          ] = self.set_offset_Q
+        self.params["offset_u"          ] = self.set_offset_U
+        self.params["offset_v"          ] = self.set_offset_V
+        self.params["scale_i"           ] = self.set_scale_I
+        self.params["scale_q"           ] = self.set_scale_Q
+        self.params["scale_u"           ] = self.set_scale_U
+        self.params["scale_v"           ] = self.set_scale_V
+        self.params["tfold"             ] = self.set_tfold
+        self.params["feed_polarization" ] = self.setFeedPolarization
         self._fft_params_dep()
 
     ### Methods to set user or mode specified parameters
@@ -448,7 +451,7 @@ class GuppiBackend(Backend):
         """
         if 'COHERENT' in self.obs_mode:
             self.pol_type = 'AABBCRCI'
-        elif 'FAST4K' in self.mode.mode.upper():
+        elif 'FAST4K' in self.mode.name.upper():
             self.pol_type = 'AA+BB'
         else:
             self.pol_type = 'IQUV'
@@ -460,7 +463,7 @@ class GuppiBackend(Backend):
         has indicated they only want 1 stokes product)
         """
         self.npol = 4
-        if 'FAST4K' in self.mode.mode.upper():
+        if 'FAST4K' in self.mode.name.upper():
             self.npol   = 1
         elif self.only_i:
             self.npol = 1
@@ -490,7 +493,7 @@ class GuppiBackend(Backend):
         """
         Calculates the PKTFMT status keyword
         """
-        if 'FAST4K' in self.mode.mode.upper():
+        if 'FAST4K' in self.mode.name.upper():
             self.packet_format = 'FAST4K'
         else:
             self.packet_format = '1SFA'
@@ -501,7 +504,7 @@ class GuppiBackend(Backend):
         Calculates the ONLY_I status keyword
         """
         # Note this requires that the config mode name contains 'FAST4K' in the name
-        if 'FAST4K' in self.mode.mode.upper():
+        if 'FAST4K' in self.mode.name.upper():
             self.only_i = 0
         elif self.obs_mode.upper() not in ["SEARCH", "COHERENT_SEARCH"]:
             self.only_i = 0

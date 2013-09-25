@@ -160,9 +160,12 @@ class Backend:
 
           bits = self.getI2CValue(0x38, 1)
         """
-        reply, informs = self.roach._request('i2c-read', addr, nbytes)
-        v = reply.arguments[2]
-        return (reply.arguments[0] == 'ok', struct.unpack('>%iB' % nbytes, v))
+
+        if self.roach:
+            reply, informs = self.roach._request('i2c-read', addr, nbytes)
+            v = reply.arguments[2]
+            return (reply.arguments[0] == 'ok', struct.unpack('>%iB' % nbytes, v))
+        return (True, 0)
 
 
 
@@ -180,8 +183,12 @@ class Backend:
 
           self.setI2CValue(0x38, 1, 0x25)
         """
-        reply, informs = self.roach._request('i2c-write', addr, nbytes, struct.pack('>%iB' % nbytes, data))
-        return reply.arguments[0] == 'ok'
+
+        if self.roach:
+            reply, informs = self.roach._request(
+                'i2c-write', addr, nbytes, struct.pack('>%iB' % nbytes, data))
+            return reply.arguments[0] == 'ok'
+        return True
 
 
     def hpc_cmd(self, cmd):
@@ -191,7 +198,7 @@ class Backend:
         """
 
         if self.test_mode:
-            return
+            return True
 
         if self.hpc_process is None:
             raise Exception( "HPC program has not been started" )
@@ -445,7 +452,8 @@ class Backend:
                 self.mock_roach_registers[str(k)] = int(str(v),0)
             else:
                 # print str(k), '<-', str(v), int(str(v),0)
-                self.roach.write_int(str(k), int(str(v),0))
+                if self.roach:
+                    self.roach.write_int(str(k), int(str(v),0))
 
     def progdev(self, bof = None):
         """
@@ -576,6 +584,9 @@ class Backend:
         """
 
         if self.test_mode:
+            return
+
+        if not self.roach:
             return
 
         if data_ip == None:

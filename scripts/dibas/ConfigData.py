@@ -29,7 +29,43 @@
 ######################################################################
 
 import ConfigParser
+import socket
 from datetime import datetime, timedelta
+
+def _hostname_to_ip(hostname):
+    """
+    _hostname_to_ip(hostname)
+
+    Takes a hostname string and returns an IP address string::
+
+    ip = _hostname_to_ip('vegasr2-1')
+    print(ip)
+    10.17.0.64
+    """
+    try:
+        rval = socket.gethostbyaddr(hostname)[2][0]
+    except (TypeError, socket.gaierror):
+        rval = None
+
+    return rval
+
+def _ip_string_to_int(ip):
+    """_ip_string_to_int(ip)
+
+    Takes an IP address in string representation and returns an integer
+    representation:
+
+    iip = _ip_string_to_int('10.17.0.51')
+    print(hex(iip))
+    0x0A110040
+
+    """
+    try:
+        rval = sum(map(lambda x, y: x << y, [int(p) for p in ip.split('.')], [24, 16, 8, 0]))
+    except (TypeError, AttributeError):
+        rval = None
+
+    return rval
 
 class AutoVivification(dict):
     """
@@ -55,6 +91,15 @@ class ConfigData(object):
     ConfigParser. It's main purpose is to serve as a common area for
     helper functions.
     """
+
+    def __init__(self):
+        self._mandatory_mode = False
+
+    def _mandatory(self):
+        self._mandatory_mode = True
+
+    def _optional(self):
+        self._mandatory_mode = False
 
     def read_kv_pairs(self, config, section, kvkey):
         """
@@ -91,31 +136,121 @@ class ConfigData(object):
         status memory. Another use is to read register/value pairs to be
         directly written to the FPGA.
         """
-        try:
-            # get the keys, stripping out any spaces
-            keys = [key.lstrip().rstrip() for key in config.get(section, kvkey).split(',')]
-        except ConfigParser.NoOptionError:
+        keys_string = self._get_string(section, kvkey)
+
+        if keys_string:
+            keys = [key.lstrip().rstrip() for key in keys_string.split(',')]
+        else:
             return {}
 
         # now iterate over the keys, obtaining the values. Store in dictionary.
         kvpairs = {}
+
         for key in keys:
-            try:
-                val=config.get(section, key)
+            val = self._get_string(section, key)
+
+            if val:
                 kvpairs[key]=val
-            except:
-                print 'Warning no such key %s found, but was specified in the keys list of section %s' % (key,section)
+            else:
+                print 'Warning no such key %s found, but was specified in the keys list of section %s' \
+                    % (key,section)
 
         return kvpairs
 
+    def _get_value(self, section, key, val_type):
+        """
+        _get_value(self, config, section, key, val_type)
+
+        Helper function that looks for 'key' in 'config' and returns the
+        requested value as type 'val_type', or None if that is not
+        possible or the key or value doesn't exist.
+
+        *section:* the name of a section in the config file
+        *key:* the key
+        *val_type:* The desired value type. May be str, int, or float.
+        """
+        try:
+            if val_type == str:
+                val = self.config.get(section, key).lstrip().rstrip().lstrip('"').rstrip('"')
+            elif val_type == int:
+                val = self.config.getint(section, key)
+            elif val_type == float:
+                val = self.config.getfloat(section, key)
+            else:
+                val = None
+
+            if val == 'N/A':
+                val = None
+        except (ConfigParser.NoOptionError, TypeError, ValueError):
+            val = None
+
+        # only record errors if in mandatory mode
+        if self._mandatory_mode:
+            if not val:
+                self.errors.append(key)
+
+        return val
+
+    def _get_string(self, section, key):
+        """
+        get_string(section, key)
+
+        Returns a value of type string, or None if that is not
+        possible. The string is cleaned up: leading and trailing '"'
+        characters and whitespaces are removed.
+
+        *section:* the name of a section in the config file
+        *key:* the key
+
+        """
+        return self._get_value(section, key, str)
+
+    def _get_int(self, section, key):
+        """
+        get_int(section, key)
+
+        Returns a value of type int, or None if that is not possible.
+
+        *section:* the name of a section in the config file
+        *key:* the key
+        """
+        return self._get_value(section, key, int)
+
+    def _get_float(self, section, key):
+        """
+        get_float(section, key)
+
+        Returns a value of type float, or None if that is not possible.
+
+        *config:* an open ConfigParser object
+        *section:* the name of a section in the config file
+        *key:* the key
+        """
+        return self._get_value(section, key, float)
+
+    def _throw_on_error(self):
+        if self.errors:
+            raise Exception("Bad keys found in section %s: %s" % (self.name, self.errors))
+
+    def _print_errors(self):
+        if self.errors:
+            for i in self.errors:
+                print "Error: Value for key %s was not read" % (i)
 
 class BankData(ConfigData):
     """
     Container for all Bank specific data.
     """
     def __init__(self):
+        ConfigData.__init__(self)
         self.name = None
         """The bank name"""
+        self.has_roach = False
+        """whether this bank controls a roach or not."""
+        self.hpchost = None
+        """The host name of the HPC computer hosting the Player"""
+        self.player_port = None
+        """The port number for the Player, used by the Dealer interface"""
         self.datahost = None
         """The 10Gbs IP address for the roach"""
         self.dataport = None
@@ -167,12 +302,14 @@ class BankData(ConfigData):
         """
 
     def __repr__(self):
-        return "BankData (name=%s, datahost=%s, dataport=%i, dest_ip=%s, dest_port=%i, " \
+        return "BankData (name=%s, has_roach=%s, datahost=%s, dataport=%i, dest_ip=%s," \
+               "dest_port=%i, " \
                "katcp_ip=%s, katcp_port=%i, synth=%s, synth_port=%s, synth_ref=%i, " \
                "synth_ref_freq=%i, synth_vco_range=%s, synth_rf_level=%i, " \
                "synth_options=%s, mac_base=%i, shmkvpairs=%s, roach_kvpairs=%s, " \
                "i_am_master=%s)" \
             % (self.name,
+               self.has_roach,
                self.datahost,
                self.dataport,
                self.dest_ip,
@@ -191,29 +328,73 @@ class BankData(ConfigData):
                str(self.roach_kvpairs),
                str(self.i_am_master))
 
+
+
     def load_config(self, config, bank):
         """
         Given the open *ConfigFile* object *config*, loads data for
         *bank*. *config* normally is opened with the config file at
         ``$DIBAS_DIR/etc/config/dibas.conf``
         """
+        self.config = config
+        self.errors = []
         self.name = bank
-        self.datahost = config.get(bank, 'datahost').lstrip('"').rstrip('"')
-        self.dataport = config.getint(bank, 'dataport')
-        self.dest_ip = int(config.get(bank, 'dest_ip'), 0)
-        self.dest_port = config.getint(bank, 'dest_port')
-        self.katcp_ip = config.get(bank, 'katcp_ip').lstrip('"').rstrip('"')
-        self.katcp_port = config.getint(bank, 'katcp_port')
-        self.synth = config.get(bank, 'synth')
-        self.synth_port = config.get(bank, 'synth_port').lstrip('"').rstrip('"')
-        self.synth_ref = 1 if config.get(bank, 'synth_ref') == 'external' else 0
-        self.synth_ref_freq = config.getint(bank, 'synth_ref_freq')
-        self.synth_vco_range = [int(i) for i in config.get(bank, 'synth_vco_range').split(',')]
-        self.synth_rf_level = config.getint(bank, "synth_rf_level")
-        self.synth_options = [int(i) for i in config.get(bank, 'synth_options').split(',')]
+
+        # Mandatory keys:
+        self._mandatory()
+        self.hpchost = self._get_string(bank, 'hpchost')
+        self.player_port = self._get_int(bank, 'player_port')
+        has_roach = self._get_string(bank, 'has_roach')
+        master = self._get_string('DEFAULTS', 'who_is_master')
+        data_destination_host = self._get_string(bank, 'data_destination_host')
+        self.dest_port = self._get_int(bank, 'data_destination_port')
+
+        # the following are mandatory only if 'self.has_roach' is True
+        if not self.has_roach:
+            self._optional()
+
+        self.datahost = _hostname_to_ip(
+        self._get_string(bank, 'data_source_host'))
+        self.dataport = self._get_int(bank, 'data_source_port')
+        self.katcp_ip = self._get_string(bank, 'katcp_ip')
+        self.katcp_port = self._get_int(bank, 'katcp_port')
+        self.synth = self._get_string(bank, 'synth')
+        self.synth_port = self._get_string(bank, 'synth_port')
+        synth_ref = self._get_string(bank, 'synth_ref')
+        self.synth_ref_freq = self._get_int(bank, 'synth_ref_freq')
+        synth_vco_range = self._get_string(bank, 'synth_vco_range')
+        self.synth_rf_level = self._get_int(bank, "synth_rf_level")
+        synth_options = self._get_string(bank, 'synth_options')
+
+        # These are optional in all cases:
+        self._optional()
         self.shmkvpairs = self.read_kv_pairs(config, bank, 'shmkeys')
         self.roach_kvpairs = self.read_kv_pairs(config, bank, 'roach_reg_keys')
-        self.i_am_master = True if config.get('DEFAULTS', 'who_is_master') == bank else False
+
+        self._throw_on_error()
+
+        # Now we have everything we need to do some processing.
+
+        # The mandatory stuff. If we're here, we have the values:
+        self.has_roach = True if has_roach == 'true' else False
+        self.i_am_master = True if master == bank else False
+        self.dest_ip = _ip_string_to_int(_hostname_to_ip(data_destination_host))
+
+        # The optional stuff. Might be 'None', ignore that. Print any
+        # other exceptions:
+        try:
+            self.synth_vco_range = [int(i) for i in synth_vco_range.split(',')] \
+                                   if synth_vco_range else None
+            self.synth_options = [int(i) for i in synth_options.split(',')] \
+                                 if synth_options else None
+            self.synth_ref = (1 if synth_ref == 'external' else 0) \
+                             if synth_ref else None
+        except Exception, e:
+            if self.has_roach:
+                print 'synth_vco_range =', synth_vco_range
+                print 'synth_options =', synth_options
+                print type(e), e
+
 
 class ModeData(ConfigData):
     """
@@ -221,7 +402,8 @@ class ModeData(ConfigData):
     """
 
     def __init__(self):
-        self.mode = None
+        ConfigData.__init__(self)
+        self.name = None
         """Mode name"""
         self.acc_len = None
         """BOF file specific value"""
@@ -259,7 +441,7 @@ class ModeData(ConfigData):
           m/int/int, m/int/ext, m/ext/ext, s/int/int, s/int/ext, s/ext/ext
 
         A typical use would be: ``ssg_ms_sel =
-        self.mode.master_slave_sels[master][ss_source][bl_source]``
+        self.name.master_slave_sels[master][ss_source][bl_source]``
         where *master* is the master flag (0=slave, 1=master),
         *ss_source* is the switching signal source (0=internal or
         1=external), and *bl_source* is the blanking source (0=internal
@@ -305,11 +487,11 @@ class ModeData(ConfigData):
 
 
     def __repr__(self):
-        return "ModeData (mode=%s, acc_len=%s, filter_bw=%s, frequency=%s, nchan=%s, bof=%s, " \
+        return "ModeData (name=%s, acc_len=%s, filter_bw=%s, frequency=%s, nchan=%s, bof=%s, " \
             "sg_period=%s, reset_phase=%s, arm_phase=%s, " \
             "postarm_phase=%s, needed_arm_delay=%s, master_slave_sels=%s, " \
             "shmkvpairs=%s, roach_kvpairs=%s)" % \
-            (str(self.mode),
+            (str(self.name),
              str(self.acc_len),
              str(self.filter_bw),
              str(self.frequency),
@@ -330,88 +512,137 @@ class ModeData(ConfigData):
         *mode*. *config* normally is opened with the config file at
         ``$DIBAS_DIR/etc/config/dibas.conf``
         """
-        try:
-            self.acc_len = config.getint(mode, 'acc_len')
-        except:
-            self.acc_len = None
+        self.config = config
+        self.errors = []
+        self.name          = mode
 
-        self.mode = mode
-        self.filter_bw  = config.getint(mode, 'filter_bw')
-        self.frequency  = config.getfloat(mode, 'frequency')
-        self.nchan      = config.getint(mode, 'nchan')
-        self.bof        = config.get(mode, 'bof_file')
-        # Get config info for subprocess
-        self.hpc_program   = config.get(mode, 'hpc_program').lstrip('"').rstrip('"')
-        self.hpc_fifo_name = config.get(mode, 'hpc_fifo_name').lstrip('"').rstrip('"')
-        self.backend_type  = config.get(mode, 'BACKEND')
+        self._mandatory()
 
-        try:
-            self.sg_period                  = config.getint(mode, 'sg_period')
-        except:
-            self.sg_period=None
-        mssel                           = config.get(mode, 'master_slave_sel').split(',')
-        self.master_slave_sels[1][0][0] = int(mssel[0], 0)
-        self.master_slave_sels[1][0][1] = int(mssel[1], 0)
-        self.master_slave_sels[1][1][1] = int(mssel[2], 0)
-        self.master_slave_sels[0][0][0] = int(mssel[3], 0)
-        self.master_slave_sels[0][0][1] = int(mssel[4], 0)
-        self.master_slave_sels[0][1][1] = int(mssel[5], 0)
+        self.filter_bw               = self._get_int(mode,    'filter_bw')
+        self.frequency               = self._get_float(mode,  'frequency')
+        self.nchan                   = self._get_int(mode,    'nchan')
+        self.bof                     = self._get_string(mode, 'bof_file')
+        self.backend_type            = self._get_string(mode, 'BACKEND')
+        self.hpc_program             = self._get_string(mode, 'hpc_program')
+        self.hpc_fifo_name           = self._get_string(mode, 'hpc_fifo_name')
+        arm_delay                    = self._get_int(mode,    'needed_arm_delay')
+        self.gigabit_interface_name  = self._get_string(mode, 'gigabit_interface_name')
+        self.dest_ip_register_name   = self._get_string(mode, 'dest_ip_register_name')
+        self.dest_port_register_name = self._get_string(mode, 'dest_port_register_name')
+        arm_phase                    = self._get_string(mode, 'arm_phase')
+
+        self._optional()
+
+        reset_phase         = self._get_string(mode,           'reset_phase')
+        postarm_phase       = self._get_string(mode,           'postarm_phase')
+        self.shmkvpairs     = self.read_kv_pairs(config, mode, 'shmkeys')
+        self.roach_kvpairs  = self.read_kv_pairs(config, mode, 'roach_reg_keys')
+        self.acc_len        = self._get_int(mode,              'acc_len')
+        self.sg_period      = self._get_int(mode,              'sg_period')
+        mssel_string        = self._get_string(mode,           'master_slave_sel')
+        self.cdd_roach      = self._get_string(mode,           'cdd_roach')
+        cdd_data_interfaces = self._get_string(mode,           'cdd_data_interfaces')
+        cdd_hpcs            = self._get_string(mode,           'cdd_hpcs')
+        self.cdd_master_hpc = self._get_string(mode,           'cdd_master_hpc')
+
+        # this will throw if any key listed under 'self._mandatory()' did not load.
+        self._throw_on_error()
+
+        ######### Do some processing & validation now that we have the values #########
+        self.needed_arm_delay = timedelta(seconds = arm_delay)
 
         # reset, arm and postarm phases; for ease of use, they
         # should be read, then the commands should be paired
         # with their parameters, eg ["sg_sync","0x12",
         # "wait","0.5", ...] should become [("sg_sync", "0x12"),
         # ("wait", "0.5"), ...]
-        reset_phase     = config.get(mode, 'reset_phase').split(',')
-        arm_phase       = config.get(mode, 'arm_phase').split(',')
-        postarm_phase   = config.get(mode, 'postarm_phase').split(',')
-        self.reset_phase   = zip(reset_phase[0::2], reset_phase[1::2])
-        self.arm_phase     = zip(arm_phase[0::2], arm_phase[1::2])
-        self.postarm_phase = zip(postarm_phase[0::2], postarm_phase[1::2])
-        self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
-        self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
-        arm_delay =  config.getint(mode, 'needed_arm_delay')
-        self.needed_arm_delay = timedelta(seconds = arm_delay)
+        ap = arm_phase.split(',')
+        self.arm_phase = zip(ap[0::2], ap[1::2])
 
-        # These are optional, for the Coherent Dedispersion Modes
-        self.cdd_mode = True;
+        if reset_phase: # optional
+            rp = reset_phase.split(',')
+            self.reset_phase   = zip(rp[0::2], rp[1::2])
+        else:
+            self.reset_phase = None
 
-        try:
-            self.cdd_roach = config.get(mode, 'cdd_roach')
-            self.cdd_roach_ips = config.get(mode, 'cdd_roach_ips').split(',')
-            self.cdd_hpcs = config.get(mode, 'cdd_hpcs').split(',')
-            self.cdd_master_hpc = config.get(mode, 'cdd_master_hpc')
-        except ConfigParser.NoOptionError:
+        if postarm_phase: # optional
+            pap = postarm_phase.split(',')
+            self.postarm_phase = zip(pap[0::2], pap[1::2])
+        else:
+            self.reset_phase = None
+
+        mssel = mssel_string.split(',')
+
+        if len(mssel) == 6:
+            self.master_slave_sels[1][0][0] = int(mssel[0], 0)
+            self.master_slave_sels[1][0][1] = int(mssel[1], 0)
+            self.master_slave_sels[1][1][1] = int(mssel[2], 0)
+            self.master_slave_sels[0][0][0] = int(mssel[3], 0)
+            self.master_slave_sels[0][0][1] = int(mssel[4], 0)
+            self.master_slave_sels[0][1][1] = int(mssel[5], 0)
+        else:
+            msg = \
+            """WARNING: The Master/Slave Select must have 6 values.  Please check
+            the configuration in section %s. All Master/Slave Select
+            values will be set to 0.
+
+            """
+            print msg % (self.name)
+
+            self.master_slave_sels[1][0][0] = 0
+            self.master_slave_sels[1][0][1] = 0
+            self.master_slave_sels[1][1][1] = 0
+            self.master_slave_sels[0][0][0] = 0
+            self.master_slave_sels[0][0][1] = 0
+            self.master_slave_sels[0][1][1] = 0
+
+        # Make a determination if this is a CODD mode. In these modes,
+        # the values in 'codd_mode_keys' are all not None:
+        codd_mode_keys = (self.cdd_roach,
+                          cdd_data_interfaces,
+                          cdd_hpcs,
+                          self.cdd_master_hpc)
+
+        if all(codd_mode_keys):   # All are True
+            self.cdd_mode = True
+        elif any(codd_mode_keys): # Some are, some are not. What was intended?
+            msg = \
+            """WARNING: Some but not all CODD mode keys detected in section
+            %s. This mode will therefore not be considered a CODD mode.
+            If this truly is a CODD mode it will not function
+            correctly. Check that the following keys are all present:
+
+            \t'cdd_roach'
+            \t'cdd_data_interfaces'
+            \t'cdd_hpcs'
+            \t'cdd_master_hpc'
+
+            """
+            print msg % (self.name)
+            self.cdd_mode = False
+        else:                     # All are False. Not CODD mode
             self.cdd_mode = False
 
-        try:
-            self.gigabit_interface_name = config.get(mode, 'gigabit_interface_name')
-            self.dest_ip_register_name = config.get(mode, 'dest_ip_register_name')
-            self.dest_port_register_name = config.get(mode, 'dest_port_register_name')
-        except:
-            raise Exception("""One or more of gigabit_interface_name, dest_ip_register_name,
-                               or dest_port_register_name is not defined in the mode section""")
-        try:
-            self.shmkvpairs = self.read_kv_pairs(config, mode, 'shmkeys')
-        except:
-            pass
-        try:
-            self.roach_kvpairs = self.read_kv_pairs(config, mode, 'roach_reg_keys')
-        except:
-            pass
+        if self.cdd_mode:
+            self.cdd_roach_ips = [_hostname_to_ip(hn.lstrip().rstrip())
+                                  for hn in
+                                  cdd_data_interfaces.split(',')]
+            self.cdd_hpcs      = cdd_hpcs.split(',')
 
-        # If this mode has a list of HPC machines for CODD operation, fetch
-        # the dest_ip and dest_port entries from the corresponding Bank sections.
-        # The resulting list is in the order of ports, i.e the first entry in the
-        # cdd_hpcs list specifies the IP_0 and PT_0 registers of the CODD bof.
-        if self.cdd_hpcs is not None:
+            # If this mode has a list of HPC machines for CODD operation, fetch
+            # the dest_ip and dest_port entries from the corresponding Bank sections.
+            # The resulting list is in the order of ports, i.e the first entry in the
+            # cdd_hpcs list specifies the IP_0 and PT_0 registers of the CODD bof.
+
             self.cdd_hpc_ip_info = []
             for i in self.cdd_hpcs:
-                try:
-                    d_ip = int(config.get(i, 'dest_ip'),0)
-                    dprt = int(config.get(i, 'dest_port'),0)
+                d_ip = _ip_string_to_int(
+                    _hostname_to_ip(
+                        self._get_string(i, 'data_destination_host')))
+                dprt = self._get_int(i, 'data_destination_port')
+
+                if d_ip and dprt:
                     self.cdd_hpc_ip_info.append( (d_ip, dprt) )
-                except:
+                else:
                     print "No dest_ip/dest_port information for cdd Bank %s" % i
-                    pass
-                    #raise Exception("No dest_ip/dest_port information for cdd Bank %s" % i)
+                    raise Exception("No dest_ip/dest_port information for cdd Bank %s" % i)

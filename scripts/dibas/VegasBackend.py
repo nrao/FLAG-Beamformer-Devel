@@ -1,4 +1,3 @@
-
 import struct
 import ctypes
 import binascii
@@ -71,11 +70,11 @@ class VegasBackend(Backend):
 
 
         # setup the parameter dictionary/methods
-        self.params["polarization"] = self.setPolarization
-        self.params["nchan"]        = self.setNumberChannels
-        self.params["exposure"]     = self.setIntegrationTime
-        self.params["num_spectra"]  = self.setNumberSpectra
-        self.params["acc_len"]      = self.setAccLen
+        self.params["polarization" ] = self.setPolarization
+        self.params["nchan"        ] = self.setNumberChannels
+        self.params["exposure"     ] = self.setIntegrationTime
+        self.params["num_spectra"  ] = self.setNumberSpectra
+        self.params["acc_len"      ] = self.setAccLen
 
         # the status memory key/value pair dictionary
         self.sskeys = {}
@@ -211,7 +210,7 @@ class VegasBackend(Backend):
 
         # extract mode number from mode name, which is expected to be
         # 'MODEx' where 'x' is the number we want:
-        mode = int(self.mode.mode[4:])
+        mode = int(self.mode.name[4:])
 
         if mode < 13:
             self.sampler_frequency = self.frequency * 2
@@ -521,7 +520,7 @@ class VegasBackend(Backend):
 
         statusdata["BASE_BW"  ] = self.filter_bw # From MODE
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'
-        statusdata["MODENUM"  ] = str(self.mode.mode) # from MODE
+        statusdata["MODENUM"  ] = str(self.mode.name) # from MODE
         statusdata["NOISESRC" ] = "OFF"  # TBD??
         statusdata["NUMPHASE" ] = str(self.nPhases)
         statusdata["SWPERIOD" ] = str(self.ss.total_duration())
@@ -681,6 +680,9 @@ class VegasBackend(Backend):
         Starts the fits writer program running. Stops any previously running instance.
         """
 
+        if self.test_mode:
+            return
+
         self.stop_fits_writer()
         fits_writer_program = "vegasFitsWriter"
 
@@ -694,6 +696,10 @@ class VegasBackend(Backend):
         Stops the fits writer program and make it exit.
         To stop an observation use 'stop()' instead.
         """
+
+        if self.test_mode:
+            return
+
         if self.fits_writer_process is None:
             return False # Nothing to do
 
