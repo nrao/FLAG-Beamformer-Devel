@@ -114,7 +114,15 @@ class Backend:
         self.params["noise_source"]   = self.setNoiseSource
         self.params["scan_length"]    = self.setScanLength
 
-        self.datahost = self.bank.datahost
+        # CODD mode is special: One roach has up to 8 interfaces, and
+        # each is the DATAHOST for one of the Players. This distribution
+        # gets set here. If not a CODD mode, just use the one in the
+        # BANK section.
+        if self.mode.cdd_mode:
+            self.datahost = self.mode.cdd_roach_ips[self.bank.name]
+        else:
+            self.datahost = self.bank.datahost
+
         self.dataport = self.bank.dataport
         self.bof_file = self.mode.bof
 
@@ -546,13 +554,6 @@ class Backend:
         """
         self.noise_source = noise_source
 
-    def cdd_master(self):
-        """
-        Returns 'True' if this is a CoDD backend and it is master. False otherwise.
-        """
-        return False # self.bank_name == self.mode_data[self.current_mode].cdd_master_hpc
-
-
     # TBF! Need to break this out to child Backends.
     def net_config(self, data_ip = None, data_port = None, dest_ip = None, dest_port = None):
         """
@@ -583,9 +584,11 @@ class Backend:
           to.
         """
 
+        # don't do this if unit testing.
         if self.test_mode:
             return
-
+        # don't do this if we don't control a roach, as can happen in
+        # GUPPI CODD modes.
         if not self.roach:
             return
 

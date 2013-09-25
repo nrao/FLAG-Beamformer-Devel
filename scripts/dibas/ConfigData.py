@@ -348,6 +348,7 @@ class BankData(ConfigData):
         master = self._get_string('DEFAULTS', 'who_is_master')
         data_destination_host = self._get_string(bank, 'data_destination_host')
         self.dest_port = self._get_int(bank, 'data_destination_port')
+        self.dataport = self._get_int(bank, 'data_source_port')
 
         # the following are mandatory only if 'self.has_roach' is True
         if not self.has_roach:
@@ -355,7 +356,6 @@ class BankData(ConfigData):
 
         self.datahost = _hostname_to_ip(
         self._get_string(bank, 'data_source_host'))
-        self.dataport = self._get_int(bank, 'data_source_port')
         self.katcp_ip = self._get_string(bank, 'katcp_ip')
         self.katcp_port = self._get_int(bank, 'katcp_port')
         self.synth = self._get_string(bank, 'synth')
@@ -455,14 +455,13 @@ class ModeData(ConfigData):
         """
         Flag, whether this mode is a coherent de-dispersion mode.
         """
-        self.cdd_roach = None
-        """
-        The roach that takes data for the coherent de-dispersion modes.
-        """
-        self.cdd_roach_ips = []
-        """
-        The IP addresses of the onboard network adapter for the CoDD
-        roach. The CoDD roach has 8 of these.
+        self.cdd_roach_ips = {}
+        """The IP addresses of the onboard network adapter for the CoDD
+        roach. The CoDD roach has 8 of these. This is a dictionary,
+        keyed by bank name::
+
+        datahost = self.cdd_roach_ips[bankname]
+
         """
         self.cdd_hpcs = []
         """
@@ -540,7 +539,6 @@ class ModeData(ConfigData):
         self.acc_len        = self._get_int(mode,              'acc_len')
         self.sg_period      = self._get_int(mode,              'sg_period')
         mssel_string        = self._get_string(mode,           'master_slave_sel')
-        self.cdd_roach      = self._get_string(mode,           'cdd_roach')
         cdd_data_interfaces = self._get_string(mode,           'cdd_data_interfaces')
         cdd_hpcs            = self._get_string(mode,           'cdd_hpcs')
         self.cdd_master_hpc = self._get_string(mode,           'cdd_master_hpc')
@@ -598,8 +596,7 @@ class ModeData(ConfigData):
 
         # Make a determination if this is a CODD mode. In these modes,
         # the values in 'codd_mode_keys' are all not None:
-        codd_mode_keys = (self.cdd_roach,
-                          cdd_data_interfaces,
+        codd_mode_keys = (cdd_data_interfaces,
                           cdd_hpcs,
                           self.cdd_master_hpc)
 
@@ -612,7 +609,6 @@ class ModeData(ConfigData):
             If this truly is a CODD mode it will not function
             correctly. Check that the following keys are all present:
 
-            \t'cdd_roach'
             \t'cdd_data_interfaces'
             \t'cdd_hpcs'
             \t'cdd_master_hpc'
@@ -624,10 +620,11 @@ class ModeData(ConfigData):
             self.cdd_mode = False
 
         if self.cdd_mode:
-            self.cdd_roach_ips = [_hostname_to_ip(hn.lstrip().rstrip())
-                                  for hn in
-                                  cdd_data_interfaces.split(',')]
+            roach_ips = [_hostname_to_ip(hn.lstrip().rstrip())
+                         for hn in
+                         cdd_data_interfaces.split(',')]
             self.cdd_hpcs      = cdd_hpcs.split(',')
+            self.cdd_roach_ips = dict(zip(self.cdd_hpcs, roach_ips))
 
             # If this mode has a list of HPC machines for CODD operation, fetch
             # the dest_ip and dest_port entries from the corresponding Bank sections.
