@@ -27,7 +27,16 @@ class GuppiCODDBackend(Backend):
         """
         Creates an instance of the class.
         """
-        Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
+
+        # Only one HPC Player will be controlling a roach in the CODD
+        # mode family. Therefore figure out if we are the one; if not,
+        # set the parameters 'theRoach' and 'theValon' to None, even if
+        # this HPC does control a roach in other modes.
+        if theMode.cdd_master_hpc == theBank.name:
+            Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
+        else:
+            Backend.__init__(self, theBank, theMode, None, None, unit_test)
+
         # This needs to happen on construction so that status monitors can
         # change their data buffer format.
         self.set_status(BACKEND="GUPPI")
