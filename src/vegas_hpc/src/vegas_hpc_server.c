@@ -45,6 +45,9 @@ int srv_run=1;
 void srv_cc(int sig) { srv_run=0; run=0; }
 void srv_quit(int sig) { srv_run=0; }
 
+/* privilege management when running as root/suid */
+int   setup_privileges();
+
 /* Thread declarations */
 void *vegas_net_thread(void *args);
 void *vegas_null_thread(void *args);
@@ -243,6 +246,11 @@ int main(int argc, char *argv[]) {
     
     prctl(PR_SET_PDEATHSIG,SIGTERM); /* Ensure that if parent (the manager) dies, to kill this child too. */
 
+    /* retain privileges to retain CAP_SYS_NICE for scheduler/affinity control, while dropping
+       root privilege (If run by root vs. setuid root, then root is retained.) to real user.
+    */
+    setup_privileges();
+    
     /* Create FIFO */
     int rv = mkfifo(vegas_DAQ_CONTROL, 0666);
     if (rv!=0 && errno!=EEXIST) {

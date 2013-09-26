@@ -26,14 +26,14 @@ NVCCFLAGS  = -gencode arch=compute_35,code=sm_35
 #NVCCFLAGS  = -arch=compute_35 -code=compute_35
 NVCCFLAGS += -I$(CUDA)/include -I/opt/local/include -I$(VEGAS_INCL)
 
-LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread
+LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread -lcap
 CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread
 
 PROGS = check_vegas_databuf check_vegas_status clean_vegas_shmem
 OBJS  = vegas_status.o vegas_databuf.o vegas_udp.o vegas_error.o \
 	vegas_params.o vegas_time.o vegas_thread_args.o \
 	write_sdfits.o misc_utils.o \
-	hget.o hput.o sla.o
+	hget.o hput.o sla.o privilege_management.o
 THREAD_PROGS = test_net_thread vegas_hpc_hbw
 THREAD_OBJS  = vegas_net_thread.o vegas_rawdisk_thread.o \
 	        vegas_sdfits_thread.o vegas_accum_thread.o \
