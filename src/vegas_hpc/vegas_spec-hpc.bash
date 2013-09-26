@@ -7,7 +7,7 @@ echo "Setting VEGAS_DIR, CUDA, PYSLALIB, VEGAS_INCL/BIN/LIB, PATH, PYTHONPATH an
 
 export VEGAS_DIR=$VEGAS/vegas_hpc
 
-export CUDA=/opt/local/cuda42
+export CUDA=/opt/local/cuda50
 
 export PYSLALIB=/home/gbt7/newt/lib/python2.7/site-packages/pyslalib
 

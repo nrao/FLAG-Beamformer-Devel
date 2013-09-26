@@ -94,7 +94,6 @@ create_directories()
         install -o $2 -g $3 -d $1/versions
         install -o $2 -g $3 -d $1/etc/config
         install -o $2 -g $3 -d $1/versions/$4
-
     fi
     for i in exec/x86_64-linux bin/x86_64-linux lib/x86_64-linux lib/python;
     do
@@ -129,11 +128,10 @@ install_dibas_python()
     cd $savedir
     cd scripts/dibas/bin_scripts
     for i in dealer dibas_status  init_status_memory  player  re_create_data_buffers; do
-        install -m 775 -o $2 -g $3 $i $1/bin/x86_64-linux
+        install -m 775 -o $2 -g $3 $i $1/bin
     done
     install -m 755 -o $2 -g $3 setVersion $1
     cd $savedir
-    
 }
 
 install_vegas_daq()
