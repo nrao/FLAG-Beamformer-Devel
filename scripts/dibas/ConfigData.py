@@ -176,6 +176,8 @@ class ConfigData(object):
                 val = self.config.getint(section, key)
             elif val_type == float:
                 val = self.config.getfloat(section, key)
+            elif val_type == bool:
+                val = self.config.getboolean(section, key)
             else:
                 val = None
 
@@ -222,11 +224,23 @@ class ConfigData(object):
 
         Returns a value of type float, or None if that is not possible.
 
-        *config:* an open ConfigParser object
         *section:* the name of a section in the config file
         *key:* the key
         """
         return self._get_value(section, key, float)
+
+    def _get_bool(self, section, key):
+        """get_bool(section, key)
+
+        Returns a boolean value, or None if that is not possible. The
+        value in the config file should be one of 'true'|'false' (of any
+        character case combination of this), or 0 or 1.
+
+        *section:* the name of a section in the config file
+        *key:* the key
+
+        """
+        return self._get_value(section, key, bool)
 
     def _throw_on_error(self):
         if self.errors:
@@ -344,7 +358,7 @@ class BankData(ConfigData):
         self._mandatory()
         self.hpchost = self._get_string(bank, 'hpchost')
         self.player_port = self._get_int(bank, 'player_port')
-        has_roach = self._get_string(bank, 'has_roach')
+        self.has_roach = self._get_bool(bank, 'has_roach')
         master = self._get_string('DEFAULTS', 'who_is_master')
         data_destination_host = self._get_string(bank, 'data_destination_host')
         self.dest_port = self._get_int(bank, 'data_destination_port')
@@ -376,7 +390,6 @@ class BankData(ConfigData):
         # Now we have everything we need to do some processing.
 
         # The mandatory stuff. If we're here, we have the values:
-        self.has_roach = True if has_roach == 'true' else False
         self.i_am_master = True if master == bank else False
         self.dest_ip = _ip_string_to_int(_hostname_to_ip(data_destination_host))
 
