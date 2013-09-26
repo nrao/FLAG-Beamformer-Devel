@@ -12,14 +12,14 @@
 main()
 {
     check_pwd
-    create_directories $1 $2 $3
-    install_vegas_python_files $1 $2 $3
-    install_vegas_daq $1 $2 $3
-    install_guppi_python_files $1 $2 $3
-    install_guppi_daq $1 $2 $3
-    install_dibas_python $1 $2 $3
-    install_katcp_lib $1 $2 $3
-    create_dibas_bash $1 $2 $3
+    create_directories $1 $2 $3 $4
+    install_vegas_python_files $1 $2 $3 $4
+    install_vegas_daq $1 $2 $3 $4
+    install_guppi_python_files $1 $2 $3 $4
+    install_guppi_daq $1 $2 $3 $4
+    install_dibas_python $1 $2 $3 $4
+    install_katcp_lib $1 $2 $3 $4
+    create_dibas_bash $1 $2 $3 $4
 }
 
 have_root()
@@ -87,22 +87,24 @@ check_pwd()
 
 create_directories()
 {
+    
     if [ ! -x $1/versions ]; then
         echo $1/versions directory does not exist.
-        echo Creating it and setting initial version to 'release'
+        echo "Creating it" 
         install -o $2 -g $3 -d $1/versions
         install -o $2 -g $3 -d $1/etc/config
-        install -o $2 -g $3 -d $1/versions/release
+        install -o $2 -g $3 -d $1/versions/$4
 
-        for i in exec/x86_64-linux bin/x86_64-linux lib/x86_64-linux lib/python;
-        do
-                install -o $2 -g $3 -d $1/versions/release/$i
-        done
-        for i in exec bin lib; 
-        do
-                ln -s $1/versions/release/$i $1/$i
-        done
     fi
+    for i in exec/x86_64-linux bin/x86_64-linux lib/x86_64-linux lib/python;
+    do
+        install -o $2 -g $3 -d $1/versions/$4/$i
+    done
+    for i in exec bin lib; 
+    do
+        rm -f $1/$i
+        ln -s $1/versions/$4/$i $1/$i
+    done
 }
 
 install_vegas_python_files()
@@ -110,7 +112,9 @@ install_vegas_python_files()
     savedir=`pwd`
     cd src/vegas_hpc
     python setup.py install --install-lib=$1/lib/python
-    chown -R $2:$3 $1/lib/python 
+    if have_root; then
+        chown -R $2:$3 $1/lib/python 
+    fi
     cd $savedir
 }
 
@@ -209,7 +213,9 @@ install_guppi_python_files()
     savedir=`pwd`
     cd $GUPDIR
     python setup.py install --install-lib=$1/lib/python
-    chown -R $2:$3 $1/lib/python
+    if have_root; then
+        chown -R $2:$3 $1/lib/python
+    fi
     cd $savedir
 }
 
@@ -238,25 +244,24 @@ if have_root; then
     echo
 fi
 
-if [ "$#" != 3 ]; then
-    if [ -z "$DIBAS_DIR" -o -z "$DIBAS_USER" -o -z "$DIBAS_GROUP" ]; then
-        echo "The installation directory, user and group must be specified"
-        echo "either on the command line or in the environment as shown below"
-        echo "$0 /some/installdir dibasuser dibasgroup"
-        echo " or "
-        echo "export DIBAS_DIR=/some/installdir"
-        echo "export DIBAS_USER=dibasuser"
-        echo "export DIBAS_GROUP=dibasgroup"
-        exit 1
-    fi
-    export INSTDIR=$DIBAS_DIR
-    export DIBASUSR=$DIBAS_USER
-    export DIBASGRP=$DIBAS_GROUP
-elif [ "$#" == 3 ]; then
+if [ ! "$#" -gt 2 ]; then
+    echo "The installation directory, user and group must be specified"
+    echo "Releasename is optional, if not specified release will be used"
+    echo "Usage:"
+    echo "$0 /some/installdir dibasuser dibasgroup [ releasename ]"
+    echo "Installation aborted"
+    exit 1
+else
     export INSTDIR=$1
     export DIBASUSR=$2
     export DIBASGRP=$3
 fi
+if [ -z "$4" ]; then 
+    echo "Defaulting releasename to release"
+    export VERSION=release
+else
+    export VERSION=$4
+fi
 
-main $INSTDIR $DIBASUSR $DIBASGRP
+main $INSTDIR $DIBASUSR $DIBASGRP $VERSION
 exit 0
