@@ -43,6 +43,7 @@ EXTRA_OBJECTS+=vegas_time.o
 EXTRA_OBJECTS+=hput.o
 EXTRA_OBJECTS+=hget.o
 EXTRA_OBJECTS+=sla.o
+EXTRA_OBJECTS+=privilege_management.o
 #
 vpath %.c $(HPC_PATH)
 # Generate the C Source file list from the files in the current directory.
@@ -54,7 +55,7 @@ C__OBJECTS = ${C__SOURCES:.c=.o}
 CXXOBJECTS = ${CXXSOURCES:.cc=.o}
 CUDA_OBJECTS= ${CUDA_SOURCES:.cu=.o}
 
-LIBS = -L$(VEGAS_LIB) -lcfitsio -lsla 
+LIBS = -L$(VEGAS_LIB) -lcfitsio -lsla -lcap
 
 # C compilation rules
 .c.o:

@@ -84,6 +84,8 @@ void signal_handler(int sig)
 const int MAX_CMD_LEN =64;
 const char CONTROL_FIFO[] = "/tmp/vegas_fits_control";
 
+extern "C" int setup_privileges();
+
 int main(int argc, char **argv)
 {
     run = 1;
@@ -102,6 +104,8 @@ int main(int argc, char **argv)
     signal(SIGCHLD, SIG_IGN);           // un-zombify child processes
     // If our process parent exits/dies, kernel should send us SIGKILL
     prctl(PR_SET_PDEATHSIG, SIGKILL);
+
+    setup_privileges();
     
     command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
     if (command_fifo<0) 
