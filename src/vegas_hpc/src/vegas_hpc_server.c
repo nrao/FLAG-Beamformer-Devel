@@ -36,7 +36,7 @@ void usage() {
             "Usage: vegas_daq_server [options]\n"
             "Options:\n"
             "  -h, --help        This message\n"
-            "  -r, --resize-obuf   HPC will resize the output buffer block  when starting a scan\n"
+            "  -n, --no-resize-obuf   HPC will not resize the output buffer block when starting a scan\n"
            );
 }
 
@@ -225,21 +225,21 @@ int main(int argc, char *argv[]) {
 
     static struct option long_opts[] = {
         {"help",   0, NULL, 'h'},
-        {"resize-obuf", 0, NULL, 'r'},
+        {"no-resize-obuf", 0, NULL, 'n'},
         {0,0,0,0}
     };
     int opt, opti;
     /* resize output buffer based on status memory setup */
-    int do_dbuf_resize = 0;
-    while ((opt=getopt_long(argc,argv,"hs",long_opts,&opti))!=-1) {
+    int do_dbuf_resize = 1;
+    while ((opt=getopt_long(argc,argv,"hn",long_opts,&opti))!=-1) {
         switch (opt) {
             default:
             case 'h':
                 usage();
                 exit(0);
                 break;
-            case 'r':
-                do_dbuf_resize =1;
+            case 'n':
+                do_dbuf_resize =0;
                 break;
         }
     }

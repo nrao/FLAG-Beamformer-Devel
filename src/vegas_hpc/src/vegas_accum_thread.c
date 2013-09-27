@@ -234,7 +234,7 @@ void vegas_accum_thread(void *_args) {
     char *hdr_in=NULL, *hdr_out=NULL;
     struct databuf_index *index_in, *index_out;
     uint64_t scan_length_time_counter;
-    uint64_t raw_time_counter, last_raw_time_counter = 0;
+    uint64_t raw_time_counter=0, last_raw_time_counter = 0;
     uint64_t upper_timer_bits = 0;
 
     int nblock_int=0, npacket=0, n_pkt_drop=0, n_heap_drop=0;
@@ -318,7 +318,10 @@ void vegas_accum_thread(void *_args) {
                 freq_heap->integ_size, freq_heap->mode, freq_heap->status_bits,
                 freq_heap->payload_data_off);
 #endif
-
+            // calculate the 40 bit raw time counter
+            raw_time_counter = (((uint64_t)freq_heap->time_cntr_top8) << 32)
+                                     + (uint64_t)freq_heap->time_cntr;
+            
             /* If we have accumulated for long enough, write vectors to output block */
             if(accum_time >= reqd_exposure)
             {
@@ -366,6 +369,7 @@ void vegas_accum_thread(void *_args) {
 
                             if (use_scanlen)
                             {
+                            
                                 double scan_length_clock;
                                 if (last_raw_time_counter > raw_time_counter)
                                 {
@@ -376,6 +380,12 @@ void vegas_accum_thread(void *_args) {
                                 scan_length_time_counter = upper_timer_bits + raw_time_counter;
                                 /* check if scan length has been reached */
                                 scan_length_clock = (double)(scan_length_time_counter) / fpgafreq;
+                                /*
+                                printf("raw_counter=%lu scan_length_time_counter = %lu, upper_bits=%lu fpgafreq=%f "
+                                       "scan_length_clock=%f, scan_length_seconds=%f\n",
+                                       raw_time_counter, scan_length_time_counter,
+                                       upper_timer_bits, fpgafreq, scan_length_clock, scan_length_seconds);
+                                */
                                 if (scan_length_clock > scan_length_seconds)
                                 {
                                     printf("Scanlength completed %f, %f, %f\n", 
@@ -428,8 +438,7 @@ void vegas_accum_thread(void *_args) {
                         array_offset =  struct_offset + sizeof(struct sdfits_data_columns);
                         index_out->disk_buf[index_out->num_datasets].struct_offset = struct_offset;
                         index_out->disk_buf[index_out->num_datasets].array_offset = array_offset;
-
-                        raw_time_counter = data_cols[0].time_counter;
+                        
                         /*Copy sdfits_data_columns struct to disk buffer */
                         memcpy(vegas_databuf_data(db_out, curblock_out) + struct_offset,
                                 &data_cols[i], sizeof(struct sdfits_data_columns));
@@ -538,9 +547,7 @@ void vegas_accum_thread(void *_args) {
         /* Done with current input block */
         vegas_databuf_set_free(db_in, curblock_in);
         curblock_in = (curblock_in + 1) % db_in->n_block;
-        /* If the SCANLEN keyword is present in status memory use it
-           to determin when to end the scan.
-         */
+
         /* Check for cancel */
         pthread_testcancel();
     }
