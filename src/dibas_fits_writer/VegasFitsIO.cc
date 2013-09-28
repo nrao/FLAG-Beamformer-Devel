@@ -223,12 +223,17 @@ VegasFitsIO::readPrimaryHeaderKeywords()
         scanlen=10.0;
     }
     setScanLength(scanlen);
-    
+
+#ifdef notdef
+    /* Moved this to vegas_hpc_server */    
     if (hgeti4(status_buffer, "_SWSGPLY", &accumid_xor_mask) == 0)
     {
         // Treat sig and as inverted (SIG=0, CAL=1)
         accumid_xor_mask = 0x0;
     }
+#else
+    accumid_xor_mask = 0x0; // No polarity inversion
+#endif
     
     return true;
 }
@@ -405,7 +410,7 @@ bool
 VegasFitsIO::readPortTableKeywords()
 {
     int32_t nrows;
-    bool done=false, all_columns;
+    bool all_columns;
     float meas_power[NUM_PORTS];
     char name[16];
     char tone_noise[NUM_PORTS][NOISENAMELEN];
