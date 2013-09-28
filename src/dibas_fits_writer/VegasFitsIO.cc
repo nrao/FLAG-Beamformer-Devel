@@ -189,7 +189,7 @@ VegasFitsIO::readPrimaryHeaderKeywords()
         ival=1024;
     }
     setNumberChannels(ival);
-    if (hgets(status_buffer, "MODE", sizeof(value), value) == 0)
+    if (hgets(status_buffer, "MODENUM", sizeof(value), value) == 0)
     {
         sprintf(value, "MODE1");
     }
