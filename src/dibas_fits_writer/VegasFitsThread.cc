@@ -20,9 +20,6 @@
 //#	P. O. Box 2
 //#	Green Bank, WV 24944-0002 USA
 
-static char rcs_id[] =  "$Id$";
-
-
 #include <signal.h>
 #include <pthread.h>
 #include <time.h>

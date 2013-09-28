@@ -16,8 +16,8 @@ AR_CMD=ar
 CUDA_COMPILE=nvcc
 
 
-C__FLAGS=-g -Wall -D_GNU_SOURCE -I. $(USER_INCLUDES) $(OPT_FLAGS)  
-CXXFLAGS=-g -pthread  -Wall -I. $(USER_INCLUDES) -I/usr/include/cfitsio
+C__FLAGS=-O3 -g -Wall -D_GNU_SOURCE -I. $(USER_INCLUDES) $(OPT_FLAGS)  
+CXXFLAGS=-O3 -g -pthread  -Wall -I. $(USER_INCLUDES) -I/usr/include/cfitsio -msse2
 CUDA_FLAGS= -I. $(USER_INCLUDES) -arch=sm_35 -I$(CUDA)/include 
 
 EXECUTABLE=vegasFitsWriter

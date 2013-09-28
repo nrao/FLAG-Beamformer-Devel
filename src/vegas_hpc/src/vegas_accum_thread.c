@@ -37,6 +37,9 @@
 #define INT_PAYLOAD     1
 #define FLOAT_PAYLOAD   2
 
+#define BLANKING_MASK   (0x8)
+#define CAL_SR_MASK     (0x7)
+
 // Read a status buffer all of the key observation paramters
 extern void vegas_read_obs_params(char *buf, 
                                   struct vegas_params *g, 
@@ -130,6 +133,7 @@ void vegas_accum_thread(void *_args) {
     int use_scanlen;
     double fpgafreq;
     double scan_length_seconds;
+    int accumid_xor_mask = 0;
 
 
     /* Get arguments */
@@ -214,6 +218,13 @@ void vegas_accum_thread(void *_args) {
     /* Read nchan and nsubband from status shared memory */
     vegas_read_obs_params(st.buf, &gp, &sf);
     use_scanlen = read_scan_length(st.buf, &fpgafreq, &scan_length_seconds);
+    /* read switching signal inversion mask, if present */
+    if (hgeti4(st.buf, "_SWSGPLY", &accumid_xor_mask) == 0)
+    {
+        // switching signals used as is
+        accumid_xor_mask = 0x0;
+    }
+    
 
     /* Allocate memory for vector accumulators */
     create_accumulators(&accumulator, sf.hdr.nchan, sf.hdr.nsubband);
@@ -310,7 +321,16 @@ void vegas_accum_thread(void *_args) {
             int32_t *i_payload = (int32_t*)(payload_addr);
             float *f_payload = (float*)(payload_addr);
 
-            accumid = freq_heap->status_bits & 0x7;         
+            /* This optionally inverts the sense of switching signal inputs.
+             * 0x8 - inverts blanking
+             * 0x4 - not used?
+             * 0x2 - inverts sig/ref 
+             * 0x1 - inverts cal
+             * The bits above 0x8 are cleared.
+             */
+            freq_heap->status_bits = (freq_heap->status_bits ^ accumid_xor_mask) & (CAL_SR_MASK|BLANKING_MASK);
+            /* for accumid we only care for the lower bits */
+            accumid = freq_heap->status_bits & CAL_SR_MASK;         
 
             /*Debug: print heap */
 #if 0
@@ -466,7 +486,7 @@ void vegas_accum_thread(void *_args) {
             
 
             /* Only add spectrum to accumulator if blanking bit is low */
-            if((freq_heap->status_bits & 0x08) == 0)
+            if((freq_heap->status_bits & BLANKING_MASK) == 0)
             {
                 /* Fill in data columns header fields */
                 if(!accum_dirty[accumid])
