@@ -54,7 +54,7 @@ class GuppiBackend(Backend):
         self.offset_u = 0
         self.offset_v = 0
         self.only_i = 0
-        self.Bandwidth = 1500.0
+        self.bandwidth = 1500.0
         self.chan_dm = 0.0
         self.rf_frequency = 2000.0
         self.nbin = 256
