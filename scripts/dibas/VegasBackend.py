@@ -68,7 +68,6 @@ class VegasBackend(Backend):
         self.fits_writer_process = None
         self.scan_length = 30.0
 
-
         # setup the parameter dictionary/methods
         self.params["polarization" ] = self.setPolarization
         self.params["nchan"        ] = self.setNumberChannels
@@ -491,6 +490,10 @@ class VegasBackend(Backend):
         statusdata["SUB7FREQ" ] = DEFAULT_VALUE;
         statusdata["SWVER"    ] = DEFAULT_VALUE;
 
+        # add in the config file default keywords; being defaults they
+        # may be overridden below.
+        for x,y in self.mode.shmkvpairs.items():
+            statusdata[x] = y
         # add in the generated keywords from the setup
         for x,y in self.sskeys.items():
             statusdata[x] = y
@@ -592,6 +595,8 @@ class VegasBackend(Backend):
         if self.fits_writer_process is None:
             self.start_fits_writer()
 
+        self.stop() # stop any possible monitor mode first. Monitor mode
+                    # harmless, but keeps things straight here.
         now = datetime.utcnow()
         earliest_start = self.earliest_start()
 
@@ -610,6 +615,10 @@ class VegasBackend(Backend):
                 raise Exception("Not enough time to arm ROACH.")
         else: # No start time provided
             starttime = earliest_start
+
+        self.start_time = starttime
+
+        print "self.starttime =", self.start_time
         # everything OK now, starttime is valid, go through the start procedure.
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
         print now, starttime, max_delay
@@ -651,6 +660,7 @@ class VegasBackend(Backend):
         # We're now within a second of the desired start time. Arm:
         self.arm_roach()
         self.scan_running = True
+        self.set_status(ACCBLKOU='-')
 
     def stop(self):
         """
@@ -660,9 +670,23 @@ class VegasBackend(Backend):
             self.hpc_cmd('stop')
             self.fits_writer_cmd('stop')
             self.scan_running = False
+            self.set_status(DISKSTAT='-')
             return (True, "Scan ended")
-        else:
-            return (False, "No scan running!")
+
+        if self.monitor_mode:
+            self.hpc_cmd('stop')
+            self.monitor_mode = False
+            return (True, "Ending monitor mode.")
+
+        return (False, "No scan running!")
+
+    def monitor(self):
+        """
+        Tells DAQ program to enter monitor mode.
+        """
+        self.hpc_cmd('monitor')
+        self.monitor_mode = True
+        return (True, "Start monitor mode.")
 
     def scan_status(self):
         """

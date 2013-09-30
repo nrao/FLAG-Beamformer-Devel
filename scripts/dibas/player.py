@@ -91,8 +91,8 @@ class Bank(object):
         """
         This method clears the status shared memory segment if necessary.
         """
-        # os.system(self.dibas_dir + '/bin/x86_64-linux/check_vegas_status -C')
-        print 'not cleaning status memory -- fix this'
+        os.system(self.dibas_dir + '/bin/x86_64-linux/check_vegas_status -C')
+        # print 'not cleaning status memory -- fix this'
 
     def reformat_data_buffers(self, mode):
         """
@@ -317,8 +317,11 @@ class Bank(object):
                                                                      self.mode_data[mode],
                                                                      self.roach,
                                                                      self.valon)
+
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
+
+                    self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
 
                     return (True, 'New mode %s set!' % mode)
                 else:
@@ -370,6 +373,21 @@ class Bank(object):
         if self.backend:
             self.backend.start(starttime)
             self.increment_scan_number()
+
+    def monitor(self):
+        """monitor(self)
+
+        monitor() requests that the DAQ program go into monitor
+        mode. This is handy for troubleshooting issues like no data. In
+        monitor mode the DAQ's net thread starts receiving data but does
+        not do anything with that data. However the thread's status may
+        be read in the status memory: NETSTAT will say 'receiving' if
+        packets are arriving, 'waiting' if not.
+
+        """
+
+        if self.backend:
+            self.backend.monitor()
 
     def stop(self):
         """
@@ -541,6 +559,27 @@ class Bank(object):
         else:
             raise Exception("Cannot set switching states until a mode has been selected.")
 
+    def _watchdog(self):
+        """
+        Looks at internal conditions every so often.
+        """
+        if self.backend:
+            if self.backend.scan_running:
+                now = datetime.utcnow()
+                start = self.backend.start_time
+                scanlength = self.backend.scan_length + 1
+
+                if all((start, scanlength)):
+                    sl = timedelta(seconds=scanlength)
+                    rem = (start + sl) - now
+                    # lets have a little scan countdown in status memory
+                    self.set_status(SCANREM=rem.seconds - 1)
+
+                    if now > start + sl:
+                        self.stop()
+                        self.set_status(SCANREM='scan terminated')
+
+
 def _testCaseVegas1():
 
     # Not sure why I can't import SWbits from VegasBackend ???
@@ -592,7 +631,7 @@ def main_loop(bank_name, URL = None):
     proxy.expose("bank.valon", bank.valon)
 
     # Run the proxy:
-    proxy.run_loop()
+    proxy.run_loop(bank._watchdog)
 
 
 def signal_handler(signal, frame):

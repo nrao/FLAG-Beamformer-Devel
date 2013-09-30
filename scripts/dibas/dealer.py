@@ -241,9 +241,22 @@ class Dealer(object):
 
     def stop(self):
         """
-        Stops a running scan.
+        Stops a running scan, or exits monitor mode.
         """
         return {p:self.players[p].stop() for p in self.players}
+
+    def monitor(self):
+        """
+        monitor(self)
+
+        monitor() requests that the DAQ program go into monitor
+        mode. This is handy for troubleshooting issues like no data. In
+        monitor mode the DAQ's net thread starts receiving data but does
+        not do anything with that data. However the thread's status may
+        be read in the status memory: NETSTAT will say 'receiving' if
+        packets are arriving, 'waiting' if not.
+        """
+        return {p:self.players[p].monitor() for p in self.players}
 
     def scan_status(self):
         """

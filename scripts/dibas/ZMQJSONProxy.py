@@ -57,8 +57,10 @@ import sys
 import traceback
 import types
 import inspect
+import thread
+import time
 
-class ZMQJSONProxyServer:
+class ZMQJSONProxyServer(object):
 
     def __init__(self, ctx, URL):
         """
@@ -76,6 +78,7 @@ class ZMQJSONProxyServer:
         self.s.bind(URL)
         self.pipe_url = "inproc://ctrl_pipe"
         self.pipe.bind(self.pipe_url)
+        self.exit_flag = False
 
 
     def expose(self, name, obj):
@@ -136,7 +139,7 @@ class ZMQJSONProxyServer:
         if self.s:
             self.s.send_json(exported_funcs)
 
-    def run_loop(self):
+    def run_loop(self, watchdogfn = None):
         """
         Runs the server.  This may be run in the server's main thread,
         or can easily be run in another thread. It sets up a poller that
@@ -150,9 +153,15 @@ class ZMQJSONProxyServer:
         poller.register(self.s, zmq.POLLIN)
         poller.register(self.pipe, zmq.POLLIN)
 
+        if watchdogfn:
+            try:
+                thread.start_new_thread( self.generate_watchdog_messages, ("WATCHDOG", 1, ) )
+            except:
+                print "Error: unable to start watchdog thread. There will be no watchdog."
+
         while not done:
             try:
-                socks = dict(poller.poll(60000))
+                socks = dict(poller.poll(120000))
 
                 if self.s in socks and socks[self.s] == zmq.POLLIN:
                     message = self.s.recv_json()
@@ -169,8 +178,16 @@ class ZMQJSONProxyServer:
                     if message == "QUIT":
                         done = True
 
+                    if message == "WATCHDOG":
+                        # This message should never come if watchdogfn
+                        # is None, but check to make sure anyway.
+                        if watchdogfn:
+                            watchdogfn()
+
             except zmq.core.ZMQError as e:
                 print "zmq.core.ZMQError:", str(e)
+
+        self.exit_flag = True
 
     def quit_loop(self):
         """
@@ -180,6 +197,19 @@ class ZMQJSONProxyServer:
         pc = self.ctx.socket(zmq.PUSH)
         pc.connect(self.pipe_url)
         pc.send_json("QUIT")
+
+    def generate_watchdog_messages(self, name, delay):
+        """Runs as a separate thread, generates 'WATCHDOG' messages for the
+        main loop.
+
+        """
+        pc = self.ctx.socket(zmq.PUSH)
+        pc.connect(self.pipe_url)
+
+        while not self.exit_flag:
+            pc.send_json(name)
+            time.sleep(delay)
+
 
 
 class ZMQJSONProxyClient(object):
@@ -239,11 +269,14 @@ class ZMQJSONProxyClient(object):
         """
         msg = {'name': self._obj_name, 'proc': args[0], 'args': args[1:], 'kwargs': kwargs}
         self._sock.send_json(msg)
-        socks = dict(self._poller.poll(60000))
+        # TBF: 4 minutes for a reply. Need to handle case where it times out.
+        socks = dict(self._poller.poll(240000))
 
         if self._sock in socks and socks[self._sock] == zmq.POLLIN:
             repl = self._sock.recv_json()
             return repl
         else:
+            # TBF: FIX THIS! Need to close out the socket, and reconnect
+            # to the service if this happens.
             print "socket timed out!"
             return None

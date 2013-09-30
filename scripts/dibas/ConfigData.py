@@ -188,7 +188,7 @@ class ConfigData(object):
 
         # only record errors if in mandatory mode
         if self._mandatory_mode:
-            if not val:
+            if val == None:
                 self.errors.append(key)
 
         return val

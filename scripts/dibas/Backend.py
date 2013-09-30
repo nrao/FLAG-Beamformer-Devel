@@ -1,7 +1,7 @@
 import struct
 import ctypes
 import binascii
-from vegas_utils import vegas_status
+from vegas_hpc.vegas_utils import vegas_status
 import os
 import subprocess
 import time
@@ -91,6 +91,7 @@ class Backend:
             self.dataroot = "/tmp"
         self.mode = theMode
         self.bank = theBank
+        self.start_time = None
         self.hpc_process = None
         self.obs_mode = 'SEARCH'
         self.max_databuf_size = 128 # in MBytes
@@ -98,6 +99,7 @@ class Backend:
         self.projectid = "JUNK"
         self.datadir = self.dataroot + "/" + self.projectid
         self.scan_running = False
+        self.monitor_mode = False
         self.setFilterBandwidth(self.mode.filter_bw)
         self.setNoiseSource(NoiseSource.OFF)
         self.setNoiseTone1(NoiseTone.NOISE)
@@ -233,7 +235,7 @@ class Backend:
 
         sp_path = self.dibas_dir + '/exec/x86_64-linux/' + hpc_program
         # print sp_path
-        self.hpc_process = subprocess.Popen((sp_path, ),stdin=subprocess.PIPE)
+        self.hpc_process = subprocess.Popen((sp_path, '--resize-obuf'),stdin=subprocess.PIPE)
 
 
     def stop_hpc(self):
@@ -692,6 +694,19 @@ class Backend:
         """
         return (False, "stop() not implemented for this backend.")
 
+    def monitor(self):
+        """monitor(self)
+
+        monitor() requests that the DAQ program go into monitor
+        mode. This is handy for troubleshooting issues like no data. In
+        monitor mode the DAQ's net thread starts receiving data but does
+        not do anything with that data. However the thread's status may
+        be read in the status memory: NETSTAT will say 'receiving' if
+        packets are arriving, 'waiting' if not.
+
+        """
+        return (False, "monitor() not implemented for this backend.")
+
     def scan_status(self):
         """
         Returns the current state of a scan.
@@ -725,6 +740,7 @@ class Backend:
 
         # All banks have roaches if they are incoherent, VEGAS, or coherent masters.
         if self.roach:
+            print "executing reset phase"
             self._execute_phase(self.mode.reset_phase)
 
 
