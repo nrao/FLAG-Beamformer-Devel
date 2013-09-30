@@ -3,4 +3,5 @@ if test "${DIBAS_DIR}zz" = zz; then
 	echo "Error: DIBAS_DIR environment variable not set, exiting."
 	exit 1
 fi
+
 python $DIBAS_DIR/lib/python/dibas_status_monitor.py $@

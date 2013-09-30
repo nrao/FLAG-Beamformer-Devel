@@ -2,7 +2,7 @@
 #
 # Install script specific to the DIBAS project.
 # Requirements/usage:
-# ./install_dibas $DIBAS_DIR 
+# ./install_dibas $DIBAS_DIR
 # Where:
 #    DIBAS_DIR is the installation root (directory must exist)
 #    python executable must be in current PATH
@@ -87,10 +87,10 @@ check_pwd()
 
 create_directories()
 {
-    
+
     if [ ! -x $1/versions ]; then
         echo $1/versions directory does not exist.
-        echo "Creating it" 
+        echo "Creating it"
         install -o $2 -g $3 -d $1/versions
         install -o $2 -g $3 -d $1/etc/config
         install -o $2 -g $3 -d $1/versions/$4
@@ -99,7 +99,7 @@ create_directories()
     do
         install -o $2 -g $3 -d $1/versions/$4/$i
     done
-    for i in exec bin lib; 
+    for i in exec bin lib;
     do
         rm -f $1/$i
         ln -s $1/versions/$4/$i $1/$i
@@ -112,7 +112,7 @@ install_vegas_python_files()
     cd src/vegas_hpc
     python setup.py install --install-lib=$1/lib/python
     if have_root; then
-        chown -R $2:$3 $1/lib/python 
+        chown -R $2:$3 $1/lib/python
     fi
     cd $savedir
 }
@@ -254,7 +254,7 @@ else
     export DIBASUSR=$2
     export DIBASGRP=$3
 fi
-if [ -z "$4" ]; then 
+if [ -z "$4" ]; then
     echo "Defaulting releasename to release"
     export VERSION=release
 else
