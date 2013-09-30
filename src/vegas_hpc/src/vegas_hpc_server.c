@@ -327,8 +327,9 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, srv_quit);
     
     init_cuda_context();
+    vegas_status_lock(&stat);
     hputs(stat.buf, "GPUCTXIN", "TRUE");
-
+    vegas_status_unlock(&stat);
 
     /* Loop over recv'd commands, process them */
     int cmd_wait=1;
