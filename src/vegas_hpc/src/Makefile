@@ -15,10 +15,17 @@ ifdef NULL_DISK
 	OPT_FLAGS += -DNULL_DISK
 endif
 
-ifdef EXT_DISK
-	OPT_FLAGS += -DEXT_DISK
-endif
+# EXT_DISK controls whether the DAQ program should or should not write to disk.
+# If EXT_DISK is set, it will not. DIBAS uses an external disk writer, so EXT_DISK
+# should always be used.
 
+#ifdef EXT_DISK
+#	OPT_FLAGS += -DEXT_DISK
+#endif
+
+OPT_FLAGS += -DEXT_DISK
+
+# use -O3. Debugging: -O0
 CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
 		-I$(PYSLALIB) -I$(VEGAS_DIR)/src -I/opt/local/include $(OPT_FLAGS)
 
