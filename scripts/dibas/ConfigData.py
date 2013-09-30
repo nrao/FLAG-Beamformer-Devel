@@ -574,13 +574,13 @@ class ModeData(ConfigData):
             rp = reset_phase.split(',')
             self.reset_phase   = zip(rp[0::2], rp[1::2])
         else:
-            self.reset_phase = None
+            self.reset_phase = []
 
         if postarm_phase: # optional
             pap = postarm_phase.split(',')
             self.postarm_phase = zip(pap[0::2], pap[1::2])
         else:
-            self.reset_phase = None
+            self.reset_phase = []
 
         mssel = mssel_string.split(',')
 
