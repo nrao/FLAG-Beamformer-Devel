@@ -14,7 +14,7 @@
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
     Lesser General Public License for more details.
-    
+
     You should have received a copy of the GNU Lesser General Public
     License along with this library; if not, write to the Free Software
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
@@ -428,15 +428,20 @@ const char *value; /* character string containing the value for variable
     /*  If COMMENT or HISTORY, always add it just before the END */
     if (lkeyword == 7 && (strncmp (keyword,"COMMENT",7) == 0 ||
         strncmp (keyword,"HISTORY",7) == 0)) {
-        
+
         /* First look for blank lines before END */
         v1 = blsearch (hstring, "END");
-    
+
         /*  Otherwise, create a space for it at the end of the header */
         if (v1 == NULL) {
 
             /* Find end of header */
             v1 = ksearch (hstring,"END");
+
+            if (v1 == NULL)
+            {
+                return(-1);
+            }
 
             /* Align pointer at start of 80-character line */
             lc = v1 - hstring;
@@ -479,13 +484,21 @@ const char *value; /* character string containing the value for variable
 
     /*  If parameter is not found, find a place to put it */
     if (v1 == NULL) {
-        
+
         /* First look for blank lines before END */
         v1 = blsearch (hstring, "END");
-    
+
         /*  Otherwise, create a space for it at the end of the header */
         if (v1 == NULL) {
             ve = ksearch (hstring,"END");
+
+            if (ve == NULL)
+            {
+                fprintf(stderr, "hputc(%p, %s, %s): ksearch(%p, \"END\" returned NULL\n",
+                        hstring, keyword, value, hstring);
+                return(-1);
+            }
+
             v1 = ve;
 
             /* Align pointer at start of 80-character line */
@@ -740,7 +753,7 @@ hputcom (hstring,keyword,comment)
 /* We'll just fix these two settings to what we want.  --PBD */
 
 const static int leaveblank = 0;      /* If 1, leave blank line when deleting */
-#if 0 
+#if 0
 static int leaveblank = 0;      /* If 1, leave blank line when deleting */
 void
 setleaveblank (lb)
@@ -748,7 +761,7 @@ int lb; { leaveblank = lb; return; }
 #endif
 
 const static int headshrink=1;/* Set to 1 to drop line after deleting keyword */
-#if 0 
+#if 0
 static int headshrink=1; /* Set to 1 to drop line after deleting keyword */
 void
 setheadshrink (hsh)
