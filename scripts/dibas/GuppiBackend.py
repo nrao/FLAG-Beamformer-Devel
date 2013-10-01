@@ -323,6 +323,7 @@ class GuppiBackend(Backend):
         else: # No start time provided
             starttime = earliest_start
         # everything OK now, starttime is valid, go through the start procedure.
+        self.start_time = starttime
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
         print now, starttime, max_delay
 
@@ -362,8 +363,21 @@ class GuppiBackend(Backend):
             self.hpc_cmd('stop')
             self.scan_running = False
             return (True, "Scan ended")
-        else:
-            return (False, "No scan running!")
+
+        if self.monitor_mode:
+            self.hpc_cmd('stop')
+            self.monitor_mode = False
+            return (True, "Ending monitor mode.")
+
+        return (False, "No scan running!")
+
+    def monitor(self):
+        """
+        Tells DAQ program to enter monitor mode.
+        """
+        self.hpc_cmd('monitor')
+        self.monitor_mode = True
+        return (True, "Start monitor mode.")
 
     def scan_status(self):
         """

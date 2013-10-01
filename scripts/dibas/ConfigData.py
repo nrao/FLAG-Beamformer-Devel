@@ -496,6 +496,14 @@ class ModeData(ConfigData):
         """
         Arbitrary FPGA register/value pairs that are to be written to the FPGA for this mode.
         """
+        self.hpc_program = None
+        """
+        The HPC DAQ program that will handle data for this mode: 'vegas_hpc_server', 'guppi_daq_server', etc.
+        """
+        self.hpc_program_flags = None
+        """
+        Optional command-line parameters to pass into the hpc program specified.
+        """
 
 
     def __repr__(self):
@@ -545,16 +553,17 @@ class ModeData(ConfigData):
 
         self._optional()
 
-        reset_phase         = self._get_string(mode,           'reset_phase')
-        postarm_phase       = self._get_string(mode,           'postarm_phase')
-        self.shmkvpairs     = self.read_kv_pairs(config, mode, 'shmkeys')
-        self.roach_kvpairs  = self.read_kv_pairs(config, mode, 'roach_reg_keys')
-        self.acc_len        = self._get_int(mode,              'acc_len')
-        self.sg_period      = self._get_int(mode,              'sg_period')
-        mssel_string        = self._get_string(mode,           'master_slave_sel')
-        cdd_data_interfaces = self._get_string(mode,           'cdd_data_interfaces')
-        cdd_hpcs            = self._get_string(mode,           'cdd_hpcs')
-        self.cdd_master_hpc = self._get_string(mode,           'cdd_master_hpc')
+        self.hpc_program_flags = self._get_string(mode,           'hpc_program_flags')
+        reset_phase            = self._get_string(mode,           'reset_phase')
+        postarm_phase          = self._get_string(mode,           'postarm_phase')
+        self.shmkvpairs        = self.read_kv_pairs(config, mode, 'shmkeys')
+        self.roach_kvpairs     = self.read_kv_pairs(config, mode, 'roach_reg_keys')
+        self.acc_len           = self._get_int(mode,              'acc_len')
+        self.sg_period         = self._get_int(mode,              'sg_period')
+        mssel_string           = self._get_string(mode,           'master_slave_sel')
+        cdd_data_interfaces    = self._get_string(mode,           'cdd_data_interfaces')
+        cdd_hpcs               = self._get_string(mode,           'cdd_hpcs')
+        self.cdd_master_hpc    = self._get_string(mode,           'cdd_master_hpc')
 
         # this will throw if any key listed under 'self._mandatory()' did not load.
         self._throw_on_error()

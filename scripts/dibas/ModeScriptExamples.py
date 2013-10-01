@@ -13,12 +13,12 @@ project_id = 'JUNK'
 # A observer for testing:
 observer = 'test_observer'
 
-def CODD2048():
+def CODD(channels):
     """
     Configure the DIBAS for Coherent dedispersion with 2048 channels.
     """
     # Load the firmware and configure the roach IP addresses:
-    d.set_mode('CODD_MODE_2048', force=True)
+    d.set_mode('CODD_MODE_%s' % (str(channels)), force=True)
     # Set some parameters specific to this mode:
     d.set_param(observer=observer)
     d.set_param(project_id=project_id)
@@ -29,15 +29,15 @@ def CODD2048():
     d.set_param(obs_frequency=1445)
     # This is for testing only. It overrides the node number, which is normally
     # taken from the configuration file. (BANKA is node 1, BANKB is node 2, ...)
-    d.set_param(_node_number=1)
+    # d.set_param(_node_number=1)
     # Update the values in status memory and firmware registers
     return d.prepare()
 
-def INCO2048():
+def INCO(channels):
     """
     Configure the DIBAS for incoherent dedispersion with 2048 channels
     """
-    d.set_mode('INCO_MODE_2048')
+    d.set_mode('INCO_MODE_%s' % (str(channels)), True)
     d.set_param(observer=observer)
     d.set_param(project_id=project_id)
     d.set_param(bandwidth=800)
@@ -71,7 +71,7 @@ def MODE1():
     # register on one of the Banks.
     d.players['BANKH'].katcp.write_int('fftshift', 0x5555)
     d.prepare()
-    
+
 # This is GBT/Ygor specific:
 #from gbt.ygor import GrailClient
 #
@@ -115,4 +115,3 @@ def MODE1():
 #        SC.unreg_param('state', state_callback)
 #        SC.unreg_param('source', source_callback)
 #        auto_set = False
-    

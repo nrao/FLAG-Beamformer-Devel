@@ -233,9 +233,12 @@ class Backend:
             raise Exception("Configuration error: no field hpc_program specified in "
                             "MODE section of %s " % (self.current_mode))
 
-        sp_path = self.dibas_dir + '/exec/x86_64-linux/' + hpc_program
-        # print sp_path
-        self.hpc_process = subprocess.Popen((sp_path, '--resize-obuf'),stdin=subprocess.PIPE)
+        process_list = [self.dibas_dir + '/exec/x86_64-linux/' + hpc_program]
+
+        if self.mode.hpc_program_flags:
+            process_list.append(self.mode.hpc_program_flags)
+
+        self.hpc_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
 
 
     def stop_hpc(self):
@@ -643,6 +646,9 @@ class Backend:
         increment = timedelta(microseconds=100000)
 
         while wait < max_delay:
+            time.sleep(0.1)
+            wait += increment
+
             try:
                 value = self.get_status(reg)
             except:
@@ -650,9 +656,6 @@ class Backend:
 
             if value == expected:
                 return (True,wait)
-
-            time.sleep(0.1)
-            wait += increment
 
         return (False,wait) #timed out
 
@@ -740,7 +743,6 @@ class Backend:
 
         # All banks have roaches if they are incoherent, VEGAS, or coherent masters.
         if self.roach:
-            print "executing reset phase"
             self._execute_phase(self.mode.reset_phase)
 
 
@@ -773,7 +775,6 @@ class Backend:
 
         # All banks have roaches if they are incoherent, VEGAS, or coherent masters.
         if self.roach:
-            print 'arming roach', str(self.mode.arm_phase)
             self._execute_phase(self.mode.arm_phase)
 
     def disarm_roach(self):

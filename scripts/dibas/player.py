@@ -306,6 +306,9 @@ class Bank(object):
                                                                  self.mode_data[mode],
                                                                  self.roach,
                                                                  self.valon)
+
+                        self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
+
                     elif backend_type in ["GUPPI"]:
                         if self.mode_data[mode].cdd_mode:
                             self.backend = GuppiCODDBackend.GuppiCODDBackend(self.bank_data,
@@ -313,6 +316,7 @@ class Bank(object):
                                                                              self.roach,
                                                                              self.valon)
                         else:
+                            print "Starting INCO mode", self.mode_data[mode].name
                             self.backend = GuppiBackend.GuppiBackend(self.bank_data,
                                                                      self.mode_data[mode],
                                                                      self.roach,
@@ -320,8 +324,6 @@ class Bank(object):
 
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
-
-                    self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
 
                     return (True, 'New mode %s set!' % mode)
                 else:
@@ -387,7 +389,9 @@ class Bank(object):
         """
 
         if self.backend:
-            self.backend.monitor()
+            return self.backend.monitor()
+        else:
+            return (False, "No backend selected!")
 
     def stop(self):
         """

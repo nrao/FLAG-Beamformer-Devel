@@ -7,6 +7,34 @@ import time
 from datetime import datetime, timedelta
 from Backend import Backend
 import os
+import sys
+import traceback
+
+def formatExceptionInfo(maxTBlevel=5):
+    """
+    Obtains information from the last exception thrown and extracts
+    the exception name, data and traceback, returning them in a tuple
+    (string, string, [string, string, ...]).  The traceback is a list
+    which will be 'maxTBlevel' deep.
+    """
+    cla, exc, trbk = sys.exc_info()
+    excName = cla.__name__
+    excArgs = exc.__str__()
+    excTb = traceback.format_tb(trbk, maxTBlevel)
+    return (excName, excArgs, excTb)
+
+def printException(formattedException):
+    """
+    Takes the tuple provided by 'formatExceptionInfo' and prints it
+    out exactly as an uncaught exception would be in an interactive
+    python shell.
+    """
+    print "Traceback (most recent call last):"
+
+    for i in formattedException[2]:
+        print i,
+
+    print "%s: %s" % (formattedException[0], formattedException[1])
 
 class GuppiCODDBackend(Backend):
     """
@@ -32,6 +60,7 @@ class GuppiCODDBackend(Backend):
         # mode family. Therefore figure out if we are the one; if not,
         # set the parameters 'theRoach' and 'theValon' to None, even if
         # this HPC does control a roach in other modes.
+
         if theMode.cdd_master_hpc == theBank.name:
             Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
         else:
@@ -57,10 +86,9 @@ class GuppiCODDBackend(Backend):
         self.nchan = self.mode.nchan # total number of channels in the design, not per node
         self.num_nodes = 8
         self.feed_polarization = 'LIN'
-
+        self.obs_mode = 'COHERENT_SEARCH'
         bank_names = {'A' : 0, 'B' : 1, 'C' : 2, 'D' : 3, 'E' : 4, 'F' : 5, 'G' : 6, 'H' : 7 }
         self.node_number = bank_names[self.bank.name[-1]]
-
         self.integration_time =40.96E-6
         self.scan_length = 30.0
         if self.dibas_dir is not None:
@@ -69,7 +97,6 @@ class GuppiCODDBackend(Backend):
             self.pardir = '/tmp'
         self.parfile = 'example.par'
         self.datadir = '/lustre/gbtdata/JUNK' # Needs integration with projectid
-
         # register set methods
         self.params["bandwidth"         ] = self.set_bandwidth
         self.params["dm"                ] = self.set_dm
@@ -302,6 +329,8 @@ class GuppiCODDBackend(Backend):
                 raise Exception("Not enough time to arm ROACH.")
         else: # No start time provided
             starttime = earliest_start
+
+        self.start_time = starttime
         # everything OK now, starttime is valid, go through the start procedure.
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
         print now, starttime, max_delay
@@ -334,6 +363,30 @@ class GuppiCODDBackend(Backend):
         if self.cdd_master():
             self.arm_roach()
         self.scan_running = True
+
+    def stop(self):
+        """
+        Stops a scan.
+        """
+        if self.scan_running:
+            self.hpc_cmd('stop')
+            self.scan_running = False
+            return (True, "Scan ended")
+
+        if self.monitor_mode:
+            self.hpc_cmd('stop')
+            self.monitor_mode = False
+            return (True, "Ending monitor mode.")
+
+        return (False, "No scan running!")
+
+    def monitor(self):
+        """
+        Tells DAQ program to enter monitor mode.
+        """
+        self.hpc_cmd('monitor')
+        self.monitor_mode = True
+        return (True, "Start monitor mode.")
 
     def scan_status(self):
         """
@@ -651,8 +704,8 @@ class GuppiCODDBackend(Backend):
                 for i in range(0, len(ips)):
                     tap = "tap%i" % i
                     gbe = gigbit_name + '%i' % i
-                    # gbe = "tGX1_tGv2%i" % i
-                    ip = self._ip_string_to_int(ips[i])
+                    bank = "BANK" + chr(65 + i)
+                    ip = self._ip_string_to_int(ips[bank])
                     mac = self.bank.mac_base + ip
                     port = self.bank.dataport
                     rvals.append((tap, gbe, mac, ip, port))

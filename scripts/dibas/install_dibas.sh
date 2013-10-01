@@ -204,6 +204,28 @@ install_guppi_daq()
         echo "guppi_daq_server doesn't exist"
         echo "run make first"
     fi
+
+    for i in  \
+        src/check_guppi_status \
+        src/check_guppi_databuf \
+        src/clean_guppi_shmem ;
+    do
+        if [ -x  $i ]; then
+            j=`basename $i`
+            if have_root; then
+                install -o root -g $3 -m 6755 $i $1/bin/x86_64-linux
+                echo "$j installed suid root"
+            else
+                install -o $2 -g $3 -m 6755 $i $1/bin/x86_64-linux
+                echo "$j installed suid $2"
+            fi
+        else
+            echo "$i doesn't exist"
+            g=`dirname $i`
+            echo "cd to $g and run make first"
+        fi
+    done
+
     cd $savedir
 }
 install_guppi_python_files()
