@@ -167,7 +167,11 @@ void vegas_sdfits_thread(void *_args) {
 
             /*Write new file number to shared memory*/
             if(sf.filenum != old_filenum)
+            {
+                vegas_status_lock_safe(&st);
                 hputi4(st.buf, "FILENUM", sf.filenum);
+                vegas_status_unlock_safe(&st);
+            }
 
             /* If a new integration number, increment the number of exposures written */
             if(data_cols->integ_num != old_integ_num)
