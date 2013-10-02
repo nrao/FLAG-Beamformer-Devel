@@ -90,7 +90,7 @@ def display_status(stdscr,stat,data):
             curblock=-1
 
         # Display current packet index, etc
-        if (curblock>=0 and curline < ymax-4):
+        if (data is not None and curblock>=0 and curline < ymax-4):
             curline += 1
             stdscr.addstr(curline,col,"Current data block info:",keycol)
             curline += 1
@@ -115,6 +115,9 @@ def display_status(stdscr,stat,data):
         except:
             foldmode = False
 
+        # Disable data buffer accesses
+        foldmode = False
+        
         # Display fold info
         if (foldmode and curline < ymax-4):
             try:
@@ -161,7 +164,9 @@ def display_status(stdscr,stat,data):
 # Connect to vegas status, data bufs
 g = vegas_status()
 try:
-    d = vegas_databuf(1,g.data_buffer_format())
+    # Disable data buffer access
+    d = None
+    # d = vegas_databuf(1,g.data_buffer_format())
 except:
     d = None
 
