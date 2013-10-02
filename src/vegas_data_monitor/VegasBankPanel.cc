@@ -31,9 +31,7 @@
 #include "data_plot.h"
 #include "strip_options.h"
 #include "simulated_data_source.h"
-#include "device_client_data_source.h"
 #include "katcp_data_source.h"
-#include "DeviceClientMap.h"
 #include "hist_options.h"
 
 #include <QPushButton>
@@ -80,11 +78,6 @@ VegasBankPanel::VegasBankPanel(ConfigData &d, QString source, QWidget *parent)
     {
         cout << "Setting up simulated data source" << endl;
         _ds.reset(new SimulatedDataSource(_conf.devices, 1000, this));
-    }
-    else if (source == "accessor")
-    {
-        cout << "Setting up GBT M&C Accessor data source" << endl;
-        _ds.reset(new DeviceClientDataSource(_conf.devices, this));
     }
     else if (source == "katcp")
     {

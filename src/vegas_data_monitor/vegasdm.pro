@@ -25,6 +25,8 @@ INCLUDEPATH += .
 
 INCLUDEPATH += $$QWTHOME/include
 
+INCLUDEPATH += /home/gbt1/RH664/include
+
 LIBS += /home/gbt1/RH664/lib/libkatcp.a
 
 LIBS += -L$$QWTHOME/lib -lqwt
@@ -52,15 +54,18 @@ HEADERS += adchist.h \
            VegasBankPanel.h
 
 SOURCES += adchist.cc \
+           CalendarUtils.cc \
            ConfigFile.cc \
            data_plot.cc \
            data_source.cc \
+           getTimeOfDay.cc \
            hist_options.cc \
-           katcp_data_source.cc \
            main.cc \
            Mutex.cc \
            NumericConversions.cc \
            RoachInterface.cc \
+           katcp_data_source.cc \
            simulated_data_source.cc \
            strip_options.cc \
+           TimeStamp.cc \
            VegasBankPanel.cc

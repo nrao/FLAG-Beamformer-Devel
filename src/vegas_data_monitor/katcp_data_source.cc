@@ -1,4 +1,4 @@
-d/*******************************************************************
+/*******************************************************************
  *  katcp_data_source.cc - implementation of a monitor data
  *  source based on the Grail DeviceClient library.
  *

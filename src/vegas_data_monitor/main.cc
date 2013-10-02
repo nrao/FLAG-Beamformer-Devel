@@ -81,7 +81,7 @@ bool _get_config(ConfigData &d)
 
 {
     ConfigFile cf;
-    String fn;
+    string fn;
 
 
     try

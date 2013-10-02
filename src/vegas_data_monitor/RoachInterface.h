@@ -39,15 +39,8 @@ public:
     // test func
     //bool intdiv(int a, int b, int &c);
 
-    // log commangs
-    void set_log(int size);
-    void clear_log();
-    void get_log(std::list<std::string> &);
-    void print_log();
-    void log_katcp_cmd(katcp_dispatch *);
 
 private:
-    class Logger;
 
     bool resultOk(std::string cmd, uint32_t stimeout = 0,
                   uint32_t ustimeout = 500000);
@@ -57,7 +50,6 @@ private:
     char *host;
     int16_t port;
     bool sim;
-    Logger *_logger;
 
     pthread_mutex_t lock;
 };
