@@ -269,8 +269,8 @@ class ZMQJSONProxyClient(object):
         """
         msg = {'name': self._obj_name, 'proc': args[0], 'args': args[1:], 'kwargs': kwargs}
         self._sock.send_json(msg)
-        # TBF: 4 minutes for a reply. Need to handle case where it times out.
-        socks = dict(self._poller.poll(240000))
+        # TBF: 8 minutes for a reply. Need to handle case where it times out.
+        socks = dict(self._poller.poll(480000))
 
         if self._sock in socks and socks[self._sock] == zmq.POLLIN:
             repl = self._sock.recv_json()

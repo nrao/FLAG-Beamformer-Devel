@@ -321,7 +321,7 @@ class Bank(object):
                                                                      self.mode_data[mode],
                                                                      self.roach,
                                                                      self.valon)
-
+                            self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
 
@@ -373,8 +373,10 @@ class Bank(object):
         """
 
         if self.backend:
-            self.backend.start(starttime)
             self.increment_scan_number()
+            print starttime
+            return self.backend.start(starttime)
+
 
     def monitor(self):
         """monitor(self)
@@ -567,7 +569,18 @@ class Bank(object):
         """
         Looks at internal conditions every so often.
         """
+
         if self.backend:
+            # Scan start requested:
+            if self.backend.start_scan:
+                try:
+                    self.backend._start(self.backend.start_time)
+                except Exception, e:
+                    print e
+                finally:
+                    self.backend.start_scan = False
+
+            # Monitor scan status
             if self.backend.scan_running:
                 now = datetime.utcnow()
                 start = self.backend.start_time

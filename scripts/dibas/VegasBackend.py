@@ -556,10 +556,10 @@ class VegasBackend(Backend):
         Reports earliest possible start time, in UTC, for this backend.
         """
         now = datetime.utcnow()
-        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
+        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay + timedelta(seconds=2))
         return earliest_start
 
-    def start(self, starttime = None):
+    def _start(self, starttime = None):
         """
         start(self, starttime = None)
 
@@ -598,7 +598,8 @@ class VegasBackend(Backend):
         self.stop() # stop any possible monitor mode first. Monitor mode
                     # harmless, but keeps things straight here.
         now = datetime.utcnow()
-        earliest_start = self.earliest_start()
+        earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
+        max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
 
         if starttime:
             if type(starttime) == tuple or type(starttime) == list:
@@ -611,8 +612,10 @@ class VegasBackend(Backend):
             # ROACH is triggered by a 1PPS signal.
             starttime = self.round_second_up(starttime)
             # starttime must be 'needed_arm_delay' seconds from now.
+
             if starttime < earliest_start:
-                raise Exception("Not enough time to arm ROACH.")
+                raise Exception("Not enough time to arm ROACH. Start: %s, earliest possible start: %s" \
+                                % (str(starttime), str(earliest_start)))
         else: # No start time provided
             starttime = earliest_start
 
@@ -620,7 +623,6 @@ class VegasBackend(Backend):
 
         print "self.starttime =", self.start_time
         # everything OK now, starttime is valid, go through the start procedure.
-        max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
         print now, starttime, max_delay
 
         # The CODD bof's don't have a status register

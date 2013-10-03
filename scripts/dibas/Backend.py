@@ -92,6 +92,7 @@ class Backend:
         self.mode = theMode
         self.bank = theBank
         self.start_time = None
+        self.start_scan = False
         self.hpc_process = None
         self.obs_mode = 'SEARCH'
         self.max_databuf_size = 128 # in MBytes
@@ -661,8 +662,7 @@ class Backend:
 
 
     def start(self, starttime):
-        """
-        start(self, starttime = None)
+        """start(self, starttime = None)
 
         *starttime:* a datetime object
 
@@ -687,9 +687,22 @@ class Backend:
         signal. At that time it wakes up and arms the ROACH. The ROACH
         should then send the initial packet at that time.
 
-        **NOTE:** This function is implemented in child classes.
+        Because the child backend start procedure is time consuming,
+        this start merely records the start time, sets a flag, and
+        returns. This allows the Dealer to issue starts quickly to every
+        Player. The player's watchdog will then pick up on the start
+        flag, and perform the lengthy start procedure more-or-less in
+        parallel.
+
         """
-        pass
+
+        # starttime is recorded here and will be passed to child
+        # _start() routine. That routine will modify self.start_time
+        # appropriately (if None, will set the start time; if not None,
+        # will adjust for start to be on 1 second boundary.)
+        self.start_time = starttime
+        self.start_scan = True
+        return (True, 'Initiating start procedure.')
 
     def stop(self):
         """

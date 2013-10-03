@@ -270,10 +270,10 @@ class GuppiBackend(Backend):
         Returns the earliest time this backend can start.
         """
         now = datetime.utcnow()
-        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay)
+        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay + timedelta(seconds=2))
         return earliest_start
 
-    def start(self, starttime):
+    def _start(self, starttime):
         """
         start(self, starttime = None)
 
@@ -305,7 +305,7 @@ class GuppiBackend(Backend):
             self.start_hpc()
 
         now = datetime.utcnow()
-        earliest_start = self.earliest_start()
+        earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
 
         if starttime:
             if type(starttime) == tuple or type(starttime) == list:

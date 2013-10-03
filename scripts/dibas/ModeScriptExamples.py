@@ -48,28 +48,27 @@ def INCO(channels):
     d.set_param(scale_v=900)
     return d.prepare()
 
-def MODE1():
+def MODE(modenum):
     """
     Configure the DIBAS for 'mode1' (1024 channels) spectral line mode.
     The switching setup below provides 4 states, with a short blanking period
     inbetween transitions.
     """
-    d.set_mode('MODE1')
+    d.set_mode('MODE' + str(modenum))
     d.set_param(observer=observer)
     d.set_param(project_id=project_id)
     d.set_param(exposure=1.0)
     d.set_param(scan_length=30.0)
     d.clear_switching_states()
-    d.add_switching_state(0.05, blank=True, cal=False, sig=False)
-    d.add_switching_state(0.2, blank=False, cal=False, sig=False)
-    d.add_switching_state(0.25, blank=False, cal=True, sig=False)
-    d.add_switching_state(0.05, blank=True, cal=False, sig=True)
-    d.add_switching_state(0.20, blank=False, cal=False, sig=True)
-    d.add_switching_state(0.25, blank=False, cal=True, sig=True)
+    d.add_switching_state(0.05, blank=True, cal=False, sig_ref_1=False)
+    d.add_switching_state(0.2, blank=False, cal=False, sig_ref_1=False)
+    d.add_switching_state(0.25, blank=False, cal=True, sig_ref_1=False)
+    d.add_switching_state(0.05, blank=True, cal=False, sig_ref_1=True)
+    d.add_switching_state(0.20, blank=False, cal=False, sig_ref_1=True)
+    d.add_switching_state(0.25, blank=False, cal=True, sig_ref_1=True)
     # This normally would be set automatically, and should not be needed.
     # However, it is also a good example of how to set an individual
     # register on one of the Banks.
-    d.players['BANKH'].katcp.write_int('fftshift', 0x5555)
     d.prepare()
 
 # This is GBT/Ygor specific:
