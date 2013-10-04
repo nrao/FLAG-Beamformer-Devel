@@ -573,6 +573,7 @@ class GuppiCODDBackend(Backend):
         statusdata["BASE_BW" ] = self.filter_bw
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['BANKNUM' ] = self.node_number
+        statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOTSET'               
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
         statusdata["DATAHOST" ] = self.datahost;
@@ -581,6 +582,7 @@ class GuppiCODDBackend(Backend):
         statusdata['PROJID'  ] = self.projectid
         statusdata['OBSERVER'] = self.observer
         statusdata['SCANLEN' ] = self.scan_length
+ 
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len

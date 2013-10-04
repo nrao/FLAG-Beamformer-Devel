@@ -530,6 +530,7 @@ class GuppiBackend(Backend):
         statusdata = {}
         statusdata['ACC_LEN' ] = self.acc_len
         statusdata["BASE_BW" ] = self.filter_bw
+        statusdata["BANKNAM" ] = self.bank.name if self.bank else 'NOTSET'        
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
