@@ -273,7 +273,7 @@ class GuppiBackend(Backend):
         earliest_start = self.round_second_up(now + self.mode.needed_arm_delay + timedelta(seconds=2))
         return earliest_start
 
-    def _start(self, starttime):
+    def start(self, starttime):
         """
         start(self, starttime = None)
 
@@ -354,6 +354,7 @@ class GuppiBackend(Backend):
         # We're now within a second of the desired start time. Arm:
         self.arm_roach()
         self.scan_running = True
+        return (True, "Successfully started roach for starttime=%s" % str(self.start_time))
 
     def stop(self):
         """
@@ -530,7 +531,7 @@ class GuppiBackend(Backend):
         statusdata = {}
         statusdata['ACC_LEN' ] = self.acc_len
         statusdata["BASE_BW" ] = self.filter_bw
-        statusdata["BANKNAM" ] = self.bank.name if self.bank else 'NOTSET'        
+        statusdata["BANKNAM" ] = self.bank.name if self.bank else 'NOTSET'
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw

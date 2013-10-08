@@ -75,6 +75,7 @@ class ZMQJSONProxyServer(object):
         self.ctx = ctx
         self.s = self.ctx.socket(zmq.REP)
         self.pipe = self.ctx.socket(zmq.PULL)
+        print URL
         self.s.bind(URL)
         self.pipe_url = "inproc://ctrl_pipe"
         self.pipe.bind(self.pipe_url)

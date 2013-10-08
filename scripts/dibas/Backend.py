@@ -1,7 +1,7 @@
 import struct
 import ctypes
 import binascii
-from vegas_hpc.vegas_utils import vegas_status
+from vegas_utils import vegas_status
 import os
 import subprocess
 import time
@@ -695,14 +695,7 @@ class Backend:
         parallel.
 
         """
-
-        # starttime is recorded here and will be passed to child
-        # _start() routine. That routine will modify self.start_time
-        # appropriately (if None, will set the start time; if not None,
-        # will adjust for start to be on 1 second boundary.)
-        self.start_time = starttime
-        self.start_scan = True
-        return (True, 'Initiating start procedure.')
+        pass
 
     def stop(self):
         """

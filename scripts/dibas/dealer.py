@@ -31,6 +31,7 @@ import zmq
 import os
 import ConfigParser
 import time
+import threading
 
 from datetime import datetime, timedelta
 from ZMQJSONProxy import ZMQJSONProxyClient
@@ -38,6 +39,20 @@ from ZMQJSONProxy import ZMQJSONProxyClient
 
 def datetime_to_tuple(dt):
     return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)
+
+class Executor(threading.Thread):
+    def __init__(self, player_name, method, args = (), kwargs = {}):
+        threading.Thread.__init__(self)
+        self.player = player_name
+        self.method = method
+        self.args = args
+        self.kwargs = kwargs
+        self.return_val = None
+        print "self.args =", args
+        print "self.kwargs =", kwargs
+
+    def run(self):
+        self.return_val = self.method(*self.args, **self.kwargs)
 
 class BankProxy(ZMQJSONProxyClient):
     """
@@ -90,6 +105,29 @@ class Dealer(object):
 
         self.players = {name:BankProxy(self.ctx, name) for name in player_list}
 
+    def _execute(self, function, args = (), kwargs = {}):
+        rval = {}
+        for p in self.players:
+            method = self.players[p].__dict__[function]
+            rval[p] = method(*args, **kwargs)
+
+        return rval
+
+    def _pexecute(self, function, args = (), kwargs = {}):
+        rval = {}
+        threads = []
+
+        for p in self.players:
+            method = self.players[p].__dict__[function]
+            ex = Executor(p, method, args, kwargs)
+            threads.append(ex)
+            ex.start()
+
+        for t in threads:
+            t.join()
+            rval[t.player] = t.return_val
+
+        return rval
 
     def set_scan_number(self, num):
         """
@@ -98,9 +136,9 @@ class Dealer(object):
         Sets the scan number to 'num'
         """
         self.scan_number = num
-
-        for p in self.players:
-            self.players[p].set_scan_number(num)
+        self._execute("set_scan_number", (num))
+        # for p in self.players:
+        #     self.players[p].set_scan_number(num)
 
     def increment_scan_number(self):
         """
@@ -109,9 +147,9 @@ class Dealer(object):
         Increments the current scan number
         """
         self.scan_number = self.scan_number+1
-
-        for p in self.players:
-            self.players[p].increment_scan_number()
+        return self._execute("increment_scan_number")
+        # for p in self.players:
+        #     self.players[p].increment_scan_number()
 
     def set_status(self, **kwargs):
         """
@@ -124,8 +162,9 @@ class Dealer(object):
 
         would set those two parameters.
         """
-        for p in self.players:
-            self.players[p].set_status(**kwargs)
+        return self._execute("set_status", kwargs = kwargs)
+        # for p in self.players:
+        #     self.players[p].set_status(**kwargs)
 
     def get_status(self, keys = None):
         """
@@ -145,10 +184,10 @@ class Dealer(object):
         * *keys is a single string:* a single value will be looked up
           and returned using 'keys' as the single key.
         """
+        return self._execute("get_status", (keys))
+        # status = {p:self.players[p].get_status(keys) for p in self.players}
 
-        status = {p:self.players[p].get_status(keys) for p in self.players}
-
-        return status
+        # return status
 
     def set_mode(self, mode, force = False):
         """
@@ -176,8 +215,9 @@ class Dealer(object):
           rval = d.set_mode('MODE1')
           rval = d.set_mode(mode='MODE1', force=True)
         """
-        results = {p:self.players[p].set_mode(mode, force) for p in self.players}
-        return results
+        return self._pexecute("set_mode", (mode, force))
+        # results = {p:self.players[p].set_mode(mode, force) for p in self.players}
+        # return results
 
     def _all_same(self, m):
         """
@@ -196,9 +236,9 @@ class Dealer(object):
         Returns the current mode, if all players agree. If not, returns
         a tuple consisting of (False, {bank:mode, bank:mode...})
         """
-
-        m = {p:self.players[p].get_mode() for p in self.players}
-        return self._all_same(m)
+        m = self._execute("get_mode")
+        # m = {p:self.players[p].get_mode() for p in self.players}
+        # return self._all_same(m)
 
     def earliest_start(self):
         """
@@ -237,13 +277,17 @@ class Dealer(object):
             starttime = earliest_start
 
         # 3. Tell them to go!
-        return {p:self.players[p].start(datetime_to_tuple(starttime)) for p in self.players}
+        st = datetime_to_tuple(starttime,)
+        print "st =", st
+        return self._pexecute("start", [st])
+        # return {p:self.players[p].start(datetime_to_tuple(starttime)) for p in self.players}
 
     def stop(self):
         """
         Stops a running scan, or exits monitor mode.
         """
-        return {p:self.players[p].stop() for p in self.players}
+        return self._execute("stop")
+        # return {p:self.players[p].stop() for p in self.players}
 
     def monitor(self):
         """
@@ -256,7 +300,8 @@ class Dealer(object):
         be read in the status memory: NETSTAT will say 'receiving' if
         packets are arriving, 'waiting' if not.
         """
-        return {p:self.players[p].monitor() for p in self.players}
+        return self._execute("monitor")
+        # return {p:self.players[p].monitor() for p in self.players}
 
     def scan_status(self):
         """
@@ -266,8 +311,8 @@ class Dealer(object):
         a dictionary of tuples, backend dependent. Each dictionary key
         is the Player's name.
         """
-
-        return {p:self.players[p].scan_status() for p in self.players}
+        return self._execute("scan_status")
+        # return {p:self.players[p].scan_status() for p in self.players}
 
     def wait_for_scan(self, verbose = False):
         """
@@ -303,8 +348,9 @@ class Dealer(object):
         """
         Perform calculations for the current set of parameter settings
         """
-        rval = {p:self.players[p].prepare() for p in self.players}
-        return rval
+        return self._execute("prepare")
+        # rval = {p:self.players[p].prepare() for p in self.players}
+        # return rval
 
     def set_param(self, **kvpairs):
         """
@@ -313,8 +359,8 @@ class Dealer(object):
         Example usage::
           d.set_param(exposure=x,switch_period=1.0, ...)
         """
-
-        return {p:self.players[p].set_param(**kvpairs) for p in self.players}
+        return self._execute("set_param", kwargs = kvpairs)
+        # return {p:self.players[p].set_param(**kvpairs) for p in self.players}
 
     def help_param(self, param):
         """
@@ -325,7 +371,8 @@ class Dealer(object):
         *param:* A valid parameter name.  Should be *None* if help for
          all parameters is desired.
         """
-        m = {p:self.players[p].help_param(param) for p in self.players}
+        m = self._execute("help_param", (param))
+        # m = {p:self.players[p].help_param(param) for p in self.players}
         return self._all_same(m)
 
     def get_param(self, param):
@@ -336,7 +383,8 @@ class Dealer(object):
         *param:* A valid parameter name.  Should be *None* if values for
          all parameters is desired.
         """
-        return {p:self.players[p].help_param(param) for p in self.players}
+        return self._execute("help_param", (param))
+        # return {p:self.players[p].help_param(param) for p in self.players}
 
     def _check_keypress(self, expected_ch):
         """
@@ -371,7 +419,8 @@ class Dealer(object):
         """
         resets/deletes the switching_states (backend dependent)
         """
-        return {p:self.players[p].clear_switching_states() for p in self.players}
+        return  self._execute("clear_switching_states")
+        # return {p:self.players[p].clear_switching_states() for p in self.players}
 
     def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
         """
@@ -400,7 +449,8 @@ class Dealer(object):
           d.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False) # |  |   |
 
         """
-        return {p:self.players[p].add_switching_state(duration, blank, cal, sig_ref_1) for p in self.players}
+        return self_execute("add_switching_state", (duration, blank, cal, sig_ref_1))
+        # return {p:self.players[p].add_switching_state(duration, blank, cal, sig_ref_1) for p in self.players}
 
     def set_gbt_ss(self, period, ss_list):
         """
@@ -423,4 +473,5 @@ class Dealer(object):
                         )
 
         """
-        return {p:self.players[p].set_gbt_ss(period, ss_list) for p in self.players}
+        return self._execute("set_gbt_ss", (period, ss_list))
+        # return {p:self.players[p].set_gbt_ss(period, ss_list) for p in self.players}
