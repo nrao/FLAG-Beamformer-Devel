@@ -92,8 +92,15 @@ class ZMQJSONProxyServer(object):
         element of the 'self.interfaces' dictionary under 'name', thus
         allowing any number of objects to be proxied.
         """
-        self.interfaces[name] = \
-            {p[0]: p[1] for p in inspect.getmembers(obj, predicate=inspect.ismethod)}
+
+        # for python 2.7 and above
+        # self.interfaces[name] = \
+        #     {p[0]: p[1] for p in inspect.getmembers(obj, predicate=inspect.ismethod)}
+
+        methods = {}
+
+        for p in inspect.getmembers(obj, predicate = inspect.ismethod):
+            methods[p[0]] = p[1]
 
     def dispatch(self, message):
         """

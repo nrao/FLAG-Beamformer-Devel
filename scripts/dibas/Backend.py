@@ -359,10 +359,18 @@ class Backend:
         """
 
         def all_params():
-             return {k:self.params[k].__doc__ \
-                         if self.params[k].__doc__ else \
-                         '        (No help for %s available)' % (k) \
-                        for k in self.params.keys()}
+             # python 2.7+:
+             # return {k:self.params[k].__doc__ \
+             #             if self.params[k].__doc__ else \
+             #             '        (No help for %s available)' % (k) \
+             #            for k in self.params.keys()}
+            phelp = {}
+
+            for k in self.params.keys():
+                if self.params[k].__doc__:
+                    phelp[k] = self.params[k].__doc__
+                else:
+                    phelp[k] = '        (No help for %s available)' % (k)
 
         if not param:
             return all_params()
@@ -407,7 +415,13 @@ class Backend:
             kv = dict(self.status.items())
 
         if type(keys) == list or type(keys) == tuple:
-            return {key: kv[str(key)] for key in keys if str(key) in kv}
+            rd = {}
+            for key in keys:
+                if str(key) in kv:
+                    rd[key] = kv[str(key)]
+            return rd
+            # python 2.7+:
+            # return {key: kv[str(key)] for key in keys if str(key) in kv}
         elif keys == None:
             return kv
         else:
