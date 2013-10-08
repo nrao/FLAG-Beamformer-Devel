@@ -27,13 +27,13 @@ OPT_FLAGS += -DEXT_DISK
 
 # use -O3. Debugging: -O0
 CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
-		-I$(PYSLALIB) -I$(VEGAS_DIR)/src -I/opt/local/include $(OPT_FLAGS)
+		-I$(SLALIB) -I$(VEGAS_DIR)/src -I/opt/local/include $(OPT_FLAGS)
 
 NVCCFLAGS  = -gencode arch=compute_35,code=sm_35
 #NVCCFLAGS  = -arch=compute_35 -code=compute_35
 NVCCFLAGS += -I$(CUDA)/include -I/opt/local/include -I$(VEGAS_INCL)
 
-LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread -lcap
+LIBS = -L. -L$(SLALIB) -L$(VEGAS_LIB) -L/opt/dibas/pulsar/src/presto/lib -lcfitsio -lsla -lm -lpthread -lcap
 CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread
 
 PROGS = check_vegas_databuf check_vegas_status clean_vegas_shmem
