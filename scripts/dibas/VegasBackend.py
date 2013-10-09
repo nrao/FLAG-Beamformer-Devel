@@ -559,7 +559,7 @@ class VegasBackend(Backend):
         earliest_start = self.round_second_up(now + self.mode.needed_arm_delay + timedelta(seconds=2))
         return earliest_start
 
-    def _start(self, starttime = None):
+    def start(self, starttime = None):
         """
         start(self, starttime = None)
 
@@ -663,6 +663,7 @@ class VegasBackend(Backend):
         self.arm_roach()
         self.scan_running = True
         self.set_status(ACCBLKOU='-')
+        return (True, "Successfully started roach for starttime=%s" % str(self.start_time))
 
     def stop(self):
         """

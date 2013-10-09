@@ -44,7 +44,7 @@ def _hostname_to_ip(hostname):
     """
     try:
         rval = socket.gethostbyaddr(hostname)[2][0]
-    except (TypeError, socket.gaierror):
+    except (TypeError, socket.gaierror, socket.herror):
         rval = None
 
     return rval
@@ -369,7 +369,7 @@ class BankData(ConfigData):
             self._optional()
 
         self.datahost = _hostname_to_ip(
-        self._get_string(bank, 'data_source_host'))
+            self._get_string(bank, 'data_source_host'))
         self.katcp_ip = self._get_string(bank, 'katcp_ip')
         self.katcp_port = self._get_int(bank, 'katcp_port')
         self.synth = self._get_string(bank, 'synth')

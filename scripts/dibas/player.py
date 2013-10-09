@@ -55,12 +55,14 @@ class Bank(object):
     A roach bank manager class.
     """
 
-    def __init__(self, bank_name):
+    def __init__(self, bank_name, simulate = False):
         self.dibas_dir = os.getenv('DIBAS_DIR')
 
         if self.dibas_dir == None:
             raise Exception("'DIBAS_DIR' is not set!")
 
+        self.simulate = simulate
+        print "self.simulate=", self.simulate
         self.bank_name = bank_name.upper()
         self.bank_data = BankData()
         self.mode_data = {}
@@ -70,6 +72,9 @@ class Bank(object):
         self.read_config_file(self.dibas_dir + '/etc/config/dibas.conf')
         self.scan_number = 1
         self.backend = None
+        self.roach = None
+        self.valon = None
+
         # This turns on the automatic reaping of dead child processes (anti-zombification)
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
@@ -84,14 +89,16 @@ class Bank(object):
         This method creates the status shared memory segment if necessary.
         If the segment exists, the state of the status memory is not modified.
         """
-        os.system(self.dibas_dir + '/bin/init_status_memory')
+        if not self.simulate:
+            os.system(self.dibas_dir + '/bin/init_status_memory')
 
 
     def clear_shared_memory(self):
         """
         This method clears the status shared memory segment if necessary.
         """
-        os.system(self.dibas_dir + '/bin/x86_64-linux/check_vegas_status -C')
+        if not self.simulate:
+            os.system(self.dibas_dir + '/bin/x86_64-linux/check_vegas_status -C')
         # print 'not cleaning status memory -- fix this'
 
     def reformat_data_buffers(self, mode):
@@ -100,7 +107,8 @@ class Bank(object):
         layouts, remove and re-create the databuffers as appropriate for the
         HPC program in use.
         """
-
+        if self.simulate:
+            return
         if self.current_mode is None:
             raise Exception( "No current mode is selected" )
 
@@ -150,7 +158,15 @@ class Bank(object):
 
             for mode in modes:
                 m = ModeData()
-                m.load_config(config, mode)
+
+                try:
+                    m.load_config(config, mode)
+                except Exception, e:
+                    if self.simulate:
+                        pass
+                    else:
+                        raise e
+
                 self.mode_data[mode] = m
 
         except ConfigParser.NoSectionError as e:
@@ -159,26 +175,30 @@ class Bank(object):
 
         # Now that all the configuration data is loaded, set up some basic things: KATCP, Valon, etc.
         # KATCP:
-        self.roach = katcp_wrapper.FpgaClient(self.bank_data.katcp_ip, self.bank_data.katcp_port, timeout = 30.0)
-        time.sleep(1) # It takes the KATCP interface a little while to get ready. It's used below
-                      # by the Valon interface, so we must wait a little.
+        if not self.simulate:
+            self.roach = katcp_wrapper.FpgaClient(self.bank_data.katcp_ip,
+                                                  self.bank_data.katcp_port,
+                                                  timeout = 30.0)
+            time.sleep(1) # It takes the KATCP interface a little while to get ready. It's used below
+                          # by the Valon interface, so we must wait a little.
 
-        # The Valon can be on this host ('local') or on the ROACH ('katcp'). Create accordingly.
-        if self.bank_data.synth == 'local':
-            import valon_synth
-            self.valon = valon_synth.Synthesizer(self.bank_data.synth_port)
-        elif self.bank_data.synth == 'katcp':
-            from valon_katcp import ValonKATCP
-            self.valon = ValonKATCP(self.roach, self.bank_data.synth_port)
-        else:
-            raise ValonException("Unrecognized option %s for valon synthesizer" % self.bank_data.synth)
+            # The Valon can be on this host ('local') or on the ROACH ('katcp'). Create accordingly.
+            if self.bank_data.synth == 'local':
+                import valon_synth
+                self.valon = valon_synth.Synthesizer(self.bank_data.synth_port)
+            elif self.bank_data.synth == 'katcp':
+                from valon_katcp import ValonKATCP
+                self.valon = ValonKATCP(self.roach, self.bank_data.synth_port)
+            else:
+                raise ValonException("Unrecognized option %s for valon synthesizer" \
+                                     % self.bank_data.synth)
 
-        # Valon is now assumed to be working
-        self.valon.set_ref_select(self.bank_data.synth_ref)
-        self.valon.set_reference(self.bank_data.synth_ref_freq)
-        self.valon.set_vco_range(0, *self.bank_data.synth_vco_range)
-        self.valon.set_rf_level(0, self.bank_data.synth_rf_level)
-        self.valon.set_options(0, *self.bank_data.synth_options)
+            # Valon is now assumed to be working
+            self.valon.set_ref_select(self.bank_data.synth_ref)
+            self.valon.set_reference(self.bank_data.synth_ref_freq)
+            self.valon.set_vco_range(0, *self.bank_data.synth_vco_range)
+            self.valon.set_rf_level(0, self.bank_data.synth_rf_level)
+            self.valon.set_options(0, *self.bank_data.synth_options)
 
         print "connecting to %s, port %i" % (self.bank_data.katcp_ip, self.bank_data.katcp_port)
         print self.bank_data
@@ -305,7 +325,8 @@ class Bank(object):
                         self.backend = VegasBackend.VegasBackend(self.bank_data,
                                                                  self.mode_data[mode],
                                                                  self.roach,
-                                                                 self.valon)
+                                                                 self.valon,
+                                                                 self.simulate)
 
                         self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
 
@@ -314,13 +335,15 @@ class Bank(object):
                             self.backend = GuppiCODDBackend.GuppiCODDBackend(self.bank_data,
                                                                              self.mode_data[mode],
                                                                              self.roach,
-                                                                             self.valon)
+                                                                             self.valon,
+                                                                             self.simulate)
                         else:
                             print "Starting INCO mode", self.mode_data[mode].name
                             self.backend = GuppiBackend.GuppiBackend(self.bank_data,
                                                                      self.mode_data[mode],
                                                                      self.roach,
-                                                                     self.valon)
+                                                                     self.valon,
+                                                                     self.simulate)
                             self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
@@ -571,16 +594,7 @@ class Bank(object):
         """
 
         if self.backend:
-            # Scan start requested:
-            if self.backend.start_scan:
-                try:
-                    self.backend._start(self.backend.start_time)
-                except Exception, e:
-                    print e
-                finally:
-                    self.backend.start_scan = False
-
-            # Monitor scan status
+             # Monitor scan status
             if self.backend.scan_running:
                 now = datetime.utcnow()
                 start = self.backend.start_time
@@ -619,7 +633,7 @@ def _testCaseVegas1():
 
 proxy = None
 
-def main_loop(bank_name, URL = None):
+def main_loop(bank_name, URL = None, sim = False):
     # The proxy server, can proxy many classes.
     global proxy
 
@@ -639,7 +653,7 @@ def main_loop(bank_name, URL = None):
 
     proxy = ZMQJSONProxyServer(ctx, URL)
     # A class to expose
-    bank = Bank(bank_name)
+    bank = Bank(bank_name, sim)
     # Expose some interfaces. The classes can be any class, including
     # contained within another exposed class. The name can be anything
     # at all that uniquely identifies the interface.
@@ -656,13 +670,21 @@ def signal_handler(signal, frame):
     proxy.quit_loop()
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        bank_name = sys.argv[1]
-        if len(sys.argv) > 2:
-            url = sys.argv[2]
-        else:
-            url = None # fetch it from dibas.conf
+    sim = False
+    url = None
+    bank_name = None
 
-        signal.signal(signal.SIGINT, signal_handler)
-        print "Main loop..."
-        main_loop(bank_name, url)
+    if len(sys.argv) > 3:
+        bank_name = sys.argv[1]
+        url = sys.argv[2]
+        print "sys.argv[3] =", sys.argv[3]
+        sim = True if str(sys.argv[3]) == "simulate" else False
+    elif len(sys.argv) > 2:
+        bank_name = sys.argv[1]
+        url = sys.argv[2]
+    elif len(sys.argv) > 1:
+        bank_name = sys.argv[1]
+
+    signal.signal(signal.SIGINT, signal_handler)
+    print "Main loop..."
+    main_loop(bank_name, url, sim)

@@ -280,7 +280,7 @@ class GuppiCODDBackend(Backend):
         earliest_start = self.round_second_up(now + self.mode.needed_arm_delay + timedelta(seconds=2))
         return earliest_start
 
-    def _start(self, starttime):
+    def start(self, starttime):
         """
         start(self, starttime = None)
 
@@ -363,6 +363,7 @@ class GuppiCODDBackend(Backend):
         if self.cdd_master():
             self.arm_roach()
         self.scan_running = True
+        return (True, "Successfully started roach for starttime=%s" % str(self.start_time))
 
     def stop(self):
         """
@@ -573,7 +574,7 @@ class GuppiCODDBackend(Backend):
         statusdata["BASE_BW" ] = self.filter_bw
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['BANKNUM' ] = self.node_number
-        statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOTSET'               
+        statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOTSET'
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
         statusdata["DATAHOST" ] = self.datahost;
@@ -582,7 +583,7 @@ class GuppiCODDBackend(Backend):
         statusdata['PROJID'  ] = self.projectid
         statusdata['OBSERVER'] = self.observer
         statusdata['SCANLEN' ] = self.scan_length
- 
+
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len
