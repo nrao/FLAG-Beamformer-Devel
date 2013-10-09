@@ -103,7 +103,11 @@ class Dealer(object):
         player_list = [i.lstrip('" ,').rstrip('" ,') \
                            for i in config.get('DEALER', 'players').lstrip('"').rstrip('"').split()]
 
-        self.players = {name:BankProxy(self.ctx, name) for name in player_list}
+#        self.players = {name:BankProxy(self.ctx, name) for name in player_list}
+        self.players = {}
+
+        for name in player_list:
+            self.players[name] = BankProxy(self.ctx, name)
 
     def _execute(self, function, args = (), kwargs = {}):
         rval = {}
