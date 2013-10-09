@@ -348,6 +348,9 @@ class Bank(object):
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
 
+                    if self.simulate:
+                        sleep(10) # make it realistic
+
                     return (True, 'New mode %s set!' % mode)
                 else:
                     return (False, 'Mode %s is already set! Use \'force=True\' to force.' % mode)

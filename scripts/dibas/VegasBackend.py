@@ -590,16 +590,10 @@ class VegasBackend(Backend):
         exception is thrown.
         """
 
-        if self.hpc_process is None:
-            self.start_hpc()
-        if self.fits_writer_process is None:
-            self.start_fits_writer()
-
         self.stop() # stop any possible monitor mode first. Monitor mode
                     # harmless, but keeps things straight here.
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
-        max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
 
         if starttime:
             if type(starttime) == tuple or type(starttime) == list:
@@ -620,10 +614,19 @@ class VegasBackend(Backend):
             starttime = earliest_start
 
         self.start_time = starttime
-
-        print "self.starttime =", self.start_time
-        # everything OK now, starttime is valid, go through the start procedure.
+        max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
         print now, starttime, max_delay
+        # if simulating, just sleep until start time and return
+        if self.test_mode:
+            sleeptime = self.start_time - now
+            sleep(sleeptime.seconds)
+            return (True, "Successfully started roach for starttime=%s" % str(self.start_time))
+
+        # everything OK now, starttime is valid, go through the start procedure.
+        if self.hpc_process is None:
+            self.start_hpc()
+        if self.fits_writer_process is None:
+            self.start_fits_writer()
 
         # The CODD bof's don't have a status register
         if not self.mode.cdd_mode:
