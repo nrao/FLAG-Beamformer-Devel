@@ -1,6 +1,6 @@
 CONFIG += debug thread
 
-CONFIG(debug, debug|release) {
+CONFIG(release, debug|release) {
     TARGET = debugvegasdm
 } else {
     TARGET = vegasdm

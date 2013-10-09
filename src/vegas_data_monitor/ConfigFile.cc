@@ -613,7 +613,7 @@ void ConfigFile::Get(const string &key, vector<int> &vv)
 {
     int j(0), lr, hr;
     //unsigned int j(0), lr, hr;
-    size_t pos;
+    size_t pos = 0;
     vector<string> elements, ranges;
     vector<string>::iterator index;
     string index_spec;
@@ -629,7 +629,7 @@ void ConfigFile::Get(const string &key, vector<int> &vv)
 
     for (index = elements.begin(); index != elements.end(); ++index)
     {
-        if (index->find("-", pos))
+      if (index->find("-", pos) != string::npos)
         {
             boost::split(ranges, *index, boost::is_any_of("-"));
 
@@ -705,7 +705,7 @@ void ConfigFile::Get(const string &key, vector<long> &vv)
 {
     long j(0), lr, hr;
     //unsigned int j(0), lr, hr;
-    size_t pos;
+    size_t pos = 0;
     vector<string> elements, ranges;
     vector<string>::iterator index;
     string index_spec;
@@ -814,9 +814,11 @@ void ConfigFile::get(const string &key, string &val)
 {
     section_map::iterator smi;
     map<string, string>::iterator vmi;
+    char *envval;
 
 
-    val = getenv(key.c_str());
+    envval = getenv(key.c_str());
+    val = envval ? envval : "";
 
     if (val.empty())
     {

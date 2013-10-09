@@ -161,7 +161,8 @@ install_vegas_daq()
     for i in  \
         vegas_hpc/src/check_vegas_status \
         vegas_hpc/src/check_vegas_databuf \
-        vegas_hpc/src/clean_vegas_shmem ;
+        vegas_hpc/src/clean_vegas_shmem \
+	vegas_data_monitor/vegasdm;
     do
         if [ -x  $i ]; then
             j=`basename $i`
