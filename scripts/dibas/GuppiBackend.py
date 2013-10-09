@@ -301,9 +301,6 @@ class GuppiBackend(Backend):
         should then send the initial packet at that time.
         """
 
-        if self.hpc_process is None:
-            self.start_hpc()
-
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
 
@@ -323,9 +320,17 @@ class GuppiBackend(Backend):
         else: # No start time provided
             starttime = earliest_start
         # everything OK now, starttime is valid, go through the start procedure.
+        if self.hpc_process is None:
+            self.start_hpc()
+
         self.start_time = starttime
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
         print now, starttime, max_delay
+
+        if self.test_mode:
+            sleeptime = self.start_time - now
+            sleep(sleeptime.seconds)
+            return (True, "Successfully started roach for starttime=%s" % str(self.start_time))
 
         self.hpc_cmd('START')
         status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
