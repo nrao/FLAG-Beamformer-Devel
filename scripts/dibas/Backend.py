@@ -503,7 +503,7 @@ class Backend:
 
         # Some modes will not have roach set.
         if self.roach:
-            reply, informs = self.roach._request("progdev") # deprogram roach first
+            reply, informs = self.roach._request("progdev", 20) # deprogram roach first
 
             if reply.arguments[0] != 'ok':
                 print "Warning, FPGA was not deprogrammed."

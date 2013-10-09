@@ -60,7 +60,9 @@ class Bank(object):
 
         if self.dibas_dir == None:
             raise Exception("'DIBAS_DIR' is not set!")
-
+        self.backend = None
+        self.roach = None
+        self.valon = None
         self.simulate = simulate
         print "self.simulate=", self.simulate
         self.bank_name = bank_name.upper()
@@ -71,9 +73,6 @@ class Bank(object):
         self.check_shared_memory()
         self.read_config_file(self.dibas_dir + '/etc/config/dibas.conf')
         self.scan_number = 1
-        self.backend = None
-        self.roach = None
-        self.valon = None
 
         # This turns on the automatic reaping of dead child processes (anti-zombification)
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
