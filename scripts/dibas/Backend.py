@@ -1,11 +1,11 @@
-import struct
 import ctypes
 import binascii
-from vegas_utils import vegas_status
+from vegas_hpc.vegas_utils import vegas_status
 import os
 import subprocess
 import time
 from datetime import datetime, timedelta
+from i2c import I2C
 
 ######################################################################
 # Some constants
@@ -73,11 +73,13 @@ class Backend:
             print "UNIT TEST MODE!!!"
             self.roach = None
             self.valon = None
+            self.i2c = None
             self.mock_status_mem = {}
             self.mock_roach_registers = {}
         else:
             self.roach = theRoach
             self.valon = theValon
+            self.i2c = I2C(theRoach)
             self.status = vegas_status()
 
         # Bits used to set I2C for proper filter
@@ -172,10 +174,8 @@ class Backend:
           bits = self.getI2CValue(0x38, 1)
         """
 
-        if self.roach:
-            reply, informs = self.roach._request('i2c-read', addr, nbytes)
-            v = reply.arguments[2]
-            return (reply.arguments[0] == 'ok', struct.unpack('>%iB' % nbytes, v))
+        if self.i2c:
+            return self.i2c.getI2CValue(addr, nbytes)
         return (True, 0)
 
 
@@ -195,10 +195,8 @@ class Backend:
           self.setI2CValue(0x38, 1, 0x25)
         """
 
-        if self.roach:
-            reply, informs = self.roach._request(
-                'i2c-write', addr, nbytes, struct.pack('>%iB' % nbytes, data))
-            return reply.arguments[0] == 'ok'
+        if self.i2c:
+            return self.i2c.setI2CValue(addr, nbytes, data)
         return True
 
 

@@ -313,6 +313,6 @@ class ValonKATCP(object):
 
         Sets the specified synthesizer's VCO range.
         """
-        reply, informs = self.roach._request('valon-set-vco-range', self.timeout
+        reply, informs = self.roach._request('valon-set-vco-range', self.timeout,
                                              self._get_synth_val(synth), low, high)
         return reply.arguments[0] == 'ok'

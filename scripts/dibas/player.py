@@ -685,6 +685,7 @@ if __name__ == '__main__':
     elif len(sys.argv) > 1:
         bank_name = sys.argv[1]
 
-    signal.signal(signal.SIGINT, signal_handler)
-    print "Main loop..."
-    main_loop(bank_name, url, sim)
+    if len(sys.argv) > 1:
+        signal.signal(signal.SIGINT, signal_handler)
+        print "Main loop..."
+        main_loop(bank_name, url, sim)
