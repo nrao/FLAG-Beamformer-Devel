@@ -529,7 +529,7 @@ class Backend:
 
     def setSource(self, source):
         """
-        This parameter sets the SOURCE shared memory value.
+        This parameter sets the SRC_NAME shared memory value.
         """
         self.source = source
 

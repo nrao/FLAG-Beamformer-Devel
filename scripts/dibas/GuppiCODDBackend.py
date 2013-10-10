@@ -588,7 +588,7 @@ class GuppiCODDBackend(Backend):
         statusdata['DATADIR'  ] = self.dataroot
         statusdata['PROJID'   ] = self.projectid
         statusdata['OBSERVER' ] = self.observer
-        statusdata['SOURCE'   ] = self.source
+        statusdata['SRC_NAME' ] = self.source
         statusdata['TELESCOP' ] = self.telescope
         statusdata['SCANLEN'  ] = self.scan_length
 

@@ -479,7 +479,7 @@ class VegasBackend(Backend):
         statusdata["OBSERVER" ] = DEFAULT_VALUE;
         statusdata["OBSID"    ] = DEFAULT_VALUE;
         statusdata["PKTFMT"   ] = DEFAULT_VALUE;
-        statusdata["SOURCE"   ] = DEFAULT_VALUE;
+        statusdata["SRC_NAME" ] = DEFAULT_VALUE;
         statusdata["SUB0FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB1FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB2FREQ" ] = DEFAULT_VALUE;
@@ -500,7 +500,7 @@ class VegasBackend(Backend):
             statusdata[x] = y
 
         statusdata["OBSERVER" ] = self.observer
-        statusdata["SOURCE"   ] = self.source
+        statusdata["SRC_NAME" ] = self.source
         statusdata["TELESCOP" ] = self.telescope
         statusdata["BW_MODE"  ] = "high" # mode 1
         statusdata["BOFFILE"  ] = str(self.bof_file)
