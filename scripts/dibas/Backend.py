@@ -83,7 +83,7 @@ class Backend:
             self.status = vegas_status()
 
         # Bits used to set I2C for proper filter
-        self.filter_bw_bits = {950: 0x00, 1150: 0x08, 1400: 0x18}
+        self.filter_bw_bits = {450: 0x00, 1450: 0x08, 1900: 0x18}
 
         # This is already checked by player.py, we won't get here if not set
         self.dibas_dir = os.getenv("DIBAS_DIR")
@@ -98,7 +98,9 @@ class Backend:
         self.hpc_process = None
         self.obs_mode = 'SEARCH'
         self.max_databuf_size = 128 # in MBytes
-        self.observer = "unknown"
+        self.observer = "unspecified"
+        self.source = "unspecified"
+        self.telescope = "unspecified"
         self.projectid = "JUNK"
         self.datadir = self.dataroot + "/" + self.projectid
         self.scan_running = False
@@ -110,14 +112,16 @@ class Backend:
         self.setScanLength(30.0)
 
         self.params = {}
-        self.params["frequency"]      = self.setValonFrequency
-        self.params["filter_bw"]      = self.setFilterBandwidth
-        self.params["observer"]       = self.setObserver
-        self.params["project_id"]     = self.setProjectId
-        self.params["noise_tone_1"]   = self.setNoiseTone1
-        self.params["noise_tone_2"]   = self.setNoiseTone2
-        self.params["noise_source"]   = self.setNoiseSource
-        self.params["scan_length"]    = self.setScanLength
+        self.params["frequency"    ] = self.setValonFrequency
+        self.params["filter_bw"    ] = self.setFilterBandwidth
+        self.params["observer"     ] = self.setObserver
+        self.params["project_id"   ] = self.setProjectId
+        self.params["noise_tone_1" ] = self.setNoiseTone1
+        self.params["noise_tone_2" ] = self.setNoiseTone2
+        self.params["noise_source" ] = self.setNoiseSource
+        self.params["scan_length"  ] = self.setScanLength
+        self.params["source"       ] = self.setSource
+        self.params["telescope"    ] = self.setTelescope
 
         # CODD mode is special: One roach has up to 8 interfaces, and
         # each is the DATAHOST for one of the Players. This distribution
@@ -254,19 +258,27 @@ class Backend:
         if self.hpc_process is None:
             return False # Nothing to do
 
+        if self.hpc_process is not None:
+            # process exited with code:
+            del self.hpc_process
+            self.hpc_process = None
+            killed = True
+            return killed
+
         # First ask nicely
         # Kill and reclaim child
         self.hpc_process.communicate("quit\n")
+        time.sleep(1)
         # Kill if necessary
         if self.hpc_process.poll() == None:
             # still running, try once more
-            self.hpc_process.communicate("quit")
+            self.hpc_process.terminate()
             time.sleep(1)
 
             if self.hpc_process.poll() is not None:
                 killed = True
             else:
-                self.hpc_process.communicate("quit\n")
+                self.hpc_process.kill()
                 killed = True;
         else:
             killed = False
@@ -317,12 +329,14 @@ class Backend:
             else:
                 return retval
         else:
-            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" % (param, str(self.params.keys()))
+            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" \
+                % (param, str(self.params.keys()))
             print 'No such parameter %s' % param
             print 'Legal parameters in this mode are:'
             for k in self.params.keys():
                 print k
             raise Exception(msg)
+
     def get_param(self,param):
         """
         get_param(self, param)
@@ -357,11 +371,6 @@ class Backend:
         """
 
         def all_params():
-             # python 2.7+:
-             # return {k:self.params[k].__doc__ \
-             #             if self.params[k].__doc__ else \
-             #             '        (No help for %s available)' % (k) \
-             #            for k in self.params.keys()}
             phelp = {}
 
             for k in self.params.keys():
@@ -369,15 +378,18 @@ class Backend:
                     phelp[k] = self.params[k].__doc__
                 else:
                     phelp[k] = '        (No help for %s available)' % (k)
+            return phelp
 
         if not param:
             return all_params()
 
         if param in self.params.keys():
             set_method=self.params[param]
-            return set_method.__doc__ if set_method.__doc__ else "No help for '%s' is available" % param
+            return set_method.__doc__ if set_method.__doc__ \
+                else "No help for '%s' is available" % param
         else:
-            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" % (param, str(self.params.keys()))
+            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" \
+                % (param, str(self.params.keys()))
             print 'No such parameter %s' % param
             print 'Legal parameters in this mode are:'
 
@@ -418,8 +430,6 @@ class Backend:
                 if str(key) in kv:
                     rd[key] = kv[str(key)]
             return rd
-            # python 2.7+:
-            # return {key: kv[str(key)] for key in keys if str(key) in kv}
         elif keys == None:
             return kv
         else:
@@ -516,6 +526,18 @@ class Backend:
         This parameter controls how long the scan will last in seconds.
         """
         self.scan_length = length
+
+    def setSource(self, source):
+        """
+        This parameter sets the SOURCE shared memory value.
+        """
+        self.source = source
+
+    def setTelescope(self, telescope):
+        """
+        This parameter sets the TELESCOPE shared memory value.
+        """
+        self.telescope = telescope
 
     def setFilterBandwidth(self, fbw):
         """
@@ -637,7 +659,8 @@ class Backend:
         dest_ip_register_name = self.mode.dest_ip_register_name
         dest_port_register_name = self.mode.dest_port_register_name
 
-        self.roach.tap_start("tap0", gigbit_name, self.bank.mac_base + data_ip, data_ip, data_port)
+        self.roach.tap_start("tap0", gigbit_name,
+                             self.bank.mac_base + data_ip, data_ip, data_port)
         self.roach.write_int(dest_ip_register_name, dest_ip)
         self.roach.write_int(dest_port_register_name, dest_port)
         return 'ok'

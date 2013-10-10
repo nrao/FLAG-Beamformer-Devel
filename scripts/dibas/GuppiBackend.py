@@ -545,6 +545,8 @@ class GuppiBackend(Backend):
         statusdata['DATAPORT'] = self.dataport
         statusdata['PROJID'  ] = self.projectid
         statusdata['OBSERVER'] = self.observer
+        statusdata['SOURCE'  ] = self.source
+        statusdata['TELESCOP'] = self.telescope
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['SCANLEN' ] = self.scan_length
         statusdata['FFTLEN'  ] = self.fft_len

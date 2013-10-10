@@ -102,6 +102,7 @@ class ZMQJSONProxyServer(object):
 
         for p in inspect.getmembers(obj, predicate = inspect.ismethod):
             methods[p[0]] = p[1]
+        self.interfaces[name] = methods
 
     def dispatch(self, message):
         """
@@ -192,7 +193,7 @@ class ZMQJSONProxyServer(object):
                         if watchdogfn:
                             watchdogfn()
 
-            except zmq.core.ZMQError as e:
+            except zmq.error.ZMQError as e:
                 print "zmq.core.ZMQError:", str(e)
 
         self.exit_flag = True

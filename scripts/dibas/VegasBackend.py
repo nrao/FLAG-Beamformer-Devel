@@ -476,10 +476,10 @@ class VegasBackend(Backend):
         statusdata["OBSFREQ"  ] = DEFAULT_VALUE;
         statusdata["OBSNCHAN" ] = DEFAULT_VALUE;
         statusdata["OBS_MODE" ] = DEFAULT_VALUE;
-        statusdata["OBSSEVER" ] = DEFAULT_VALUE;
+        statusdata["OBSERVER" ] = DEFAULT_VALUE;
         statusdata["OBSID"    ] = DEFAULT_VALUE;
         statusdata["PKTFMT"   ] = DEFAULT_VALUE;
-
+        statusdata["SOURCE"   ] = DEFAULT_VALUE;
         statusdata["SUB0FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB1FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB2FREQ" ] = DEFAULT_VALUE;
@@ -489,6 +489,7 @@ class VegasBackend(Backend):
         statusdata["SUB6FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB7FREQ" ] = DEFAULT_VALUE;
         statusdata["SWVER"    ] = DEFAULT_VALUE;
+        statusdata["TELESCOP" ] = DEFAULT_VALUE;
 
         # add in the config file default keywords; being defaults they
         # may be overridden below.
@@ -499,6 +500,8 @@ class VegasBackend(Backend):
             statusdata[x] = y
 
         statusdata["OBSERVER" ] = self.observer
+        statusdata["SOURCE"   ] = self.source
+        statusdata["TELESCOP" ] = self.telescope
         statusdata["BW_MODE"  ] = "high" # mode 1
         statusdata["BOFFILE"  ] = str(self.bof_file)
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
@@ -733,18 +736,26 @@ class VegasBackend(Backend):
         if self.fits_writer_process is None:
             return False # Nothing to do
 
+        if self.fits_writer_process is not None:
+            # process exited with code:
+            del self.fits_writer_process
+            self.fits_writer_process = None
+            killed = True
+            return killed
+
         # First ask nicely
         self.fits_writer_process.communicate("quit\n")
+        time.sleep(1)
         # Kill if necessary
         if self.fits_writer_process.poll() == None:
             # still running, try once more
-            self.fits_writer_process.communicate("quit\n")
+            self.fits_writer_process.terminate()
             time.sleep(1)
 
             if self.fits_writer_process.poll() is not None:
                 killed = True
             else:
-                self.fits_writer_process.communicate()
+                self.fits_writer_process.kill()
                 killed = True;
         else:
             killed = False

@@ -576,19 +576,21 @@ class GuppiCODDBackend(Backend):
         Collect and set the status memory keywords
         """
         statusdata = {}
-        statusdata['ACC_LEN' ] = self.acc_len
-        statusdata["BASE_BW" ] = self.filter_bw
-        statusdata['BLOCSIZE'] = self.blocsize
-        statusdata['BANKNUM' ] = self.node_number
+        statusdata['ACC_LEN'  ] = self.acc_len
+        statusdata["BASE_BW"  ] = self.filter_bw
+        statusdata['BLOCSIZE' ] = self.blocsize
+        statusdata['BANKNUM'  ] = self.node_number
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOTSET'
-        statusdata['CHAN_DM' ] = self.dm
-        statusdata['CHAN_BW' ] = self.chan_bw
+        statusdata['CHAN_DM'  ] = self.dm
+        statusdata['CHAN_BW'  ] = self.chan_bw
         statusdata["DATAHOST" ] = self.datahost;
         statusdata["DATAPORT" ] = self.dataport;
-        statusdata['DATADIR' ] = self.dataroot
-        statusdata['PROJID'  ] = self.projectid
-        statusdata['OBSERVER'] = self.observer
-        statusdata['SCANLEN' ] = self.scan_length
+        statusdata['DATADIR'  ] = self.dataroot
+        statusdata['PROJID'   ] = self.projectid
+        statusdata['OBSERVER' ] = self.observer
+        statusdata['SOURCE'   ] = self.source
+        statusdata['TELESCOP' ] = self.telescope
+        statusdata['SCANLEN'  ] = self.scan_length
 
 
         statusdata['DS_TIME' ] = self.ds_time

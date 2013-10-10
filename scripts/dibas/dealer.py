@@ -112,7 +112,7 @@ class Dealer(object):
             if type(players) != dict:
                 raise Exception('Players must be in form of dict: {"Bank":"URL"}')
             for p in players:
-                self.players[name] = BankProxy(self.ctx, p, players[p])
+                self.players[p] = BankProxy(self.ctx, p, players[p])
 
     def _execute(self, function, args = (), kwargs = {}):
         rval = {}
@@ -145,7 +145,7 @@ class Dealer(object):
         Sets the scan number to 'num'
         """
         self.scan_number = num
-        self._execute("set_scan_number", (num))
+        self._execute("set_scan_number", [num])
         # for p in self.players:
         #     self.players[p].set_scan_number(num)
 
@@ -193,7 +193,7 @@ class Dealer(object):
         * *keys is a single string:* a single value will be looked up
           and returned using 'keys' as the single key.
         """
-        return self._execute("get_status", (keys))
+        return self._execute("get_status", [keys])
         # status = {p:self.players[p].get_status(keys) for p in self.players}
 
         # return status
@@ -246,8 +246,7 @@ class Dealer(object):
         a tuple consisting of (False, {bank:mode, bank:mode...})
         """
         m = self._execute("get_mode")
-        # m = {p:self.players[p].get_mode() for p in self.players}
-        # return self._all_same(m)
+        return self._all_same(m)
 
     def earliest_start(self):
         """
@@ -263,7 +262,7 @@ class Dealer(object):
         player_starts = [self.players[p].earliest_start()[1] for p in self.players]
         player_starts.sort() # once sorted the last element is the one we seek.
         earliest_start = player_starts[-1]
-        return earliest_start
+        return datetime(*earliest_start)
 
     def start(self, starttime = None):
         """
@@ -276,7 +275,7 @@ class Dealer(object):
         """
 
         # 1. Negotiate earliest start time (UTC) with players:
-        earliest_start = datetime(*self.earliest_start())
+        earliest_start = self.earliest_start()
         # 2. Check to see if given start time is reasonable
         if starttime:
              if earliest_start < starttime:
@@ -380,7 +379,7 @@ class Dealer(object):
         *param:* A valid parameter name.  Should be *None* if help for
          all parameters is desired.
         """
-        m = self._execute("help_param", (param))
+        m = self._execute("help_param", [param])
         # m = {p:self.players[p].help_param(param) for p in self.players}
         return self._all_same(m)
 
@@ -392,7 +391,7 @@ class Dealer(object):
         *param:* A valid parameter name.  Should be *None* if values for
          all parameters is desired.
         """
-        return self._execute("help_param", (param))
+        return self._execute("help_param", [param])
         # return {p:self.players[p].help_param(param) for p in self.players}
 
     def _check_keypress(self, expected_ch):
@@ -458,7 +457,7 @@ class Dealer(object):
           d.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False) # |  |   |
 
         """
-        return self_execute("add_switching_state", (duration, blank, cal, sig_ref_1))
+        return self_execute("add_switching_state", [duration, blank, cal, sig_ref_1])
         # return {p:self.players[p].add_switching_state(duration, blank, cal, sig_ref_1) for p in self.players}
 
     def set_gbt_ss(self, period, ss_list):
@@ -482,5 +481,5 @@ class Dealer(object):
                         )
 
         """
-        return self._execute("set_gbt_ss", (period, ss_list))
+        return self._execute("set_gbt_ss", [period, ss_list])
         # return {p:self.players[p].set_gbt_ss(period, ss_list) for p in self.players}
