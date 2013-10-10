@@ -85,29 +85,34 @@ class Dealer(object):
     Dealer brings together all Player Bank objects in one script,
     allowing them to be coordinated and to operate as one instrument.
     """
-    def __init__(self):
+    def __init__(self, players = None):
         """
         Initializes a Dealer object. It does this by reading
         'dibas.conf' to determine how many BankProxy objects to create,
         then stores them in a dictionary for later use by the class.
         """
         self.ctx = zmq.Context()
-        dibas_dir = os.getenv('DIBAS_DIR')
-
-        if dibas_dir == None:
-            raise Exception("'DIBAS_DIR' is not set!")
-
-        config_file = dibas_dir + '/etc/config/dibas.conf'
-        config = ConfigParser.ConfigParser()
-        config.readfp(open(config_file))
-        player_list = [i.lstrip('" ,').rstrip('" ,') \
-                           for i in config.get('DEALER', 'players').lstrip('"').rstrip('"').split()]
-
-#        self.players = {name:BankProxy(self.ctx, name) for name in player_list}
         self.players = {}
 
-        for name in player_list:
-            self.players[name] = BankProxy(self.ctx, name)
+        if players == None:
+            dibas_dir = os.getenv('DIBAS_DIR')
+
+            if dibas_dir == None:
+                raise Exception("'DIBAS_DIR' is not set!")
+
+            config_file = dibas_dir + '/etc/config/dibas.conf'
+            config = ConfigParser.ConfigParser()
+            config.readfp(open(config_file))
+            player_list = [i.lstrip('" ,').rstrip('" ,') \
+                               for i in config.get('DEALER', 'players').lstrip('"').rstrip('"').split()]
+
+            for name in player_list:
+                self.players[name] = BankProxy(self.ctx, name)
+        else:
+            if type(players) != dict:
+                raise Exception('Players must be in form of dict: {"Bank":"URL"}')
+            for p in players:
+                self.players[name] = BankProxy(self.ctx, p, players[p])
 
     def _execute(self, function, args = (), kwargs = {}):
         rval = {}
