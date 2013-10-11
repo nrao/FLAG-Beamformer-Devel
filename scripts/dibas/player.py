@@ -139,6 +139,10 @@ class Bank(object):
             config = ConfigParser.ConfigParser()
             config.readfp(open(filename))
 
+            # Read general stuff:
+            telescope = config.get('DEFAULTS', 'telescope').lstrip().rstrip().lstrip('"').rstrip('"')
+            self.set_status(TELESCOP=telescope)
+
             # Get all bank data and store it. This is needed by any mode
             # where there is 1 ROACH and N Players & HPC programs
             banks = [s for s in config.sections() if 'BANK' in s]
@@ -172,34 +176,38 @@ class Bank(object):
             print str(e)
             return str(e)
 
-        # Now that all the configuration data is loaded, set up some basic things: KATCP, Valon, etc.
-        # KATCP:
-        if not self.simulate:
+        # Now that all the configuration data is loaded, set up some
+        # basic things: KATCP, Valon, etc.  Not all backends will
+        # have/need katcp & valon, so it config data says no roach &
+        # valon, these steps will not happen.
+        self.valon = None
+        self.roach = None
+
+        if not self.simulate and self.bank_data.has_roach:
             self.roach = katcp_wrapper.FpgaClient(self.bank_data.katcp_ip,
                                                   self.bank_data.katcp_port,
                                                   timeout = 30.0)
             time.sleep(1) # It takes the KATCP interface a little while to get ready. It's used below
                           # by the Valon interface, so we must wait a little.
 
-            # The Valon can be on this host ('local') or on the ROACH ('katcp'). Create accordingly.
+            # The Valon can be on this host ('local') or on the ROACH
+            # ('katcp'), or None. Create accordingly.
             if self.bank_data.synth == 'local':
                 import valon_synth
                 self.valon = valon_synth.Synthesizer(self.bank_data.synth_port)
             elif self.bank_data.synth == 'katcp':
                 from valon_katcp import ValonKATCP
                 self.valon = ValonKATCP(self.roach, self.bank_data.synth_port)
-            else:
-                raise ValonException("Unrecognized option %s for valon synthesizer" \
-                                     % self.bank_data.synth)
 
             # Valon is now assumed to be working
-            self.valon.set_ref_select(self.bank_data.synth_ref)
-            self.valon.set_reference(self.bank_data.synth_ref_freq)
-            self.valon.set_vco_range(0, *self.bank_data.synth_vco_range)
-            self.valon.set_rf_level(0, self.bank_data.synth_rf_level)
-            self.valon.set_options(0, *self.bank_data.synth_options)
+            if self.valon:
+                self.valon.set_ref_select(self.bank_data.synth_ref)
+                self.valon.set_reference(self.bank_data.synth_ref_freq)
+                self.valon.set_vco_range(0, *self.bank_data.synth_vco_range)
+                self.valon.set_rf_level(0, self.bank_data.synth_rf_level)
+                self.valon.set_options(0, *self.bank_data.synth_options)
 
-        print "connecting to %s, port %i" % (self.bank_data.katcp_ip, self.bank_data.katcp_port)
+            print "connecting to %s, port %i" % (self.bank_data.katcp_ip, self.bank_data.katcp_port)
         print self.bank_data
         return "config file loaded."
 
@@ -255,10 +263,14 @@ class Bank(object):
         else:
             return None
 
+    def list_modes(self):
+        modes = self.mode_data.keys()
+        modes.sort()
+        return modes
 
-    def set_mode(self, mode, force = False):
+    def set_mode(self, mode, frequency = None, force = False):
         """
-        set_mode(mode, force=False)
+        set_mode(mode, frequency = None, force=False)
 
         mode: mode name
 
@@ -268,6 +280,10 @@ class Bank(object):
         mode: A string; A keyword which is one of the '[MODEX]'
         sections of the configuration file, which must have been loaded
         earlier.
+
+        frequency: The valon frequency for this new mode. If not
+        specified the last value used will be reused. If no value was
+        ever provided the config file value will be used.
 
         force: A boolean flag; if 'True' and the new mode is the same as
         the current mode, the mode will be reloaded. It is set to
@@ -316,26 +332,39 @@ class Bank(object):
                     # parameter calculator 'backend'
                     if self.backend is not None:
                         self.backend.cleanup()
+                        print "set_mode(%s): cleaned up old backend." % mode
                         del(self.backend)
                         self.backend = None
 
                     backend_type = self.mode_data[mode].backend_type.upper()
+
+                    # If 'frequency' is provided record in mode data
+                    # for use and reuse if not subsequently
+                    # provided. Initial value of mode data frequency
+                    # is from config file.
+                    if frequency:
+                        self.mode_data[mode].frequency = frequency
+
                     if backend_type in ["VEGAS"]:
+                        print "set_mode(%s): Creating new VegasBackend" % mode
                         self.backend = VegasBackend.VegasBackend(self.bank_data,
                                                                  self.mode_data[mode],
                                                                  self.roach,
                                                                  self.valon,
                                                                  self.simulate)
-
+                        print "set_mode(%s): beginning wait for DAQ program" % mode
                         self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
+                        print "set_mode(%s): wait for DAQ program ended." % mode
 
                     elif backend_type in ["GUPPI"]:
                         if self.mode_data[mode].cdd_mode:
+                            print "set_mode(%s): Creating new GuppiCODDBackend" % mode
                             self.backend = GuppiCODDBackend.GuppiCODDBackend(self.bank_data,
                                                                              self.mode_data[mode],
                                                                              self.roach,
                                                                              self.valon,
                                                                              self.simulate)
+                            print "set_mode(%s): Done creating new GuppiCODDBackend" % mode
                         else:
                             print "Starting INCO mode", self.mode_data[mode].name
                             self.backend = GuppiBackend.GuppiBackend(self.bank_data,
@@ -343,7 +372,10 @@ class Bank(object):
                                                                      self.roach,
                                                                      self.valon,
                                                                      self.simulate)
-                            self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
+                            print "Started INCO mode. Waiting for DAQ:"
+                            self.backend._wait_for_status('DAQSTATE', 'stopped',
+                                                          timedelta(seconds=75))
+                            print "Wait for DAQ ended."
                     else:
                         Exception("Unknown backend type, or missing 'BACKEND' setting in config mode section")
 
@@ -475,6 +507,19 @@ class Bank(object):
 
         if self.backend is not None:
             return self.backend.help_param(name)
+        else:
+            raise Exception("Cannot set parameters until a mode is selected")
+
+    def get_param(self, name = None):
+        """
+        A pass-thru method which gets the values of a backend specific parameter.
+
+        Example usage:
+        get_param(exposure)
+        """
+
+        if self.backend is not None:
+            return self.backend.get_param(name)
         else:
             raise Exception("Cannot set parameters until a mode is selected")
 
@@ -660,7 +705,7 @@ def main_loop(bank_name, URL = None, sim = False):
     # contained within another exposed class. The name can be anything
     # at all that uniquely identifies the interface.
     proxy.expose("bank", bank)
-    proxy.expose("bank.katcp", bank.roach)
+    proxy.expose("bank.roach", bank.roach)
     proxy.expose("bank.valon", bank.valon)
 
     # Run the proxy:

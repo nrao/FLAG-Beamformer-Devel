@@ -75,7 +75,7 @@ class GuppiCODDBackend(Backend):
         self.scale_p0 = 1.0
         self.scale_p1 = 1.0
         self.only_i = 0
-        self.set_bandwidth(1500)
+        self.bandwidth = self.frequency
         self.dm = 0.0
         self.rf_frequency = 1430.0
         self.overlap = 0
@@ -98,7 +98,7 @@ class GuppiCODDBackend(Backend):
         self.parfile = 'example.par'
         self.datadir = '/lustre/gbtdata/JUNK' # Needs integration with projectid
         # register set methods
-        self.params["bandwidth"         ] = self.set_bandwidth
+#        self.params["bandwidth"         ] = self.set_bandwidth
         self.params["dm"                ] = self.set_dm
         self.params["integration_time"  ] = self.set_integration_time
         self.params["nbin"              ] = self.set_nbin
@@ -123,6 +123,12 @@ class GuppiCODDBackend(Backend):
             self.set_param('scale_p0', float(self.mode.roach_kvpairs['SCALE_P0']))
         if 'SCALE_P1' in self.mode.roach_kvpairs.keys():
             self.set_param('scale_p1', float(self.mode.roach_kvpairs['SCALE_P1']))
+
+        if self.hpc_process is None:
+            self.start_hpc()
+
+        if self.cdd_master():
+            self.arm_roach()
 
     def cdd_master(self):
         """
@@ -168,12 +174,12 @@ class GuppiCODDBackend(Backend):
         """
         self.tfold = tf
 
-    def set_bandwidth(self, bw):
-        """
-        Sets the total bandwidth in MHz. This value should match the valon output frequency.
-        (The sampling rate being twice the valon frequency.)
-        """
-        self.bandwidth = bw
+    # def set_bandwidth(self, bw):
+    #     """
+    #     Sets the total bandwidth in MHz. This value should match the valon output frequency.
+    #     (The sampling rate being twice the valon frequency.)
+    #     """
+    #     self.bandwidth = bw
 
     def set_dm(self, dm):
         """
@@ -266,18 +272,15 @@ class GuppiCODDBackend(Backend):
         self._set_status_keys()
         self.set_if_bits()
 
-        if self.hpc_process is None:
-            self.start_hpc()
-            time.sleep(5)
         if self.cdd_master():
             self.set_registers()
             # program I2C: input filters, noise source, noise or tone
             self.set_if_bits()
-            self.arm_roach()
 
     def earliest_start(self):
         now = datetime.utcnow()
-        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay + timedelta(seconds=2))
+        earliest_start = self.round_second_up(
+            now + self.mode.needed_arm_delay + timedelta(seconds=2))
         return earliest_start
 
     def start(self, starttime):
@@ -548,6 +551,13 @@ class GuppiCODDBackend(Backend):
              chan_bw is the calculated number from the node_bandwidth and
              number of node channels
         """
+        print "_node_rf_frequency_dep()"
+        print "self.rf_frequency", self.rf_frequency
+        print "self.bandwidth", self.bandwidth
+        print "self.node_number", self.node_number
+        print "self.node_bandwidth", self.node_bandwidth
+        print "self.chan_bw", self.chan_bw
+
         self.node_rf_frequency = self.rf_frequency - self.bandwidth/2.0 + \
                                  self.node_number * self.node_bandwidth + \
                                  0.5*self.node_bandwidth - self.chan_bw/2.0
@@ -639,8 +649,6 @@ class GuppiCODDBackend(Backend):
         if not self.cdd_master():
             return
 
-        if self.valon:
-            self.valon.set_frequency(0, abs(self.bandwidth))
         regs = {}
         regs['SCALE_P0'] = int(self.scale_p0 * 65536)
         regs['SCALE_P1'] = int(self.scale_p1 * 65536)

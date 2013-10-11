@@ -54,7 +54,6 @@ class GuppiBackend(Backend):
         self.offset_u = 0
         self.offset_v = 0
         self.only_i = 0
-        self.bandwidth = 1500.0
         self.chan_dm = 0.0
         self.rf_frequency = 2000.0
         self.nbin = 256
@@ -63,7 +62,7 @@ class GuppiBackend(Backend):
         # Almost all receivers are dual polarization
         self.nrcvr = 2
         self.feed_polarization = 'LIN'
-
+        self.bandwidth = self.frequency
 
         if self.dibas_dir is not None:
            self.pardir = self.dibas_dir + '/etc/config'
@@ -71,7 +70,7 @@ class GuppiBackend(Backend):
             self.pardir = '/tmp'
         self.parfile = 'example.par'
 
-        self.params["bandwidth"         ] = self.set_bandwidth
+#        self.params["bandwidth"         ] = self.set_bandwidth
         self.params["integration_time"  ] = self.set_integration_time
         self.params["nbin"              ] = self.set_nbin
         self.params["obs_frequency"     ] = self.set_obs_frequency
@@ -89,19 +88,22 @@ class GuppiBackend(Backend):
         self.params["feed_polarization" ] = self.setFeedPolarization
         self._fft_params_dep()
 
+        if self.hpc_process is None:
+            self.start_hpc()
+
     ### Methods to set user or mode specified parameters
     ### Not sure how these map for GUPPI
 
     # TBF, all bandwidth probably belongs in base class
-    def set_bandwidth(self, bandwidth):
-        """
-        Sets the bandwidth in MHz. This value should match the valon output frequency.
-        (The sampling rate being twice the valon frequency.)
-        """
-        if  abs(bandwidth) > 200 and abs(bandwidth) < 2000:
-            self.bandwidth = bandwidth
-        else:
-            raise Exception("Bandwidth of %d MHz is not a legal bandwidth setting" % (bandwidth))
+    # def set_bandwidth(self, bandwidth):
+    #     """
+    #     Sets the bandwidth in MHz. This value should match the valon output frequency.
+    #     (The sampling rate being twice the valon frequency.)
+    #     """
+    #     if  abs(bandwidth) > 200 and abs(bandwidth) < 2000:
+    #         self.bandwidth = bandwidth
+    #     else:
+    #         raise Exception("Bandwidth of %d MHz is not a legal bandwidth setting" % (bandwidth))
 
     def set_chan_dm(self, dm):
         """
@@ -235,6 +237,9 @@ class GuppiBackend(Backend):
         """
         A place to hang the dependency methods.
         """
+        # TBF self.frequency is set upon programming roach. The entire
+        # 'bandwidth' & 'frequency' dependencies need to be reworked.
+        self.bandwidth = self.frequency
 
         self._hw_nchan_dep()
         self._acc_len_dep()
@@ -260,10 +265,11 @@ class GuppiBackend(Backend):
         # arm's the roach. This gets packets flowing. If the roach is
         # not primed, the start() will fail because of the state of the
         # net thread being 'waiting' instead of 'receiving'
-        if self.hpc_process is None:
-            self.start_hpc()
-            time.sleep(5)
-            self.arm_roach()
+
+        # if self.hpc_process is None:
+        #     self.start_hpc()
+        #     time.sleep(5)
+        #     self.arm_roach()
 
     def earliest_start(self):
         """
@@ -320,8 +326,6 @@ class GuppiBackend(Backend):
         else: # No start time provided
             starttime = earliest_start
         # everything OK now, starttime is valid, go through the start procedure.
-        if self.hpc_process is None:
-            self.start_hpc()
 
         self.start_time = starttime
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
@@ -590,8 +594,6 @@ class GuppiBackend(Backend):
     def _set_registers(self):
         regs = {}
 
-        if not self.test_mode:
-            self.valon.set_frequency(0, abs(self.bandwidth))
         regs['ACC_LENGTH'] = self.acc_length
         regs['SCALE_I']    = int(self.scale_i*65536)
         regs['SCALE_Q']    = int(self.scale_q*65536)
@@ -601,7 +603,7 @@ class GuppiBackend(Backend):
         regs['OFFSET_Q']   = int(self.offset_q*65536)
         regs['OFFSET_U']   = int(self.offset_u*65536)
         regs['OFFSET_V']   = int(self.offset_v*65536)
-        #regs['FFT_SHIFT'] = 0xaaaaaaaa (Set by config file)
+        # regs['FFT_SHIFT'] = 0xaaaaaaaa  (Set by config file)
 
         self.set_register(**regs)
 

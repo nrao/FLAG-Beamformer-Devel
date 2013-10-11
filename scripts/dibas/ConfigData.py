@@ -316,28 +316,28 @@ class BankData(ConfigData):
         """
 
     def __repr__(self):
-        return "BankData (name=%s, has_roach=%s, datahost=%s, dataport=%i, dest_ip=%s," \
-               "dest_port=%i, " \
-               "katcp_ip=%s, katcp_port=%i, synth=%s, synth_port=%s, synth_ref=%i, " \
-               "synth_ref_freq=%i, synth_vco_range=%s, synth_rf_level=%i, " \
-               "synth_options=%s, mac_base=%i, shmkvpairs=%s, roach_kvpairs=%s, " \
+        return "BankData (name=%s, has_roach=%s, datahost=%s, dataport=%s, dest_ip=%s," \
+               "dest_port=%s, " \
+               "katcp_ip=%s, katcp_port=%s, synth=%s, synth_port=%s, synth_ref=%s, " \
+               "synth_ref_freq=%s, synth_vco_range=%s, synth_rf_level=%s, " \
+               "synth_options=%s, mac_base=%s, shmkvpairs=%s, roach_kvpairs=%s, " \
                "i_am_master=%s)" \
             % (self.name,
                self.has_roach,
                self.datahost,
-               self.dataport,
-               self.dest_ip,
-               self.dest_port,
+               str(self.dataport),
+               str(self.dest_ip),
+               str(self.dest_port),
                self.katcp_ip,
-               self.katcp_port,
+               str(self.katcp_port),
                self.synth,
                self.synth_port,
-               self.synth_ref,
-               self.synth_ref_freq,
+               str(self.synth_ref),
+               str(self.synth_ref_freq),
                str(self.synth_vco_range),
-               self.synth_rf_level,
+               str(self.synth_rf_level),
                str(self.synth_options),
-               self.mac_base,
+               str(self.mac_base),
                str(self.shmkvpairs),
                str(self.roach_kvpairs),
                str(self.i_am_master))

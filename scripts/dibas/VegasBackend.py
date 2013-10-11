@@ -9,19 +9,6 @@ import time
 from datetime import datetime, timedelta
 import os
 
-def convertToMHz(f):
-    """
-    Sometimes values are expressed in Hz instead of MHz.
-    This routine assumes anything over 5000 to be in Hz.
-    """
-    f = abs(f)
-    if f > 5000:
-        return f/1E6 # Convert to MHz
-    else:
-        return f     # already in MHz
-
-
-
 class VegasBackend(Backend):
     """
     A class which implements some of the VEGAS specific parameter calculations.
@@ -59,7 +46,7 @@ class VegasBackend(Backend):
         self.setNumberChannels(self.mode.nchan)
         self.requested_integration_time = 1.0
         self.setAccLen(self.mode.acc_len)
-        self.setValonFrequency(self.mode.frequency)
+        # self.setValonFrequency(self.mode.frequency)
 
         # dependent values, computed from Parameters:
         self.nspectra = 1
@@ -188,12 +175,6 @@ class VegasBackend(Backend):
             bsource = 0 # internal
             ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
             self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
-        if self.valon:
-            f = convertToMHz(self.frequency)
-            if f > 199 and f < 2100:
-                self.valon.set_frequency(0, f)
-            else:
-                raise Exception("Valon frequency of %f is invalid" % f)
 
 
     # Algorithmic dependency methods, not normally called by a users

@@ -68,13 +68,16 @@ class I2C(object):
 
           bits = self.getI2CValue(0x38, 1)
         """
-
+        
         if self.roach:
-            reply, informs = self.roach._request('i2c-read', self.timeout,
+           # for katcp 0.3.5+
+           # reply, informs = self.roach._request('i2c-read', self.timeout,
+           #                                      addr, nbytes)
+           reply, informs = self.roach._request('i2c-read',
                                                  addr, nbytes)
-            v = reply.arguments[2]
-            return (reply.arguments[0] == 'ok',
-                    struct.unpack('>%iB' % nbytes, v))
+           v = reply.arguments[2]
+           return (reply.arguments[0] == 'ok',
+                   struct.unpack('>%iB' % nbytes, v))
         return (True, 0)
 
 
@@ -95,8 +98,12 @@ class I2C(object):
         """
 
         if self.roach:
-            reply, informs = self.roach._request(
-                'i2c-write', self.timeout,
-                addr, nbytes, struct.pack('>%iB' % nbytes, data))
-            return reply.arguments[0] == 'ok'
+           # for katcp 0.3.5+
+           # reply, informs = self.roach._request(
+           #     'i2c-write', self.timeout,
+           #     addr, nbytes, struct.pack('>%iB' % nbytes, data))
+           reply, informs = self.roach._request(
+              'i2c-write',
+              addr, nbytes, struct.pack('>%iB' % nbytes, data))
+           return reply.arguments[0] == 'ok'
         return True

@@ -28,6 +28,17 @@ class SWbits:
     CALON=1
     CALOFF=0
 
+def convertToMHz(f):
+    """
+    Sometimes values are expressed in Hz instead of MHz.
+    This routine assumes anything over 5000 to be in Hz.
+    """
+    f = abs(f)
+    if f > 5000:
+        return f/1E6 # Convert to MHz
+    else:
+        return f     # already in MHz
+
 ######################################################################
 # class Backend
 #
@@ -105,6 +116,8 @@ class Backend:
         self.datadir = self.dataroot + "/" + self.projectid
         self.scan_running = False
         self.monitor_mode = False
+        print "Backend(): Setting self.frequency to", self.mode.frequency
+        self.frequency = self.mode.frequency
         self.setFilterBandwidth(self.mode.filter_bw)
         self.setNoiseSource(NoiseSource.OFF)
         self.setNoiseTone1(NoiseTone.NOISE)
@@ -112,7 +125,13 @@ class Backend:
         self.setScanLength(30.0)
 
         self.params = {}
-        self.params["frequency"    ] = self.setValonFrequency
+        # TBF: Rething "frequency" & "bandwidth" parameters. If one or
+#        both are parameters, then changing them must deprogram roach
+#        first, set frequency, then reprogram roach. For now, these
+#        are removed from the parameter list here and in derived
+#        classes, and frequency is set when programming
+#        roach. Frequency changes may be made via the Bank.set_mode()
+#        function.  self.params["frequency" ] = self.setValonFrequency
         self.params["filter_bw"    ] = self.setFilterBandwidth
         self.params["observer"     ] = self.setObserver
         self.params["project_id"   ] = self.setProjectId
@@ -252,38 +271,42 @@ class Backend:
         To stop an observation use 'stop()' instead.
         """
 
+        print "stop_hpc()"
+
         if self.test_mode:
             return
 
         if self.hpc_process is None:
+            print "stop_hpc(): self.hpc_process is None."
             return False # Nothing to do
 
-        if self.hpc_process is not None:
-            # process exited with code:
+        try:
+            # First ask nicely
+            # Kill and reclaim child
+            print "stop_hpc(): sending 'quit'"
+            self.hpc_process.communicate("quit\n")
+            time.sleep(1)
+            # Kill if necessary
+            if self.hpc_process.poll() == None:
+                # still running, try once more
+                print "stop_hpc(): sending SIGTERM"
+                self.hpc_process.terminate()
+                time.sleep(1)
+
+                if self.hpc_process.poll() is not None:
+                    killed = True
+                else:
+                    print "stop_hpc(): sending SIGKILL"
+                    self.hpc_process.kill()
+                    killed = True;
+            else:
+                killed = False
+        except OSError, e:
+            print "While killing child process:", e
+            killed = False
+        finally:
             del self.hpc_process
             self.hpc_process = None
-            killed = True
-            return killed
-
-        # First ask nicely
-        # Kill and reclaim child
-        self.hpc_process.communicate("quit\n")
-        time.sleep(1)
-        # Kill if necessary
-        if self.hpc_process.poll() == None:
-            # still running, try once more
-            self.hpc_process.terminate()
-            time.sleep(1)
-
-            if self.hpc_process.poll() is not None:
-                killed = True
-            else:
-                self.hpc_process.kill()
-                killed = True;
-        else:
-            killed = False
-
-        self.hpc_process = None
 
         return killed
 
@@ -489,11 +512,15 @@ class Backend:
             else:
                 # print str(k), '<-', str(v), int(str(v),0)
                 if self.roach:
-                    self.roach.write_int(str(k), int(str(v),0))
+                    old = self.roach.read_int(str(k))
+                    new = int(str(v),0)
+
+                    if new != old:
+                        self.roach.write_int(str(k), new)
 
     def progdev(self, bof = None):
         """
-        progdev(self, bof):
+        progdev(self, bof, frequency):
 
         Programs the ROACH2 with boffile 'bof'.
 
@@ -513,7 +540,9 @@ class Backend:
 
         # Some modes will not have roach set.
         if self.roach:
-            reply, informs = self.roach._request("progdev", 20) # deprogram roach first
+            self.valon.set_frequency(0, convertToMHz(self.frequency))
+            # reply, informs = self.roach._request("progdev", 20) # deprogram roach first
+            reply, informs = self.roach._request("progdev") # deprogram roach first
 
             if reply.arguments[0] != 'ok':
                 print "Warning, FPGA was not deprogrammed."
@@ -550,12 +579,12 @@ class Backend:
         self.filter_bw = fbw
         return True
 
-    def setValonFrequency(self, vfreq):
-        """
-        reflects the value of the valon clock, read from the Bank Mode section
-        of the config file.
-        """
-        self.frequency = vfreq
+    # def setValonFrequency(self, vfreq):
+    #     """
+    #     reflects the value of the valon clock, read from the Bank Mode section
+    #     of the config file.
+    #     """
+    #     self.frequency = vfreq
 
     def setObserver(self, observer):
         """
