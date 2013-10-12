@@ -38,11 +38,14 @@ import os
 
 from corr import katcp_wrapper
 from datetime import datetime, timedelta
-from ConfigData import ModeData, BankData, AutoVivification
+from ConfigData import ModeData, BankData, AutoVivification, _ip_string_to_int, _hostname_to_ip
 import VegasBackend
 import GuppiBackend
 import GuppiCODDBackend
 from ZMQJSONProxy import ZMQJSONProxyServer
+
+import warnings
+warnings.filterwarnings('ignore')
 
 def print_doc(obj):
     print obj.__doc__
@@ -63,6 +66,7 @@ class Bank(object):
         self.backend = None
         self.roach = None
         self.valon = None
+        self.hpc_macs = {}
         self.simulate = simulate
         print "self.simulate=", self.simulate
         self.bank_name = bank_name.upper()
@@ -142,6 +146,14 @@ class Bank(object):
             # Read general stuff:
             telescope = config.get('DEFAULTS', 'telescope').lstrip().rstrip().lstrip('"').rstrip('"')
             self.set_status(TELESCOP=telescope)
+
+            # Read the HPC MAC addresses
+            macs = config.items('HPCMACS')
+            self.hpc_macs = {}
+
+            for i in macs:
+                key = _ip_string_to_int(_hostname_to_ip(i[0])) & 0xFF
+                self.hpc_macs[key] = int(i[1], 16)
 
             # Get all bank data and store it. This is needed by any mode
             # where there is 1 ROACH and N Players & HPC programs
@@ -268,9 +280,9 @@ class Bank(object):
         modes.sort()
         return modes
 
-    def set_mode(self, mode, frequency = None, force = False):
+    def set_mode(self, mode, bandwidth = None, force = False):
         """
-        set_mode(mode, frequency = None, force=False)
+        set_mode(mode, bandwidth = None, force=False)
 
         mode: mode name
 
@@ -281,7 +293,7 @@ class Bank(object):
         sections of the configuration file, which must have been loaded
         earlier.
 
-        frequency: The valon frequency for this new mode. If not
+        bandwidth: The valon bandwidth for this new mode. If not
         specified the last value used will be reused. If no value was
         ever provided the config file value will be used.
 
@@ -297,11 +309,13 @@ class Bank(object):
         Example: s, msg = f.set_mode('MODE1')
                  s, msg = f.set_mode(mode='MODE1', force=True)
         """
+        frequency = bandwidth
+
         if mode:
             if mode in self.mode_data:
-                if force or mode != self.current_mode:
+                if force or mode != self.current_mode or frequency != self.mode_data[mode].frequency:
                     self.check_shared_memory()
-                    print "New mode specified!"
+                    print "New mode specified and/or bandwidth specified!"
                     if self.current_mode:
                         old_hpc_program = self.mode_data[self.current_mode].hpc_program
                     else:
@@ -351,6 +365,7 @@ class Bank(object):
                                                                  self.mode_data[mode],
                                                                  self.roach,
                                                                  self.valon,
+                                                                 self.hpc_macs,
                                                                  self.simulate)
                         print "set_mode(%s): beginning wait for DAQ program" % mode
                         self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
@@ -363,6 +378,7 @@ class Bank(object):
                                                                              self.mode_data[mode],
                                                                              self.roach,
                                                                              self.valon,
+                                                                             self.hpc_macs,
                                                                              self.simulate)
                             print "set_mode(%s): Done creating new GuppiCODDBackend" % mode
                         else:
@@ -371,6 +387,7 @@ class Bank(object):
                                                                      self.mode_data[mode],
                                                                      self.roach,
                                                                      self.valon,
+                                                                     self.hpc_macs,
                                                                      self.simulate)
                             print "Started INCO mode. Waiting for DAQ:"
                             self.backend._wait_for_status('DAQSTATE', 'stopped',

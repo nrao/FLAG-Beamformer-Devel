@@ -6,6 +6,7 @@ import subprocess
 import time
 from datetime import datetime, timedelta
 from i2c import I2C
+from set_arp import set_arp
 
 ######################################################################
 # Some constants
@@ -73,7 +74,8 @@ class Backend:
     * *theValon:* (optional) The Valon synth object.
     * *unit_test:* (optional) True if the class was created for unit testing  purposes.
     """
-    def __init__(self, theBank, theMode, theRoach = None, theValon = None, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach = None,
+                 theValon = None, hpc_macs = None, unit_test = False):
         """
         Creates an instance of the vegas internals.
         """
@@ -93,6 +95,7 @@ class Backend:
             self.i2c = I2C(theRoach)
             self.status = vegas_status()
 
+        self.hpc_macs = hpc_macs
         # Bits used to set I2C for proper filter
         self.filter_bw_bits = {450: 0x00, 1450: 0x08, 1900: 0x18}
 
@@ -398,9 +401,9 @@ class Backend:
 
             for k in self.params.keys():
                 if self.params[k].__doc__:
-                    phelp[k] = self.params[k].__doc__
+                    phelp[k] = self.params[k].__doc__.lstrip().rstrip()
                 else:
-                    phelp[k] = '        (No help for %s available)' % (k)
+                    phelp[k] = '(No help for %s available)' % (k)
             return phelp
 
         if not param:
@@ -408,7 +411,7 @@ class Backend:
 
         if param in self.params.keys():
             set_method=self.params[param]
-            return set_method.__doc__ if set_method.__doc__ \
+            return set_method.__doc__.lstrip().rstrip() if set_method.__doc__ \
                 else "No help for '%s' is available" % param
         else:
             msg = "No such parameter '%s'. Legal parameters in this mode are: %s" \
@@ -692,6 +695,9 @@ class Backend:
                              self.bank.mac_base + data_ip, data_ip, data_port)
         self.roach.write_int(dest_ip_register_name, dest_ip)
         self.roach.write_int(dest_port_register_name, dest_port)
+        regs = [gigbit_name]
+        set_arp(self.roach, regs, self.hpc_macs)
+
         return 'ok'
 
     def _wait_for_status(self, reg, expected, max_delay):

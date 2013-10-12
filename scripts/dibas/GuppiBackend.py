@@ -23,13 +23,13 @@ class GuppiBackend(Backend):
       *False* if not. Allows unit testing without involving the
       hardware.
     """
-    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
         Creates an instance of the vegas internals.
         GuppiBackend( bank )
         Where bank is the instance of the player's Bank.
         """
-        Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
+        Backend.__init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test)
         # This needs to happen on construct so that status monitors can
         # switch their data buffer format
         self.set_status(BACKEND="GUPPI")
@@ -76,20 +76,20 @@ class GuppiBackend(Backend):
         self.params["obs_frequency"     ] = self.set_obs_frequency
         self.params["obs_mode"          ] = self.set_obs_mode
         self.params["only_i"            ] = self.set_only_i
-        self.params["offset_i"          ] = self.set_offset_I
-        self.params["offset_q"          ] = self.set_offset_Q
-        self.params["offset_u"          ] = self.set_offset_U
-        self.params["offset_v"          ] = self.set_offset_V
+        self.params["scale"             ] = self.set_scale
         self.params["scale_i"           ] = self.set_scale_I
         self.params["scale_q"           ] = self.set_scale_Q
         self.params["scale_u"           ] = self.set_scale_U
         self.params["scale_v"           ] = self.set_scale_V
         self.params["tfold"             ] = self.set_tfold
         self.params["feed_polarization" ] = self.setFeedPolarization
+        self.params["par_file"          ] = self.set_par_file
         self._fft_params_dep()
 
         if self.hpc_process is None:
             self.start_hpc()
+
+        self.arm_roach()
 
     ### Methods to set user or mode specified parameters
     ### Not sure how these map for GUPPI
@@ -162,6 +162,15 @@ class GuppiBackend(Backend):
         """
         self.integration_time = integ_time
 
+    def set_scale(self, v):
+        """
+        Sets all the saling factors with one parameter.
+        """
+        set_scale_I(v)
+        set_scale_Q(v)
+        set_scale_U(v)
+        set_scale_V(v)
+
     def set_scale_I(self, v):
         """
         Sets the hardware scaling factor for the I stokes parameter.
@@ -189,34 +198,6 @@ class GuppiBackend(Backend):
         Range is 0.0 through 65535.99998.
         """
         self.scale_v = v
-
-    def set_offset_I(self, v):
-        """
-        Sets the hardware offset factor for the I stokes parameter.
-        Range is 0.0 through 65535.99998.
-        """
-        self.offset_i = v
-
-    def set_offset_Q(self, v):
-        """
-        Sets the hardware offset factor for the I stokes parameter.
-        Range is 0.0 through 65535.99998.
-        """
-        self.offset_q = v
-
-    def set_offset_U(self, v):
-        """
-        Sets the hardware offset factor for the I stokes parameter.
-        Range is 0.0 through 65535.99998.
-        """
-        self.offset_u = v
-
-    def set_offset_V(self, v):
-        """
-        Sets the hardware offset factor for the I stokes parameter.
-        Range is 0.0 through 65535.99998.
-        """
-        self.offset_v = v
 
     def set_tfold(self, tf):
         """
@@ -306,6 +287,9 @@ class GuppiBackend(Backend):
         signal. At that time it wakes up and arms the ROACH. The ROACH
         should then send the initial packet at that time.
         """
+
+        if not self.bank.has_roach:
+            return (True, '')
 
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay

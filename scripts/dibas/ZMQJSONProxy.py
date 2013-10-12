@@ -140,13 +140,17 @@ class ZMQJSONProxyServer(object):
         """
         List all the exported functions of interface 'name'.
         """
-        f_dict = self.interfaces[name]
-        exported_funcs = \
-            [(ef, f_dict[ef].__doc__) \
-                 for ef in filter(lambda x:x[0] != '_', f_dict.keys())]
+        try:
+            f_dict = self.interfaces[name]
+            exported_funcs = \
+                [(ef, f_dict[ef].__doc__) \
+                     for ef in filter(lambda x:x[0] != '_', f_dict.keys())]
 
-        if self.s:
-            self.s.send_json(exported_funcs)
+            if self.s:
+                self.s.send_json(exported_funcs)
+        except KeyError, e:
+            if self.s:
+                self.s.send_json(["Interface error", str(e)])
 
     def run_loop(self, watchdogfn = None):
         """
@@ -289,3 +293,5 @@ class ZMQJSONProxyClient(object):
             # to the service if this happens.
             print "socket timed out!"
             return None
+
+

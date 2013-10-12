@@ -24,7 +24,7 @@ class VegasBackend(Backend):
     * *unit_test:* Set to true to unit test. Will not attempt to talk to
       roach, shared memory, etc.
     """
-    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
         Creates an instance of the vegas internals.
         """
@@ -32,7 +32,7 @@ class VegasBackend(Backend):
         # mode_number may be treated as a constant; the Player will
         # delete this backend object and create a new one on mode
         # change.
-        Backend.__init__(self, theBank, theMode, theRoach , theValon, unit_test)
+        Backend.__init__(self, theBank, theMode, theRoach , theValon, hpc_macs, unit_test)
         # Important to do this as soon as possible, so that status application
         # can change its data buffer format
         self.set_status(BACKEND='VEGAS')

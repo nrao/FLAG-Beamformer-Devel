@@ -90,6 +90,7 @@ class Dealer(object):
         then stores them in a dictionary for later use by the class.
         """
         self.ctx = zmq.Context()
+        self.available_players = {}
         self.players = {}
 
         if players == None:
@@ -105,12 +106,12 @@ class Dealer(object):
                                for i in config.get('DEALER', 'players').lstrip('"').rstrip('"').split()]
 
             for name in player_list:
-                self.players[name] = BankProxy(self.ctx, name)
+                self.available_players[name] = BankProxy(self.ctx, name)
         else:
             if type(players) != dict:
                 raise Exception('Players must be in form of dict: {"Bank":"URL"}')
             for p in players:
-                self.players[p] = BankProxy(self.ctx, p, players[p])
+                self.available_players[p] = BankProxy(self.ctx, p, players[p])
 
     def _execute(self, function, args = (), kwargs = {}):
         rval = {}
@@ -135,6 +136,49 @@ class Dealer(object):
             rval[t.player] = t.return_val
 
         return rval
+
+    def list_available_players(self):
+        """
+        Lists the available players.
+        """
+        return self.available_players.keys()
+
+    def list_active_players(self):
+        """
+        Lists the players selected for use from the available player pool.
+        """
+        return self.players.keys()
+
+    def add_active_player(self, *args):
+        """
+        Adds the player(s) specified in in the argument list to the
+        active list. The arguments must be strings, the names of the
+        players:
+
+        d.add_active_player('BANKA', 'BANKB')
+        """
+        try:
+            for p in args:
+                self.players[p] = self.available_players[p]
+        except KeyError as e:
+            print e, "not in list of available players"
+        finally:
+            return self.list_active_players()
+
+    def remove_active_player(self, *args):
+        """
+        Removes the named player(s) from the active player list. The
+        player arguments must be strings:
+
+        d.remove_active_player('BANKA', 'BANKB')
+        """
+        try:
+            for p in args:
+                self.players.pop(p)
+        except KeyError as e:
+            print e, "not in list of active players."
+        finally:
+            return self.list_active_players()
 
     def set_scan_number(self, num):
         """
@@ -363,7 +407,7 @@ class Dealer(object):
         """
         return self._execute("set_param", kwargs = kvpairs)
 
-    def help_param(self, param):
+    def help_param(self, param = None):
         """
         Returns the help doc string for a specified parameters, or a
         dictionary of parameters with their doc strings if *param* is
@@ -373,7 +417,7 @@ class Dealer(object):
          all parameters is desired.
         """
         m = self._execute("help_param", [param])
-        return self._all_same(m)
+        return m[m.keys()[0]]
 
     def get_param(self, param):
         """

@@ -9,6 +9,7 @@ from Backend import Backend
 import os
 import sys
 import traceback
+from set_arp import set_arp
 
 def formatExceptionInfo(maxTBlevel=5):
     """
@@ -51,7 +52,7 @@ class GuppiCODDBackend(Backend):
       *False* if not. Allows unit testing without involving the
       hardware.
     """
-    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
         Creates an instance of the class.
         """
@@ -62,9 +63,9 @@ class GuppiCODDBackend(Backend):
         # this HPC does control a roach in other modes.
 
         if theMode.cdd_master_hpc == theBank.name:
-            Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
+            Backend.__init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test)
         else:
-            Backend.__init__(self, theBank, theMode, None, None, unit_test)
+            Backend.__init__(self, theBank, theMode, None, None, None, unit_test)
 
         # This needs to happen on construction so that status monitors can
         # change their data buffer format.
@@ -267,6 +268,7 @@ class GuppiCODDBackend(Backend):
         self._npol_dep()
         self._tfold_dep()
         self._node_rf_frequency_dep()
+        self._dm_dep()
         self._fft_params_dep()
 
         self._set_status_keys()
@@ -449,6 +451,19 @@ class GuppiCODDBackend(Backend):
         else:
             self.ds_freq = 1
 
+    def _dm_dep(self):
+        """
+        Read DM from the parfile if COHERENT_FOLD mode, otherwise keep
+        the user-set value.
+        """
+        if self.obs_mode.upper() == "COHERENT_FOLD":
+            if self.parfile is not None:
+                if self.parfile[0] == '/':
+                    full_parfile = self.parfile
+                else:
+                    full_parfile = '%s/%s' % (self.pardir, self.parfile)
+                self.dm = self.dm_from_parfile(full_parfile)
+
     def _node_nchan_dep(self):
         """
         Calculates the number of channels received by this node.
@@ -533,7 +548,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculates the bandwidth seen by this HPC node
         """
-        self.node_bandwidth =  self.bandwidth/self.num_nodes
+        self.node_bandwidth =  float(self.bandwidth) / float(self.num_nodes)
 
     def _node_rf_frequency_dep(self):
         """
@@ -657,6 +672,23 @@ class GuppiCODDBackend(Backend):
 
         self.set_register(**regs)
 
+    # From guppi2_utils.py
+    def dm_from_parfile(self,parfile):
+        """
+        dm_from_parfile(self,parfile):
+            Read DM value out of a parfile and return it.
+        """
+        pf = open(parfile, 'r')
+        for line in pf:
+            fields = line.split()
+            key = fields[0]
+            val = fields[1]
+            if key == 'DM':
+                pf.close()
+                return float(val)
+        pf.close()
+        return 0.0
+
 
     # Straight out of guppi2_utils.py massaged to fit in:
     def fft_size_params(self,rf,bw,nchan,dm,max_databuf_mb=128):
@@ -748,5 +780,9 @@ class GuppiCODDBackend(Backend):
                 dest_port = self.mode.cdd_hpc_ip_info[i][1]
                 self.roach.write_int(ip_reg, dest_ip)
                 self.roach.write_int(pt_reg, dest_port)
+
+            # now set up the arp tables:
+            regs = [gigbit_name + '%i' % i for i in range(len(self.mode.cdd_roach_ips))]
+            set_arp(self.roach, regs, self.hpc_macs)
 
         return 'ok'
