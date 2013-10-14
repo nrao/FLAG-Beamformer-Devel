@@ -56,6 +56,13 @@ class Foo:
         """
         return x + y
 
+    def long_delay(self, delay):
+        """
+        waits 'delay' seconds before returning.
+        """
+        time.sleep(delay)
+        return delay
+
 
 surl = "tcp://0.0.0.0:6667"
 curl = "tcp://127.0.0.1:6667"
