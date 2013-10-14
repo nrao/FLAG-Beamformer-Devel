@@ -324,7 +324,13 @@ class Dealer(object):
         # TBF: player's 'earliest_start()' returns (True, (time tuple))
         # We want just the time tuple. Should throw if any player
         # returns 'False'.
-        player_starts = [self.players[p].earliest_start()[1] for p in self.players]
+        rval = _pexecute("earliest_start")
+        player_starts = []
+
+        for p in rval:
+            if rval[p][0]: # if returned True...
+                player_starts.append(rval[p][1])
+
         player_starts.sort() # once sorted the last element is the one we seek.
         earliest_start = player_starts[-1]
         return datetime(*earliest_start)
@@ -343,7 +349,7 @@ class Dealer(object):
         earliest_start = self.earliest_start()
         # 2. Check to see if given start time is reasonable
         if starttime:
-             if earliest_start < starttime:
+             if earliest_start > starttime:
                 return (False, "Start time %s is earlier that earliest possible start time %s" % \
                             (str(starttime), str(earliset_start)))
         else:
@@ -351,7 +357,6 @@ class Dealer(object):
 
         # 3. Tell them to go!
         st = datetime_to_tuple(starttime,)
-        print "st =", st
         return self._pexecute("start", [st])
 
     def stop(self):
