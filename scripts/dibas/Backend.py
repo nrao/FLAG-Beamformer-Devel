@@ -1,6 +1,11 @@
 import ctypes
 import binascii
-from vegas_hpc.vegas_utils import vegas_status
+
+try:
+    from vegas_hpc.vegas_utils import vegas_status
+except ImportError:
+    from vegas_utils import vegas_status
+
 import os
 import subprocess
 import time

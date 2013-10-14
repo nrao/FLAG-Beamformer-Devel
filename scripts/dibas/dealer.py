@@ -113,24 +113,45 @@ class Dealer(object):
             for p in players:
                 self.available_players[p] = BankProxy(self.ctx, p, players[p])
 
+        if "BANKA" in self.list_available_players():
+            self.add_active_player("BANKA")
+
     def _execute(self, function, args = (), kwargs = {}):
+        """Executes player functions serially, in the order they are fetched
+        from the self.players dictionary. Do not use for any functions
+        that take an appreciable length of time to execute.
+
+        """
         rval = {}
         for p in self.players:
-            method = self.players[p].__dict__[function]
-            rval[p] = method(*args, **kwargs)
+            try:
+                method = self.players[p].__dict__[function]
+                rval[p] = method(*args, **kwargs)
+            except AttributeError as e:
+                rval[p] = (False, "Lost connection to server for %s." % (p))
 
         return rval
 
     def _pexecute(self, function, args = (), kwargs = {}):
+        """Executes player functions concurrently. Use for any functions that
+        must be executed at a specific time, or functions that take a
+        long time to complete.
+
+        """
         rval = {}
         threads = []
 
         for p in self.players:
-            method = self.players[p].__dict__[function]
-            ex = Executor(p, method, args, kwargs)
-            threads.append(ex)
-            ex.start()
+            try:
+                method = self.players[p].__dict__[function]
+                ex = Executor(p, method, args, kwargs)
+                threads.append(ex)
+                ex.start()
+            except AttributeError as e:
+                rval[p] = (False, "Lost connection to server for %s." % (p))
 
+        # These all ran. AttributeError above causes the thread not to
+        # be created and included in 'threads'.
         for t in threads:
             t.join()
             rval[t.player] = t.return_val

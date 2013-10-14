@@ -57,7 +57,8 @@ class Foo:
         return x + y
 
 
-url = "inproc://beautiful_unique_sparklepony"
+surl = "tcp://0.0.0.0:6667"
+curl = "tcp://127.0.0.1:6667"
 proxy = None
 foo = None
 ctx = zmq.Context()
@@ -66,7 +67,7 @@ def setup_zmq_server():
     global proxy
     global foo
 
-    proxy = ZMQJSONProxyServer(ctx, url)
+    proxy = ZMQJSONProxyServer(ctx, surl)
     foo = Foo()
     proxy.expose("foo", foo)
 
@@ -97,7 +98,7 @@ def test_ZMQ_Proxy_Interface():
 
     # Test for all functions of 'Foo':
     test_sock = ctx.socket(zmq.REQ)
-    test_sock.connect(url)
+    test_sock.connect(curl)
     msg = {"name": "foo", "proc": "cat", "args": [], "kwargs": {}}
     test_sock.send_json(msg)
     cat_ret = test_sock.recv_json()
