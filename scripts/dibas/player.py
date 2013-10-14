@@ -240,6 +240,12 @@ class Bank(object):
         self.scan_number = self.scan_number+1
         self.set_scan_number(self.scan_number)
 
+    def get_scan_number(self):
+        """
+        returns the value of the current scan number.
+        """
+        return self.scan_number
+
     def set_status(self, **kwargs):
         """
         set_status(self, **kwargs)
