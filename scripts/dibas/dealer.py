@@ -261,7 +261,7 @@ class Dealer(object):
         players = self.players.keys()
         return self.players[players[0]].list_modes()
 
-    def set_mode(self, mode, frequency = False, force = False):
+    def set_mode(self, mode, bandwidth = False, force = False):
         """
         set_mode(mode, frequency = False, force=False)
 
@@ -291,7 +291,7 @@ class Dealer(object):
           rval = d.set_mode('MODE1')
           rval = d.set_mode(mode='MODE1', force=True)
         """
-        return self._pexecute("set_mode", [mode, frequency, force])
+        return self._pexecute("set_mode", [mode, bandwidth, force])
 
     def _all_same(self, m):
         """
@@ -324,7 +324,7 @@ class Dealer(object):
         # TBF: player's 'earliest_start()' returns (True, (time tuple))
         # We want just the time tuple. Should throw if any player
         # returns 'False'.
-        rval = _pexecute("earliest_start")
+        rval = self._pexecute("earliest_start")
         player_starts = []
 
         for p in rval:

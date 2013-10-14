@@ -239,23 +239,21 @@ class ZMQJSONProxyClient(object):
     reconstructed on the receiving end. Plain Old Types (int, float,
     etc.) and python types (dict, list, set, tuple) present no problem.
     """
-    def __init__(self, ctx, obj_name, url):
+    def __init__(self, ctx, obj_name, url, time_out = None):
         """
         Initializes a proxy client.
 
         ctx      : The 0MQ context (zmq.Context())
         obj_name : The name of the object exposed on the server
         url      : The server's url
+        time_out : Client time-out waiting for server reply, in seconds.
         """
+        self._time_out = (time_out if time_out else 60) * 1000
         self._initialized = False
         self._url = url
         self._obj_name = obj_name
-        self._sock = ctx.socket(zmq.REQ)
-        self._sock.connect(self._url)
-        self._poller = zmq.Poller()
-        self._poller.register(self._sock, zmq.POLLIN)
-        self._sock.send_json({'name': self._obj_name, 'proc': 'list_methods', 'args': [], 'kwargs': {}})
-
+        self._ctx = ctx
+        self._connect_and_register()
         # sent request for methods. Server may not be there
         # yet. self._finish_init() will return immediately even if no
         # server
@@ -279,6 +277,22 @@ class ZMQJSONProxyClient(object):
         # Proxy was initialized (either now or before), but no
         # attribute. Really is an attribute error.
         raise AttributeError(name)
+
+    def _cleanup(self):
+        self._sock.close()
+        del self._sock
+        del self._poller
+        self._initialized = False
+
+    def _connect_and_register(self):
+        """
+        Attempts to connect to server and requests served functions.
+        """
+        self._sock = self._ctx.socket(zmq.REQ)
+        self._poller = zmq.Poller()
+        self._poller.register(self._sock, zmq.POLLIN)
+        self._sock.connect(self._url)
+        self._sock.send_json({'name': self._obj_name, 'proc': 'list_methods', 'args': [], 'kwargs': {}})
 
     def _finish_init(self):
         """Tries to finish the initialization by retrieving the response to the
@@ -323,16 +337,25 @@ class ZMQJSONProxyClient(object):
         the arguments to it, and handles the return value or exception
         information.
         """
+        if not self._initialized:
+            self._finish_init()
+
         msg = {'name': self._obj_name, 'proc': args[0], 'args': args[1:], 'kwargs': kwargs}
-        self._sock.send_json(msg)
-        # TBF: 8 minutes for a reply. Need to handle case where it times out.
-        socks = dict(self._poller.poll(480000))
+
+        try:
+            self._sock.send_json(msg)
+        except ZMQError:
+            self._cleanup()
+            self._connect_and_register()
+            return None
+
+        socks = dict(self._poller.poll(self._time_out))
 
         if self._sock in socks and socks[self._sock] == zmq.POLLIN:
             repl = self._sock.recv_json()
             return repl
         else:
-            # TBF: FIX THIS! Need to close out the socket, and reconnect
-            # to the service if this happens.
-            print "socket timed out!"
+            print "socket timed out! Check server at %s" % self._url
+            self._cleanup()
+            self._connect_and_register()
             return None

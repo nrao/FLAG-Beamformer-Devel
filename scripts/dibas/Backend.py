@@ -548,7 +548,7 @@ class Backend:
 
         # Some modes will not have roach set.
         if self.roach:
-            self.valon.set_frequency(0, convertToMHz(self.frequency))
+            self.valon.set_frequency(0, convertToMHz(abs(self.frequency)))
             # reply, informs = self.roach._request("progdev", 20) # deprogram roach first
             reply, informs = self.roach._request("progdev") # deprogram roach first
 
