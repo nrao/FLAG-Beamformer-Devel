@@ -117,6 +117,11 @@ class Dealer(object):
             self.add_active_player("BANKA")
 
     def _execute(self, function, args = (), kwargs = {}):
+        """Executes player functions serially, in the order they are fetched
+        from the self.players dictionary. Do not use for any functions
+        that take an appreciable length of time to execute.
+
+        """
         rval = {}
         for p in self.players:
             try:
@@ -128,6 +133,11 @@ class Dealer(object):
         return rval
 
     def _pexecute(self, function, args = (), kwargs = {}):
+        """Executes player functions concurrently. Use for any functions that
+        must be executed at a specific time, or functions that take a
+        long time to complete.
+
+        """
         rval = {}
         threads = []
 
