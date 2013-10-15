@@ -65,7 +65,7 @@ class VegasBackend(Backend):
         # the status memory key/value pair dictionary
         self.sskeys = {}
         # the switching signals builder
-        self.ss = SwitchingSignals(self.frequency, self.nchan)
+        self.ss = SwitchingSignals(self.frequency * 1e6, self.nchan)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
         self.prepare()
@@ -193,13 +193,13 @@ class VegasBackend(Backend):
         mode = int(self.mode.name[4:])
 
         if mode < 13:
-            self.sampler_frequency = self.frequency * 2
+            self.sampler_frequency = self.frequency * 1e6 * 2
             self.nsubband = 1
         else:
-            self.sampler_frequency = self.frequency / 64
+            self.sampler_frequency = self.frequency * 1e6 / 64
             self.nsubband = 8
         # calculate the fpga frequency
-        self.fpga_clock = self.frequency / 8
+        self.fpga_clock = self.frequency * 1e6 / 8
 
 
     def clear_switching_states(self):
@@ -496,14 +496,14 @@ class VegasBackend(Backend):
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
         statusdata["NSUBBAND" ] = self.nsubband
-        statusdata["SUB0FREQ" ] = self.frequency / 2
-        statusdata["SUB1FREQ" ] = self.frequency / 2
-        statusdata["SUB2FREQ" ] = self.frequency / 2
-        statusdata["SUB3FREQ" ] = self.frequency / 2
-        statusdata["SUB4FREQ" ] = self.frequency / 2
-        statusdata["SUB5FREQ" ] = self.frequency / 2
-        statusdata["SUB6FREQ" ] = self.frequency / 2
-        statusdata["SUB7FREQ" ] = self.frequency / 2
+        statusdata["SUB0FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB1FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB2FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB3FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB4FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB5FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB6FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB7FREQ" ] = self.frequency * 1e6 / 2
 
         statusdata["BASE_BW"  ] = self.filter_bw # From MODE
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'
