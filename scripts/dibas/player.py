@@ -164,6 +164,9 @@ class Bank(object):
             if not self.bank_name:
                 self.bank_name = self.get_bank_name(config)
 
+                if not self.bank_name:
+                    sys.exit(0)
+
             bank = self.bank_name
             print "bank =", bank, "filename =", filename
 
@@ -727,7 +730,7 @@ def _testCaseVegas1():
 
 proxy = None
 
-def main_loop(bank_name, URL = None, sim = False):
+def main_loop(bank_name = None, URL = None, sim = False):
     # The proxy server, can proxy many classes.
     global proxy
 
@@ -779,7 +782,7 @@ if __name__ == '__main__':
     elif len(sys.argv) > 1:
         bank_name = sys.argv[1]
 
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 0:
         signal.signal(signal.SIGINT, signal_handler)
         print "Main loop..."
         main_loop(bank_name, url, sim)
