@@ -35,6 +35,7 @@ import sys
 import traceback
 import time
 import os
+import socket
 
 from corr import katcp_wrapper
 from datetime import datetime, timedelta
@@ -58,7 +59,7 @@ class Bank(object):
     A roach bank manager class.
     """
 
-    def __init__(self, bank_name, simulate = False):
+    def __init__(self, bank_name = None, simulate = False):
         self.dibas_dir = os.getenv('DIBAS_DIR')
 
         if self.dibas_dir == None:
@@ -69,7 +70,9 @@ class Bank(object):
         self.hpc_macs = {}
         self.simulate = simulate
         print "self.simulate=", self.simulate
-        self.bank_name = bank_name.upper()
+
+        # Bank name may be provided, or if not will be inferred from the config file.
+        self.bank_name = bank_name.upper() if bank_name else None
         self.bank_data = BankData()
         self.mode_data = {}
         self.banks = {}
@@ -126,6 +129,23 @@ class Bank(object):
         print "reformatting data buffers"
         os.system(fmt_path + ' ' + hpc_program)
 
+    def get_bank_name(self, config):
+        """Dive into the config file and fetch the bank name based on the
+        current host running this bank.
+
+        """
+        banks = [p for p in config.sections() if 'BANK' in p]
+        host = socket.gethostname()
+
+        for i in banks:
+            hpchost = config.get(i, 'hpchost')
+            # either 'host' or 'hpchost' or both should contain the base
+            # host name ('hpc1', 'hpc2', etc.) Just in case an alternate
+            # name is used by either (such as 'hpc1-1'), compare them
+            # both ways.
+            if host in hpchost or hpchost in host:
+                return i.upper()
+
     def read_config_file(self, filename):
         """
         read_config_file(filename)
@@ -138,10 +158,14 @@ class Bank(object):
         """
 
         try:
-            bank = self.bank_name
-            print "bank =", bank, "filename =", filename
             config = ConfigParser.ConfigParser()
             config.readfp(open(filename))
+
+            if not self.bank_name:
+                self.bank_name = self.get_bank_name(config)
+
+            bank = self.bank_name
+            print "bank =", bank, "filename =", filename
 
             # Read general stuff:
             telescope = config.get('DEFAULTS', 'telescope').lstrip().rstrip().lstrip('"').rstrip('"')
