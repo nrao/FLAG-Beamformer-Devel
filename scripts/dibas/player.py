@@ -739,7 +739,11 @@ def main_loop(bank_name = None, URL = None, sim = False):
         config_file = dibas_dir + '/etc/config/dibas.conf'
         config = ConfigParser.ConfigParser()
         config.readfp(open(config_file))
-        playerport = config.getint(bank_name.upper(), 'player_port')
+
+        if bank_name:
+            playerport = config.getint(bank_name.upper(), 'player_port')
+        else:
+            playerport = config.getint('DEFAULTS', 'player_port')
         URL = "tcp://0.0.0.0:%i" % playerport
 
     proxy = ZMQJSONProxyServer(ctx, URL)
