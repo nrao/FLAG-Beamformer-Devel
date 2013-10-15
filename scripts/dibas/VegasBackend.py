@@ -65,7 +65,7 @@ class VegasBackend(Backend):
         # the status memory key/value pair dictionary
         self.sskeys = {}
         # the switching signals builder
-        self.ss = SwitchingSignals(self.frequency, self.nchan)
+        self.ss = SwitchingSignals(self.frequency * 1e6, self.nchan)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
         self.prepare()
@@ -86,6 +86,7 @@ class VegasBackend(Backend):
         This explicitly cleans up any child processes. This will be called
         by the player before deleting the backend object.
         """
+        print "VegasBackend: cleaning up hpc and fits writer."
         self.stop_hpc()
         self.stop_fits_writer()
 
@@ -192,14 +193,14 @@ class VegasBackend(Backend):
         # 'MODEx' where 'x' is the number we want:
         mode = int(self.mode.name[4:])
 
-        if mode < 13:
-            self.sampler_frequency = self.frequency * 2
+        if mode < 4:
+            self.sampler_frequency = self.frequency * 1e6 * 2
             self.nsubband = 1
         else:
-            self.sampler_frequency = self.frequency / 64
+            self.sampler_frequency = self.frequency * 1e6 / 64
             self.nsubband = 8
         # calculate the fpga frequency
-        self.fpga_clock = self.frequency / 8
+        self.fpga_clock = self.frequency * 1e6 / 8
 
 
     def clear_switching_states(self):
@@ -496,14 +497,14 @@ class VegasBackend(Backend):
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
         statusdata["NSUBBAND" ] = self.nsubband
-        statusdata["SUB0FREQ" ] = self.frequency / 2
-        statusdata["SUB1FREQ" ] = self.frequency / 2
-        statusdata["SUB2FREQ" ] = self.frequency / 2
-        statusdata["SUB3FREQ" ] = self.frequency / 2
-        statusdata["SUB4FREQ" ] = self.frequency / 2
-        statusdata["SUB5FREQ" ] = self.frequency / 2
-        statusdata["SUB6FREQ" ] = self.frequency / 2
-        statusdata["SUB7FREQ" ] = self.frequency / 2
+        statusdata["SUB0FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB1FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB2FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB3FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB4FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB5FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB6FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB7FREQ" ] = self.frequency * 1e6 / 2
 
         statusdata["BASE_BW"  ] = self.filter_bw # From MODE
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'
@@ -717,30 +718,31 @@ class VegasBackend(Backend):
         if self.fits_writer_process is None:
             return False # Nothing to do
 
-        if self.fits_writer_process is not None:
-            # process exited with code:
-            del self.fits_writer_process
-            self.fits_writer_process = None
-            killed = True
-            return killed
-
-        # First ask nicely
-        self.fits_writer_process.communicate("quit\n")
-        time.sleep(1)
-        # Kill if necessary
-        if self.fits_writer_process.poll() == None:
-            # still running, try once more
-            self.fits_writer_process.terminate()
+        try:
+            # First ask nicely
+            self.fits_writer_process.communicate("quit\n")
             time.sleep(1)
+            # Kill if necessary
+            if self.fits_writer_process.poll() == None:
+                # still running, try once more
+                self.fits_writer_process.terminate()
+                time.sleep(1)
 
-            if self.fits_writer_process.poll() is not None:
-                killed = True
+                if self.fits_writer_process.poll() is not None:
+                    killed = True
+                else:
+                    self.fits_writer_process.kill()
+                    killed = True;
             else:
-                self.fits_writer_process.kill()
-                killed = True;
-        else:
+                killed = False
+            self.fits_writer_process = None
+        except OSError, e:
+            print "While killing child process:", e
             killed = False
-        self.fits_writer_process = None
+        finally:
+            del self.hpc_process
+            self.hpc_process = None
+
         return killed
 
     def fits_writer_cmd(self, cmd):

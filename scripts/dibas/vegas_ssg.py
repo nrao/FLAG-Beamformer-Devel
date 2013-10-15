@@ -149,9 +149,14 @@ class SwitchingSignals(object):
 
     def __init__(self, frequency, nchan):
 
+        print "frequency", frequency
+        print "nchan", nchan
         fpga_clock = frequency / 8
+        print "fpga_clock", fpga_clock
         clocks_per_granule = nchan / 8
+        print "clocks_per_granule", clocks_per_granule
         self._sec_per_granule = clocks_per_granule / fpga_clock
+        print "self._sec_per_granule", self._sec_per_granule
         self.phases = [SwitchingSignals.SwitchingPhase()]
 
     def __repr__(self):
@@ -230,6 +235,7 @@ class SwitchingSignals(object):
         ss.add_phase(0.09)
         """
         ph = SwitchingSignals.SwitchingPhase()
+        print "dur =", dur, "self._sec_per_granule =", self._sec_per_granule
         ph.set_duration(dur / self._sec_per_granule)
 
         if bl: ph.set_blanking()

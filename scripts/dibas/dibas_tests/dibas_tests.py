@@ -6,6 +6,13 @@ from GuppiBackend import GuppiBackend
 from GuppiCODDBackend import GuppiCODDBackend
 from ConfigData import BankData, ModeData
 
+def skipped(func):
+    from nose.plugins.skip import SkipTest
+    def _():
+        raise SkipTest("Test %s is skipped" % func.__name__)
+    _.__name__ = func.__name__
+    return _
+
 def AlmostEqual(a, b, diff = 1e-6):
     if abs(float(a) - float(b)) < diff:
         return True
@@ -30,14 +37,14 @@ def test_VegasBackend():
     m = ModeData()
     m.load_config(config, "MODE1")
 
-    be = VegasBackend(b, m, None, None, unit_test = True)
+    m.frequency = 1440
+    be = VegasBackend(b, m, None, None, None, unit_test = True)
     frequency = 1.44e9
     sampler_frequency = frequency * 2
     nchan = 1024
     chan_bw = sampler_frequency / (nchan * 2)
     frequency_resolution = abs(chan_bw)
 
-    be.setValonFrequency(frequency)    # config file
     be.setPolarization('SELF')
     be.setNumberChannels(1024)   # mode 1 (config file)
     be.setIntegrationTime(0.1)
@@ -102,7 +109,7 @@ def test_VegasBackend():
     assert Equal(be.get_status("SUB6FREQ"), str(frequency / 2))
     assert Equal(be.get_status("SUB7FREQ"), str(frequency / 2))
 
-    assert Equal(be.get_status("BASE_BW"), '1400') # from config file
+    assert Equal(be.get_status("BASE_BW"), '1450') # from config file
     assert Equal(be.get_status("NOISESRC"), 'OFF')
     assert Equal(be.get_status("NUMPHASE"), '4')
     assert AlmostEqual(be.get_status("SWPERIOD"), 0.1, 1e-5)
@@ -118,14 +125,13 @@ def test_VegasBackend():
     assert Equal(be.get_status("CAL_PHS") , DEFAULT_VALUE)
 
     assert Equal(be.get_status("DATADIR") , '/tmp')
-    assert Equal(be.get_status("DATAHOST"), '10.17.0.71')
     assert Equal(be.get_status("DATAPORT"), '60000')
 
     assert Equal(be.get_status("EFSAMPFR"), sampler_frequency)
     assert Equal(be.get_status("EXPOSURE"), 0.1)
     assert Equal(be.get_status("FILENUM") , DEFAULT_VALUE)
     assert AlmostEqual(be.get_status("FPGACLK"), frequency / 8)
-    assert Equal(be.get_status("HWEXPOSR"), DEFAULT_VALUE)
+    assert Equal(be.get_status("HWEXPOSR"), 0.000524288)
     assert Equal(be.get_status("M_STTMJD"), '0')
     assert Equal(be.get_status("M_STTOFF"), '0')
     assert Equal(be.get_status("NBITS")   , '8')
@@ -135,7 +141,7 @@ def test_VegasBackend():
     assert Equal(be.get_status("OBSBW")   , '1440000000.0')
 
     assert Equal(be.get_status("OBSFREQ") , DEFAULT_VALUE)
-    assert Equal(be.get_status("OBSSEVER"), DEFAULT_VALUE)
+    assert Equal(be.get_status("OBSERVER"), DEFAULT_VALUE)
     assert Equal(be.get_status("OBSID")   , DEFAULT_VALUE)
 
     assert Equal(be.get_status("SWVER")   , DEFAULT_VALUE)
@@ -152,9 +158,9 @@ def test_GUPPI_INCO_64_backend():
     m = ModeData()
     m.load_config(config, "INCO_MODE_64")
 
-    be = GuppiBackend(b, m, None, None, unit_test = True)
+    m.frequency=800.0
+    be = GuppiBackend(b, m, None, None, None, unit_test = True)
     be.set_obs_frequency(1500.0)
-    be.set_bandwidth(800.0)
 
     be.prepare()
 
@@ -198,6 +204,7 @@ def test_GUPPI_INCO_64_backend():
     assert Equal(be.get_status('TBIN'), 4.096e-05)
     assert Equal(be.get_status('TFOLD'), 1.0)
 
+@skipped # difficult if no host information for CODD computers.
 def test_GUPPI_CODD_64_backend():
     """
     A GUPPI CODD backend (GuppyCODDBackend) test setup.
