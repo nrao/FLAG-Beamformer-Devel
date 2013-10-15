@@ -1,6 +1,6 @@
 #! /bin/bash
 if test "${DIBAS_DIR}zz" = zz; then
-	echo "Error: DIBAS_DIR environment variable not set, exiting."
-	exit 1
+	echo "Loading dibas.bash environment..."
+    . /opt/dibas/dibas.bash
 fi
 python $DIBAS_DIR/lib/python/player.py $@

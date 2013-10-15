@@ -9,19 +9,6 @@ import time
 from datetime import datetime, timedelta
 import os
 
-def convertToMHz(f):
-    """
-    Sometimes values are expressed in Hz instead of MHz.
-    This routine assumes anything over 5000 to be in Hz.
-    """
-    f = abs(f)
-    if f > 5000:
-        return f/1E6 # Convert to MHz
-    else:
-        return f     # already in MHz
-
-
-
 class VegasBackend(Backend):
     """
     A class which implements some of the VEGAS specific parameter calculations.
@@ -37,7 +24,7 @@ class VegasBackend(Backend):
     * *unit_test:* Set to true to unit test. Will not attempt to talk to
       roach, shared memory, etc.
     """
-    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
         Creates an instance of the vegas internals.
         """
@@ -45,7 +32,7 @@ class VegasBackend(Backend):
         # mode_number may be treated as a constant; the Player will
         # delete this backend object and create a new one on mode
         # change.
-        Backend.__init__(self, theBank, theMode, theRoach , theValon, unit_test)
+        Backend.__init__(self, theBank, theMode, theRoach , theValon, hpc_macs, unit_test)
         # Important to do this as soon as possible, so that status application
         # can change its data buffer format
         self.set_status(BACKEND='VEGAS')
@@ -59,7 +46,7 @@ class VegasBackend(Backend):
         self.setNumberChannels(self.mode.nchan)
         self.requested_integration_time = 1.0
         self.setAccLen(self.mode.acc_len)
-        self.setValonFrequency(self.mode.frequency)
+        # self.setValonFrequency(self.mode.frequency)
 
         # dependent values, computed from Parameters:
         self.nspectra = 1
@@ -188,12 +175,6 @@ class VegasBackend(Backend):
             bsource = 0 # internal
             ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
             self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
-        if self.valon:
-            f = convertToMHz(self.frequency)
-            if f > 199 and f < 2100:
-                self.valon.set_frequency(0, f)
-            else:
-                raise Exception("Valon frequency of %f is invalid" % f)
 
 
     # Algorithmic dependency methods, not normally called by a users
@@ -476,10 +457,10 @@ class VegasBackend(Backend):
         statusdata["OBSFREQ"  ] = DEFAULT_VALUE;
         statusdata["OBSNCHAN" ] = DEFAULT_VALUE;
         statusdata["OBS_MODE" ] = DEFAULT_VALUE;
-        statusdata["OBSSEVER" ] = DEFAULT_VALUE;
+        statusdata["OBSERVER" ] = DEFAULT_VALUE;
         statusdata["OBSID"    ] = DEFAULT_VALUE;
         statusdata["PKTFMT"   ] = DEFAULT_VALUE;
-
+        statusdata["SRC_NAME" ] = DEFAULT_VALUE;
         statusdata["SUB0FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB1FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB2FREQ" ] = DEFAULT_VALUE;
@@ -489,6 +470,7 @@ class VegasBackend(Backend):
         statusdata["SUB6FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB7FREQ" ] = DEFAULT_VALUE;
         statusdata["SWVER"    ] = DEFAULT_VALUE;
+        statusdata["TELESCOP" ] = DEFAULT_VALUE;
 
         # add in the config file default keywords; being defaults they
         # may be overridden below.
@@ -499,6 +481,8 @@ class VegasBackend(Backend):
             statusdata[x] = y
 
         statusdata["OBSERVER" ] = self.observer
+        statusdata["SRC_NAME" ] = self.source
+        statusdata["TELESCOP" ] = self.telescope
         statusdata["BW_MODE"  ] = "high" # mode 1
         statusdata["BOFFILE"  ] = str(self.bof_file)
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
@@ -733,18 +717,26 @@ class VegasBackend(Backend):
         if self.fits_writer_process is None:
             return False # Nothing to do
 
+        if self.fits_writer_process is not None:
+            # process exited with code:
+            del self.fits_writer_process
+            self.fits_writer_process = None
+            killed = True
+            return killed
+
         # First ask nicely
         self.fits_writer_process.communicate("quit\n")
+        time.sleep(1)
         # Kill if necessary
         if self.fits_writer_process.poll() == None:
             # still running, try once more
-            self.fits_writer_process.communicate("quit\n")
+            self.fits_writer_process.terminate()
             time.sleep(1)
 
             if self.fits_writer_process.poll() is not None:
                 killed = True
             else:
-                self.fits_writer_process.communicate()
+                self.fits_writer_process.kill()
                 killed = True;
         else:
             killed = False

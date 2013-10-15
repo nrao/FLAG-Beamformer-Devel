@@ -161,7 +161,7 @@ install_vegas_daq()
     for i in  \
         vegas_hpc/src/check_vegas_status \
         vegas_hpc/src/check_vegas_databuf \
-        vegas_hpc/src/clean_vegas_shmem ;
+        vegas_hpc/src/clean_vegas_shmem;
     do
         if [ -x  $i ]; then
             j=`basename $i`
@@ -172,6 +172,19 @@ install_vegas_daq()
                 install -o $2 -g $3 -m 6755 $i $1/bin/x86_64-linux
                 echo "$j installed suid $2"
             fi
+        else
+            echo "$i doesn't exist"
+            g=`dirname $i`
+            echo "cd to $g and run make first"
+        fi
+    done
+    for i in  \
+	    vegas_data_monitor/vegasdm;
+    do
+        if [ -x  $i ]; then
+            j=`basename $i`
+            install -o $2 -g $3 -m 6755 $i $1/bin/x86_64-linux
+            echo "$j installed suid $2"
         else
             echo "$i doesn't exist"
             g=`dirname $i`

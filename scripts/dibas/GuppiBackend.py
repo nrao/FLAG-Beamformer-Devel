@@ -23,13 +23,13 @@ class GuppiBackend(Backend):
       *False* if not. Allows unit testing without involving the
       hardware.
     """
-    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
         Creates an instance of the vegas internals.
         GuppiBackend( bank )
         Where bank is the instance of the player's Bank.
         """
-        Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
+        Backend.__init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test)
         # This needs to happen on construct so that status monitors can
         # switch their data buffer format
         self.set_status(BACKEND="GUPPI")
@@ -54,7 +54,6 @@ class GuppiBackend(Backend):
         self.offset_u = 0
         self.offset_v = 0
         self.only_i = 0
-        self.bandwidth = 1500.0
         self.chan_dm = 0.0
         self.rf_frequency = 2000.0
         self.nbin = 256
@@ -63,7 +62,7 @@ class GuppiBackend(Backend):
         # Almost all receivers are dual polarization
         self.nrcvr = 2
         self.feed_polarization = 'LIN'
-
+        self.bandwidth = self.frequency
 
         if self.dibas_dir is not None:
            self.pardir = self.dibas_dir + '/etc/config'
@@ -71,37 +70,40 @@ class GuppiBackend(Backend):
             self.pardir = '/tmp'
         self.parfile = 'example.par'
 
-        self.params["bandwidth"         ] = self.set_bandwidth
+#        self.params["bandwidth"         ] = self.set_bandwidth
         self.params["integration_time"  ] = self.set_integration_time
         self.params["nbin"              ] = self.set_nbin
         self.params["obs_frequency"     ] = self.set_obs_frequency
         self.params["obs_mode"          ] = self.set_obs_mode
         self.params["only_i"            ] = self.set_only_i
-        self.params["offset_i"          ] = self.set_offset_I
-        self.params["offset_q"          ] = self.set_offset_Q
-        self.params["offset_u"          ] = self.set_offset_U
-        self.params["offset_v"          ] = self.set_offset_V
+        self.params["scale"             ] = self.set_scale
         self.params["scale_i"           ] = self.set_scale_I
         self.params["scale_q"           ] = self.set_scale_Q
         self.params["scale_u"           ] = self.set_scale_U
         self.params["scale_v"           ] = self.set_scale_V
         self.params["tfold"             ] = self.set_tfold
         self.params["feed_polarization" ] = self.setFeedPolarization
+        self.params["par_file"          ] = self.set_par_file
         self._fft_params_dep()
+
+        if self.hpc_process is None:
+            self.start_hpc()
+
+        self.arm_roach()
 
     ### Methods to set user or mode specified parameters
     ### Not sure how these map for GUPPI
 
     # TBF, all bandwidth probably belongs in base class
-    def set_bandwidth(self, bandwidth):
-        """
-        Sets the bandwidth in MHz. This value should match the valon output frequency.
-        (The sampling rate being twice the valon frequency.)
-        """
-        if  abs(bandwidth) > 200 and abs(bandwidth) < 2000:
-            self.bandwidth = bandwidth
-        else:
-            raise Exception("Bandwidth of %d MHz is not a legal bandwidth setting" % (bandwidth))
+    # def set_bandwidth(self, bandwidth):
+    #     """
+    #     Sets the bandwidth in MHz. This value should match the valon output frequency.
+    #     (The sampling rate being twice the valon frequency.)
+    #     """
+    #     if  abs(bandwidth) > 200 and abs(bandwidth) < 2000:
+    #         self.bandwidth = bandwidth
+    #     else:
+    #         raise Exception("Bandwidth of %d MHz is not a legal bandwidth setting" % (bandwidth))
 
     def set_chan_dm(self, dm):
         """
@@ -160,6 +162,15 @@ class GuppiBackend(Backend):
         """
         self.integration_time = integ_time
 
+    def set_scale(self, v):
+        """
+        Sets all the saling factors with one parameter.
+        """
+        set_scale_I(v)
+        set_scale_Q(v)
+        set_scale_U(v)
+        set_scale_V(v)
+
     def set_scale_I(self, v):
         """
         Sets the hardware scaling factor for the I stokes parameter.
@@ -188,34 +199,6 @@ class GuppiBackend(Backend):
         """
         self.scale_v = v
 
-    def set_offset_I(self, v):
-        """
-        Sets the hardware offset factor for the I stokes parameter.
-        Range is 0.0 through 65535.99998.
-        """
-        self.offset_i = v
-
-    def set_offset_Q(self, v):
-        """
-        Sets the hardware offset factor for the I stokes parameter.
-        Range is 0.0 through 65535.99998.
-        """
-        self.offset_q = v
-
-    def set_offset_U(self, v):
-        """
-        Sets the hardware offset factor for the I stokes parameter.
-        Range is 0.0 through 65535.99998.
-        """
-        self.offset_u = v
-
-    def set_offset_V(self, v):
-        """
-        Sets the hardware offset factor for the I stokes parameter.
-        Range is 0.0 through 65535.99998.
-        """
-        self.offset_v = v
-
     def set_tfold(self, tf):
         """
         Sets the software integration time per profile for all folding and cal modes.
@@ -235,6 +218,9 @@ class GuppiBackend(Backend):
         """
         A place to hang the dependency methods.
         """
+        # TBF self.frequency is set upon programming roach. The entire
+        # 'bandwidth' & 'frequency' dependencies need to be reworked.
+        self.bandwidth = self.frequency
 
         self._hw_nchan_dep()
         self._acc_len_dep()
@@ -260,10 +246,11 @@ class GuppiBackend(Backend):
         # arm's the roach. This gets packets flowing. If the roach is
         # not primed, the start() will fail because of the state of the
         # net thread being 'waiting' instead of 'receiving'
-        if self.hpc_process is None:
-            self.start_hpc()
-            time.sleep(5)
-            self.arm_roach()
+
+        # if self.hpc_process is None:
+        #     self.start_hpc()
+        #     time.sleep(5)
+        #     self.arm_roach()
 
     def earliest_start(self):
         """
@@ -301,6 +288,9 @@ class GuppiBackend(Backend):
         should then send the initial packet at that time.
         """
 
+        if not self.bank.has_roach:
+            return (True, '')
+
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
 
@@ -320,8 +310,6 @@ class GuppiBackend(Backend):
         else: # No start time provided
             starttime = earliest_start
         # everything OK now, starttime is valid, go through the start procedure.
-        if self.hpc_process is None:
-            self.start_hpc()
 
         self.start_time = starttime
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
@@ -545,6 +533,8 @@ class GuppiBackend(Backend):
         statusdata['DATAPORT'] = self.dataport
         statusdata['PROJID'  ] = self.projectid
         statusdata['OBSERVER'] = self.observer
+        statusdata['SRC_NAME'] = self.source
+        statusdata['TELESCOP'] = self.telescope
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['SCANLEN' ] = self.scan_length
         statusdata['FFTLEN'  ] = self.fft_len
@@ -588,8 +578,6 @@ class GuppiBackend(Backend):
     def _set_registers(self):
         regs = {}
 
-        if not self.test_mode:
-            self.valon.set_frequency(0, abs(self.bandwidth))
         regs['ACC_LENGTH'] = self.acc_length
         regs['SCALE_I']    = int(self.scale_i*65536)
         regs['SCALE_Q']    = int(self.scale_q*65536)
@@ -599,7 +587,7 @@ class GuppiBackend(Backend):
         regs['OFFSET_Q']   = int(self.offset_q*65536)
         regs['OFFSET_U']   = int(self.offset_u*65536)
         regs['OFFSET_V']   = int(self.offset_v*65536)
-        #regs['FFT_SHIFT'] = 0xaaaaaaaa (Set by config file)
+        # regs['FFT_SHIFT'] = 0xaaaaaaaa  (Set by config file)
 
         self.set_register(**regs)
 

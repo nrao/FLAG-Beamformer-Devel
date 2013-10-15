@@ -1,11 +1,17 @@
-import struct
 import ctypes
 import binascii
-from vegas_utils import vegas_status
+
+try:
+    from vegas_hpc.vegas_utils import vegas_status
+except ImportError:
+    from vegas_utils import vegas_status
+
 import os
 import subprocess
 import time
 from datetime import datetime, timedelta
+from i2c import I2C
+from set_arp import set_arp
 
 ######################################################################
 # Some constants
@@ -27,6 +33,17 @@ class SWbits:
     REF=1
     CALON=1
     CALOFF=0
+
+def convertToMHz(f):
+    """
+    Sometimes values are expressed in Hz instead of MHz.
+    This routine assumes anything over 5000 to be in Hz.
+    """
+    f = abs(f)
+    if f > 5000:
+        return f/1E6 # Convert to MHz
+    else:
+        return f     # already in MHz
 
 ######################################################################
 # class Backend
@@ -62,7 +79,8 @@ class Backend:
     * *theValon:* (optional) The Valon synth object.
     * *unit_test:* (optional) True if the class was created for unit testing  purposes.
     """
-    def __init__(self, theBank, theMode, theRoach = None, theValon = None, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach = None,
+                 theValon = None, hpc_macs = None, unit_test = False):
         """
         Creates an instance of the vegas internals.
         """
@@ -73,15 +91,18 @@ class Backend:
             print "UNIT TEST MODE!!!"
             self.roach = None
             self.valon = None
+            self.i2c = None
             self.mock_status_mem = {}
             self.mock_roach_registers = {}
         else:
             self.roach = theRoach
             self.valon = theValon
+            self.i2c = I2C(theRoach)
             self.status = vegas_status()
 
+        self.hpc_macs = hpc_macs
         # Bits used to set I2C for proper filter
-        self.filter_bw_bits = {950: 0x00, 1150: 0x08, 1400: 0x18}
+        self.filter_bw_bits = {450: 0x00, 1450: 0x08, 1900: 0x18}
 
         # This is already checked by player.py, we won't get here if not set
         self.dibas_dir = os.getenv("DIBAS_DIR")
@@ -96,11 +117,15 @@ class Backend:
         self.hpc_process = None
         self.obs_mode = 'SEARCH'
         self.max_databuf_size = 128 # in MBytes
-        self.observer = "unknown"
+        self.observer = "unspecified"
+        self.source = "unspecified"
+        self.telescope = "unspecified"
         self.projectid = "JUNK"
         self.datadir = self.dataroot + "/" + self.projectid
         self.scan_running = False
         self.monitor_mode = False
+        print "Backend(): Setting self.frequency to", self.mode.frequency
+        self.frequency = self.mode.frequency
         self.setFilterBandwidth(self.mode.filter_bw)
         self.setNoiseSource(NoiseSource.OFF)
         self.setNoiseTone1(NoiseTone.NOISE)
@@ -108,14 +133,22 @@ class Backend:
         self.setScanLength(30.0)
 
         self.params = {}
-        self.params["frequency"]      = self.setValonFrequency
-        self.params["filter_bw"]      = self.setFilterBandwidth
-        self.params["observer"]       = self.setObserver
-        self.params["project_id"]     = self.setProjectId
-        self.params["noise_tone_1"]   = self.setNoiseTone1
-        self.params["noise_tone_2"]   = self.setNoiseTone2
-        self.params["noise_source"]   = self.setNoiseSource
-        self.params["scan_length"]    = self.setScanLength
+        # TBF: Rething "frequency" & "bandwidth" parameters. If one or
+#        both are parameters, then changing them must deprogram roach
+#        first, set frequency, then reprogram roach. For now, these
+#        are removed from the parameter list here and in derived
+#        classes, and frequency is set when programming
+#        roach. Frequency changes may be made via the Bank.set_mode()
+#        function.  self.params["frequency" ] = self.setValonFrequency
+        self.params["filter_bw"    ] = self.setFilterBandwidth
+        self.params["observer"     ] = self.setObserver
+        self.params["project_id"   ] = self.setProjectId
+        self.params["noise_tone_1" ] = self.setNoiseTone1
+        self.params["noise_tone_2" ] = self.setNoiseTone2
+        self.params["noise_source" ] = self.setNoiseSource
+        self.params["scan_length"  ] = self.setScanLength
+        self.params["source"       ] = self.setSource
+        self.params["telescope"    ] = self.setTelescope
 
         # CODD mode is special: One roach has up to 8 interfaces, and
         # each is the DATAHOST for one of the Players. This distribution
@@ -172,10 +205,8 @@ class Backend:
           bits = self.getI2CValue(0x38, 1)
         """
 
-        if self.roach:
-            reply, informs = self.roach._request('i2c-read', addr, nbytes)
-            v = reply.arguments[2]
-            return (reply.arguments[0] == 'ok', struct.unpack('>%iB' % nbytes, v))
+        if self.i2c:
+            return self.i2c.getI2CValue(addr, nbytes)
         return (True, 0)
 
 
@@ -195,10 +226,8 @@ class Backend:
           self.setI2CValue(0x38, 1, 0x25)
         """
 
-        if self.roach:
-            reply, informs = self.roach._request(
-                'i2c-write', addr, nbytes, struct.pack('>%iB' % nbytes, data))
-            return reply.arguments[0] == 'ok'
+        if self.i2c:
+            return self.i2c.setI2CValue(addr, nbytes, data)
         return True
 
 
@@ -250,30 +279,42 @@ class Backend:
         To stop an observation use 'stop()' instead.
         """
 
+        print "stop_hpc()"
+
         if self.test_mode:
             return
 
         if self.hpc_process is None:
+            print "stop_hpc(): self.hpc_process is None."
             return False # Nothing to do
 
-        # First ask nicely
-        # Kill and reclaim child
-        self.hpc_process.communicate("quit\n")
-        # Kill if necessary
-        if self.hpc_process.poll() == None:
-            # still running, try once more
-            self.hpc_process.communicate("quit")
+        try:
+            # First ask nicely
+            # Kill and reclaim child
+            print "stop_hpc(): sending 'quit'"
+            self.hpc_process.communicate("quit\n")
             time.sleep(1)
+            # Kill if necessary
+            if self.hpc_process.poll() == None:
+                # still running, try once more
+                print "stop_hpc(): sending SIGTERM"
+                self.hpc_process.terminate()
+                time.sleep(1)
 
-            if self.hpc_process.poll() is not None:
-                killed = True
+                if self.hpc_process.poll() is not None:
+                    killed = True
+                else:
+                    print "stop_hpc(): sending SIGKILL"
+                    self.hpc_process.kill()
+                    killed = True;
             else:
-                self.hpc_process.communicate("quit\n")
-                killed = True;
-        else:
+                killed = False
+        except OSError, e:
+            print "While killing child process:", e
             killed = False
-
-        self.hpc_process = None
+        finally:
+            del self.hpc_process
+            self.hpc_process = None
 
         return killed
 
@@ -319,12 +360,14 @@ class Backend:
             else:
                 return retval
         else:
-            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" % (param, str(self.params.keys()))
+            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" \
+                % (param, str(self.params.keys()))
             print 'No such parameter %s' % param
             print 'Legal parameters in this mode are:'
             for k in self.params.keys():
                 print k
             raise Exception(msg)
+
     def get_param(self,param):
         """
         get_param(self, param)
@@ -359,19 +402,25 @@ class Backend:
         """
 
         def all_params():
-             return {k:self.params[k].__doc__ \
-                         if self.params[k].__doc__ else \
-                         '        (No help for %s available)' % (k) \
-                        for k in self.params.keys()}
+            phelp = {}
+
+            for k in self.params.keys():
+                if self.params[k].__doc__:
+                    phelp[k] = self.params[k].__doc__.lstrip().rstrip()
+                else:
+                    phelp[k] = '(No help for %s available)' % (k)
+            return phelp
 
         if not param:
             return all_params()
 
         if param in self.params.keys():
             set_method=self.params[param]
-            return set_method.__doc__ if set_method.__doc__ else "No help for '%s' is available" % param
+            return set_method.__doc__.lstrip().rstrip() if set_method.__doc__ \
+                else "No help for '%s' is available" % param
         else:
-            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" % (param, str(self.params.keys()))
+            msg = "No such parameter '%s'. Legal parameters in this mode are: %s" \
+                % (param, str(self.params.keys()))
             print 'No such parameter %s' % param
             print 'Legal parameters in this mode are:'
 
@@ -407,7 +456,11 @@ class Backend:
             kv = dict(self.status.items())
 
         if type(keys) == list or type(keys) == tuple:
-            return {key: kv[str(key)] for key in keys if str(key) in kv}
+            rd = {}
+            for key in keys:
+                if str(key) in kv:
+                    rd[key] = kv[str(key)]
+            return rd
         elif keys == None:
             return kv
         else:
@@ -467,11 +520,15 @@ class Backend:
             else:
                 # print str(k), '<-', str(v), int(str(v),0)
                 if self.roach:
-                    self.roach.write_int(str(k), int(str(v),0))
+                    old = self.roach.read_int(str(k))
+                    new = int(str(v),0)
+
+                    if new != old:
+                        self.roach.write_int(str(k), new)
 
     def progdev(self, bof = None):
         """
-        progdev(self, bof):
+        progdev(self, bof, frequency):
 
         Programs the ROACH2 with boffile 'bof'.
 
@@ -491,6 +548,8 @@ class Backend:
 
         # Some modes will not have roach set.
         if self.roach:
+            self.valon.set_frequency(0, convertToMHz(abs(self.frequency)))
+            # reply, informs = self.roach._request("progdev", 20) # deprogram roach first
             reply, informs = self.roach._request("progdev") # deprogram roach first
 
             if reply.arguments[0] != 'ok':
@@ -505,6 +564,18 @@ class Backend:
         """
         self.scan_length = length
 
+    def setSource(self, source):
+        """
+        This parameter sets the SRC_NAME shared memory value.
+        """
+        self.source = source
+
+    def setTelescope(self, telescope):
+        """
+        This parameter sets the TELESCOPE shared memory value.
+        """
+        self.telescope = telescope
+
     def setFilterBandwidth(self, fbw):
         """
         Filter bandwidth. Must be a value in [950, 1150, 1400]
@@ -516,12 +587,12 @@ class Backend:
         self.filter_bw = fbw
         return True
 
-    def setValonFrequency(self, vfreq):
-        """
-        reflects the value of the valon clock, read from the Bank Mode section
-        of the config file.
-        """
-        self.frequency = vfreq
+    # def setValonFrequency(self, vfreq):
+    #     """
+    #     reflects the value of the valon clock, read from the Bank Mode section
+    #     of the config file.
+    #     """
+    #     self.frequency = vfreq
 
     def setObserver(self, observer):
         """
@@ -625,9 +696,13 @@ class Backend:
         dest_ip_register_name = self.mode.dest_ip_register_name
         dest_port_register_name = self.mode.dest_port_register_name
 
-        self.roach.tap_start("tap0", gigbit_name, self.bank.mac_base + data_ip, data_ip, data_port)
+        self.roach.tap_start("tap0", gigbit_name,
+                             self.bank.mac_base + data_ip, data_ip, data_port)
         self.roach.write_int(dest_ip_register_name, dest_ip)
         self.roach.write_int(dest_port_register_name, dest_port)
+        regs = [gigbit_name]
+        set_arp(self.roach, regs, self.hpc_macs)
+
         return 'ok'
 
     def _wait_for_status(self, reg, expected, max_delay):

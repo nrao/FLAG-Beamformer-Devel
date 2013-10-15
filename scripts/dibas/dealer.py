@@ -48,8 +48,6 @@ class Executor(threading.Thread):
         self.args = args
         self.kwargs = kwargs
         self.return_val = None
-        print "self.args =", args
-        print "self.kwargs =", kwargs
 
     def run(self):
         self.return_val = self.method(*self.args, **self.kwargs)
@@ -76,7 +74,7 @@ class BankProxy(ZMQJSONProxyClient):
             self.url = "tcp://%s:%i" % (playerhost, playerport)
 
         ZMQJSONProxyClient.__init__(self, ctx, 'bank', self.url)
-        self.katcp = ZMQJSONProxyClient(ctx, 'bank.katcp', self.url)
+        self.roach = ZMQJSONProxyClient(ctx, 'bank.roach', self.url)
         self.valon = ZMQJSONProxyClient(ctx, 'bank.valon', self.url)
 
 
@@ -85,49 +83,123 @@ class Dealer(object):
     Dealer brings together all Player Bank objects in one script,
     allowing them to be coordinated and to operate as one instrument.
     """
-    def __init__(self):
+    def __init__(self, players = None):
         """
         Initializes a Dealer object. It does this by reading
         'dibas.conf' to determine how many BankProxy objects to create,
         then stores them in a dictionary for later use by the class.
         """
         self.ctx = zmq.Context()
-        dibas_dir = os.getenv('DIBAS_DIR')
+        self.available_players = {}
+        self.players = {}
 
-        if dibas_dir == None:
-            raise Exception("'DIBAS_DIR' is not set!")
+        if players == None:
+            dibas_dir = os.getenv('DIBAS_DIR')
 
-        config_file = dibas_dir + '/etc/config/dibas.conf'
-        config = ConfigParser.ConfigParser()
-        config.readfp(open(config_file))
-        player_list = [i.lstrip('" ,').rstrip('" ,') \
-                           for i in config.get('DEALER', 'players').lstrip('"').rstrip('"').split()]
+            if dibas_dir == None:
+                raise Exception("'DIBAS_DIR' is not set!")
 
-        self.players = {name:BankProxy(self.ctx, name) for name in player_list}
+            config_file = dibas_dir + '/etc/config/dibas.conf'
+            config = ConfigParser.ConfigParser()
+            config.readfp(open(config_file))
+            player_list = [i.lstrip('" ,').rstrip('" ,') \
+                               for i in config.get('DEALER', 'players').lstrip('"').rstrip('"').split()]
+
+            for name in player_list:
+                self.available_players[name] = BankProxy(self.ctx, name)
+        else:
+            if type(players) != dict:
+                raise Exception('Players must be in form of dict: {"Bank":"URL"}')
+            for p in players:
+                self.available_players[p] = BankProxy(self.ctx, p, players[p])
+
+        if "BANKA" in self.list_available_players():
+            self.add_active_player("BANKA")
 
     def _execute(self, function, args = (), kwargs = {}):
+        """Executes player functions serially, in the order they are fetched
+        from the self.players dictionary. Do not use for any functions
+        that take an appreciable length of time to execute.
+
+        """
         rval = {}
         for p in self.players:
-            method = self.players[p].__dict__[function]
-            rval[p] = method(*args, **kwargs)
+            try:
+                method = self.players[p].__dict__[function]
+                rval[p] = method(*args, **kwargs)
+            except AttributeError as e:
+                rval[p] = (False, "Lost connection to server for %s." % (p))
 
         return rval
 
     def _pexecute(self, function, args = (), kwargs = {}):
+        """Executes player functions concurrently. Use for any functions that
+        must be executed at a specific time, or functions that take a
+        long time to complete.
+
+        """
         rval = {}
         threads = []
 
         for p in self.players:
-            method = self.players[p].__dict__[function]
-            ex = Executor(p, method, args, kwargs)
-            threads.append(ex)
-            ex.start()
+            try:
+                method = self.players[p].__dict__[function]
+                ex = Executor(p, method, args, kwargs)
+                threads.append(ex)
+                ex.start()
+            except AttributeError as e:
+                rval[p] = (False, "Lost connection to server for %s." % (p))
 
+        # These all ran. AttributeError above causes the thread not to
+        # be created and included in 'threads'.
         for t in threads:
             t.join()
             rval[t.player] = t.return_val
 
         return rval
+
+    def list_available_players(self):
+        """
+        Lists the available players.
+        """
+        return self.available_players.keys()
+
+    def list_active_players(self):
+        """
+        Lists the players selected for use from the available player pool.
+        """
+        return self.players.keys()
+
+    def add_active_player(self, *args):
+        """
+        Adds the player(s) specified in in the argument list to the
+        active list. The arguments must be strings, the names of the
+        players:
+
+        d.add_active_player('BANKA', 'BANKB')
+        """
+        try:
+            for p in args:
+                self.players[p] = self.available_players[p]
+        except KeyError as e:
+            print e, "not in list of available players"
+        finally:
+            return self.list_active_players()
+
+    def remove_active_player(self, *args):
+        """
+        Removes the named player(s) from the active player list. The
+        player arguments must be strings:
+
+        d.remove_active_player('BANKA', 'BANKB')
+        """
+        try:
+            for p in args:
+                self.players.pop(p)
+        except KeyError as e:
+            print e, "not in list of active players."
+        finally:
+            return self.list_active_players()
 
     def set_scan_number(self, num):
         """
@@ -136,9 +208,7 @@ class Dealer(object):
         Sets the scan number to 'num'
         """
         self.scan_number = num
-        self._execute("set_scan_number", (num))
-        # for p in self.players:
-        #     self.players[p].set_scan_number(num)
+        self._execute("set_scan_number", [num])
 
     def increment_scan_number(self):
         """
@@ -148,8 +218,6 @@ class Dealer(object):
         """
         self.scan_number = self.scan_number+1
         return self._execute("increment_scan_number")
-        # for p in self.players:
-        #     self.players[p].increment_scan_number()
 
     def set_status(self, **kwargs):
         """
@@ -163,8 +231,6 @@ class Dealer(object):
         would set those two parameters.
         """
         return self._execute("set_status", kwargs = kwargs)
-        # for p in self.players:
-        #     self.players[p].set_status(**kwargs)
 
     def get_status(self, keys = None):
         """
@@ -184,14 +250,20 @@ class Dealer(object):
         * *keys is a single string:* a single value will be looked up
           and returned using 'keys' as the single key.
         """
-        return self._execute("get_status", (keys))
-        # status = {p:self.players[p].get_status(keys) for p in self.players}
+        return self._execute("get_status", [keys])
 
-        # return status
-
-    def set_mode(self, mode, force = False):
+    def list_modes(self):
         """
-        set_mode(mode, force=False)
+        list_modes():
+
+        Returns a list of modes available.
+        """
+        players = self.players.keys()
+        return self.players[players[0]].list_modes()
+
+    def set_mode(self, mode, bandwidth = False, force = False):
+        """
+        set_mode(mode, frequency = False, force=False)
 
         Sets the operating mode for the roach.  Does this by programming
         the roach.
@@ -199,6 +271,10 @@ class Dealer(object):
         *mode:* The mode name, a string; A keyword which is one of the
         '[MODEX]' sections of the configuration file, which must have
         been loaded earlier.
+
+        *frequency:* The valon frequency for this mode. If not
+         provided, last one used on this mode will be reused. The
+         value is originally specified in the config file.
 
         *force:* A boolean flag; if 'True' and the new mode is the same
         as the current mode, the mode will be reloaded. It is set to
@@ -215,9 +291,7 @@ class Dealer(object):
           rval = d.set_mode('MODE1')
           rval = d.set_mode(mode='MODE1', force=True)
         """
-        return self._pexecute("set_mode", (mode, force))
-        # results = {p:self.players[p].set_mode(mode, force) for p in self.players}
-        # return results
+        return self._pexecute("set_mode", [mode, bandwidth, force])
 
     def _all_same(self, m):
         """
@@ -237,8 +311,7 @@ class Dealer(object):
         a tuple consisting of (False, {bank:mode, bank:mode...})
         """
         m = self._execute("get_mode")
-        # m = {p:self.players[p].get_mode() for p in self.players}
-        # return self._all_same(m)
+        return self._all_same(m)
 
     def earliest_start(self):
         """
@@ -251,10 +324,16 @@ class Dealer(object):
         # TBF: player's 'earliest_start()' returns (True, (time tuple))
         # We want just the time tuple. Should throw if any player
         # returns 'False'.
-        player_starts = [self.players[p].earliest_start()[1] for p in self.players]
+        rval = self._pexecute("earliest_start")
+        player_starts = []
+
+        for p in rval:
+            if rval[p][0]: # if returned True...
+                player_starts.append(rval[p][1])
+
         player_starts.sort() # once sorted the last element is the one we seek.
         earliest_start = player_starts[-1]
-        return earliest_start
+        return datetime(*earliest_start)
 
     def start(self, starttime = None):
         """
@@ -267,10 +346,10 @@ class Dealer(object):
         """
 
         # 1. Negotiate earliest start time (UTC) with players:
-        earliest_start = datetime(*self.earliest_start())
+        earliest_start = self.earliest_start()
         # 2. Check to see if given start time is reasonable
         if starttime:
-             if earliest_start < starttime:
+             if earliest_start > starttime:
                 return (False, "Start time %s is earlier that earliest possible start time %s" % \
                             (str(starttime), str(earliset_start)))
         else:
@@ -278,16 +357,13 @@ class Dealer(object):
 
         # 3. Tell them to go!
         st = datetime_to_tuple(starttime,)
-        print "st =", st
         return self._pexecute("start", [st])
-        # return {p:self.players[p].start(datetime_to_tuple(starttime)) for p in self.players}
 
     def stop(self):
         """
         Stops a running scan, or exits monitor mode.
         """
         return self._execute("stop")
-        # return {p:self.players[p].stop() for p in self.players}
 
     def monitor(self):
         """
@@ -301,7 +377,6 @@ class Dealer(object):
         packets are arriving, 'waiting' if not.
         """
         return self._execute("monitor")
-        # return {p:self.players[p].monitor() for p in self.players}
 
     def scan_status(self):
         """
@@ -312,7 +387,6 @@ class Dealer(object):
         is the Player's name.
         """
         return self._execute("scan_status")
-        # return {p:self.players[p].scan_status() for p in self.players}
 
     def wait_for_scan(self, verbose = False):
         """
@@ -349,8 +423,6 @@ class Dealer(object):
         Perform calculations for the current set of parameter settings
         """
         return self._execute("prepare")
-        # rval = {p:self.players[p].prepare() for p in self.players}
-        # return rval
 
     def set_param(self, **kvpairs):
         """
@@ -360,9 +432,8 @@ class Dealer(object):
           d.set_param(exposure=x,switch_period=1.0, ...)
         """
         return self._execute("set_param", kwargs = kvpairs)
-        # return {p:self.players[p].set_param(**kvpairs) for p in self.players}
 
-    def help_param(self, param):
+    def help_param(self, param = None):
         """
         Returns the help doc string for a specified parameters, or a
         dictionary of parameters with their doc strings if *param* is
@@ -371,9 +442,8 @@ class Dealer(object):
         *param:* A valid parameter name.  Should be *None* if help for
          all parameters is desired.
         """
-        m = self._execute("help_param", (param))
-        # m = {p:self.players[p].help_param(param) for p in self.players}
-        return self._all_same(m)
+        m = self._execute("help_param", [param])
+        return m[m.keys()[0]]
 
     def get_param(self, param):
         """
@@ -383,8 +453,7 @@ class Dealer(object):
         *param:* A valid parameter name.  Should be *None* if values for
          all parameters is desired.
         """
-        return self._execute("help_param", (param))
-        # return {p:self.players[p].help_param(param) for p in self.players}
+        return self._execute("get_param", [param])
 
     def _check_keypress(self, expected_ch):
         """
@@ -420,7 +489,6 @@ class Dealer(object):
         resets/deletes the switching_states (backend dependent)
         """
         return  self._execute("clear_switching_states")
-        # return {p:self.players[p].clear_switching_states() for p in self.players}
 
     def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
         """
@@ -449,8 +517,7 @@ class Dealer(object):
           d.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False) # |  |   |
 
         """
-        return self_execute("add_switching_state", (duration, blank, cal, sig_ref_1))
-        # return {p:self.players[p].add_switching_state(duration, blank, cal, sig_ref_1) for p in self.players}
+        return self_execute("add_switching_state", [duration, blank, cal, sig_ref_1])
 
     def set_gbt_ss(self, period, ss_list):
         """
@@ -473,5 +540,4 @@ class Dealer(object):
                         )
 
         """
-        return self._execute("set_gbt_ss", (period, ss_list))
-        # return {p:self.players[p].set_gbt_ss(period, ss_list) for p in self.players}
+        return self._execute("set_gbt_ss", [period, ss_list])
