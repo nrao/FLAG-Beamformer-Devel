@@ -65,6 +65,11 @@ try:
 except ImportError:
     from zmq.core import ZMQError
 
+class ZMAJSONProxyException(Exception):
+   def __init__(self, message):
+        Exception.__init__(self, message)
+
+
 class ZMQJSONProxyServer(object):
 
     def __init__(self, ctx, URL):
@@ -355,7 +360,7 @@ class ZMQJSONProxyClient(object):
             repl = self._sock.recv_json()
 
             if type(repl) == dict and repl.has_key('EXCEPTION'):
-                raise Exception(repl['EXCEPTION'])
+                raise ZMQJSONProxyException(repl['EXCEPTION'])
 
             return repl
         else:
