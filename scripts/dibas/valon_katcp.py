@@ -255,8 +255,7 @@ class ValonKATCP(object):
         return reply.arguments[0] == 'ok'
 
     def set_options(self, synth, double=0, half=0, r=1, low_spur=0):
-        """
-        set_options(self, synth, double=0, half=0, r=1, low_spur=0)
+        """set_options(self, synth, double=0, half=0, r=1, low_spur=0)
 
         * *synth:* An integer, 0x00 for SYNTH_A, and 0x08 for SYNTH_B
 
@@ -266,10 +265,10 @@ class ValonKATCP(object):
 
         * *r:* Reference frequency multiplier, default = 1
 
-        * *low_spur:* Set to 1 to use 'low spur' mode, clear to use 'low
-          noise' mode. Default = 0
+        * *low_spur:* Set to 1 to use 'low spur' mode, clear to use 'low noise' mode. Default = 0
 
         Sets the synthesizer options.
+
         """
         # reply, informs = self.roach._request('valon-set-options', self.timeout,
         #                                      self._get_synth_val(synth),
@@ -280,28 +279,27 @@ class ValonKATCP(object):
         return reply.arguments[0] == 'ok'
 
     def set_ref_select(self, external):
-        """
-        set_ref_select(self, external)
+        """set_ref_select(self, external)
 
-        * *external:* External reference flag, an integer number. Set to 1
-        for external ref, 0 for internal ref.
+        * *external:* External reference flag, an integer number. Set to 1 for external ref, 0 for internal ref.
 
         Sets the reference frequency source to external or internal.
+
         """
-        reply, informs = self.roach._request('valon-set-ref-select', 
+        reply, informs = self.roach._request('valon-set-ref-select',
                                              external)
         return reply.arguments[0] == 'ok'
 
     def set_reference(self, ref_freq):
-        """
-        set_reference(self, ref_freq)
+        """set_reference(self, ref_freq)
 
         * *ref_freq:* the reference frequency being used, in Hz.
 
         Tells the Valon synthesizer module of the reference frequency
         being used.
+
         """
-        reply, informs = self.roach._request('valon-set-reference', 
+        reply, informs = self.roach._request('valon-set-reference',
                                              ref_freq)
         return reply.arguments[0] == 'ok'
 
@@ -320,7 +318,7 @@ class ValonKATCP(object):
         allowed_levels = (-4, -1, 2, 5)
 
         if rf_level in allowed_levels:
-            reply, informs = self.roach._request('valon-set-rf-level', 
+            reply, informs = self.roach._request('valon-set-rf-level',
                                                  self._get_synth_val(synth), rf_level)
             return reply.arguments[0] == 'ok'
 
@@ -338,6 +336,6 @@ class ValonKATCP(object):
 
         Sets the specified synthesizer's VCO range.
         """
-        reply, informs = self.roach._request('valon-set-vco-range', 
+        reply, informs = self.roach._request('valon-set-vco-range',
                                              self._get_synth_val(synth), low, high)
         return reply.arguments[0] == 'ok'

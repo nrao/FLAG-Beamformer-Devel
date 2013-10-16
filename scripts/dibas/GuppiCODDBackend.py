@@ -44,11 +44,16 @@ class GuppiCODDBackend(Backend):
 
     GuppiCODDBackend(theBank, theMode, theRoach, theValon, unit_test)
 
-    * *theBank:* A *BankData* object, bank data from the configuration file.
-    * *theMode:* A *ModeData* object, mode data from the configuration file
-    * *theRoach:* A *katcp_wrapper* object, the katcp client to the FPGA
-    * *theValon:* A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
-    * *unit_test:* Unit test flag; set to *True* if unit testing,
+    *theBank:*
+      A *BankData* object, bank data from the configuration file.
+    *theMode:*
+      A *ModeData* object, mode data from the configuration file
+    *theRoach:*
+      A *katcp_wrapper* object, the katcp client to the FPGA
+    *theValon:*
+      A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
+    *unit_test:*
+      Unit test flag; set to *True* if unit testing,
       *False* if not. Allows unit testing without involving the
       hardware.
     """
@@ -175,13 +180,6 @@ class GuppiCODDBackend(Backend):
         """
         self.tfold = tf
 
-    # def set_bandwidth(self, bw):
-    #     """
-    #     Sets the total bandwidth in MHz. This value should match the valon output frequency.
-    #     (The sampling rate being twice the valon frequency.)
-    #     """
-    #     self.bandwidth = bw
-
     def set_dm(self, dm):
         """
         Sets the dispersion measure for COHERENT_SEARCH mode.
@@ -289,13 +287,15 @@ class GuppiCODDBackend(Backend):
         """
         start(self, starttime = None)
 
-        starttime: a datetime object
+        starttime:
+          a datetime object
 
         --OR--
 
-        starttime: a tuple or list(for ease of JSON serialization) of
-        datetime compatible values: (year, month, day, hour, minute,
-        second, microsecond), UTC.
+        starttime:
+          a tuple or list(for ease of JSON serialization) of
+          datetime compatible values: (year, month, day, hour, minute,
+          second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
         appropriate time, based on 'starttime'.  If 'starttime' is not
@@ -552,19 +552,24 @@ class GuppiCODDBackend(Backend):
 
     def _node_rf_frequency_dep(self):
         """
-        The band is divided amoung the various nodes like so:
-         ^       ^^       ^^     ctr freq    ^^
-         |       ||       ||        ^        ||
-         +-------++-------++-----------------++--------- ...
+        The band is divided amoung the various nodes like so::
+
+          ^       ^^       ^^     ctr freq    ^^
+          |       ||       ||        ^        ||
+          +-------++-------++-----------------++--------- ...
              c0       c1            c2             c3
 
-         So to mark each node's ctr freq c0...cn:
+        So to mark each node's ctr freq c0...cn:
 
-         where:
-             rf_frequency is the center band center at the rx
-             total_bandwidth is the number of nodes * node_bandwidth of each node
-             chan_bw is the calculated number from the node_bandwidth and
-             number of node channels
+        where:
+
+        rf_frequency
+          is the center band center at the rx
+        total_bandwidth
+          is the number of nodes * node_bandwidth of each node
+        chan_bw
+          is the calculated number from the node_bandwidth and
+          number of node channels
         """
         print "_node_rf_frequency_dep()"
         print "self.rf_frequency", self.rf_frequency
