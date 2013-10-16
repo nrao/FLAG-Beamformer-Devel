@@ -462,6 +462,10 @@ class VegasBackend(Backend):
         statusdata["OBSID"    ] = DEFAULT_VALUE;
         statusdata["PKTFMT"   ] = DEFAULT_VALUE;
         statusdata["SRC_NAME" ] = DEFAULT_VALUE;
+        statusdata["RA"       ] = DEFAULT_VALUE
+        statusdata["DEC"      ] = DEFAULT_VALUE
+        statusdata["RA_STR"   ] = DEFAULT_VALUE
+        statusdata["DEC_STR"  ] = DEFAULT_VALUE
         statusdata["SUB0FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB1FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB2FREQ" ] = DEFAULT_VALUE;
@@ -483,6 +487,15 @@ class VegasBackend(Backend):
 
         statusdata["OBSERVER" ] = self.observer
         statusdata["SRC_NAME" ] = self.source
+
+        if self.source_ra_dec:
+            ra = self.source_ra_dec[0]
+            dec = self.source_ra_dec[1]
+            statusdata["RA"] = ra.degrees
+            statusdata["DEC"] = dec.degrees
+            statusdata["RA_STR"] = "%02i:%02i:%03.1f" % ra.hms
+            statusdata["DEC_STR"] = "%02i:%02i:%03.1f" % dec.hms
+
         statusdata["TELESCOP" ] = self.telescope
         statusdata["BW_MODE"  ] = "high" # mode 1
         statusdata["BOFFILE"  ] = str(self.bof_file)
@@ -523,6 +536,7 @@ class VegasBackend(Backend):
         statusdata['DATADIR'  ] = self.dataroot
         statusdata['PROJID'   ] = self.projectid
         statusdata['SCANLEN'  ] = self.scan_length
+        statusdata['CAL_FREQ' ] = self.cal_freq
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
