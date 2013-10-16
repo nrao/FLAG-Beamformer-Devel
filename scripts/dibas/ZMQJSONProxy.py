@@ -126,7 +126,7 @@ class ZMQJSONProxyServer(object):
             kwargs = message['kwargs']
             return proc(*args, **kwargs)
         except:
-            return self.formatExceptionInfo(10)
+            return {'EXCEPTION': self.formatExceptionInfo(10)}
 
     def formatExceptionInfo(self, maxTBlevel=5):
         """
@@ -353,6 +353,10 @@ class ZMQJSONProxyClient(object):
 
         if self._sock in socks and socks[self._sock] == zmq.POLLIN:
             repl = self._sock.recv_json()
+
+            if type(repl) == dict and repl.has_key('EXCEPTION'):
+                raise Exception(repl['EXCEPTION'])
+
             return repl
         else:
             print "socket timed out! Check server at %s" % self._url
