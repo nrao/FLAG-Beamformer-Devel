@@ -522,6 +522,15 @@ class GuppiBackend(Backend):
         Collect the status keywords
         """
         statusdata = {}
+
+        if self.source_ra_dec:
+            ra = self.source_ra_dec[0]
+            dec = self.source_ra_dec[1]
+            statusdata["RA"] = ra.degrees
+            statusdata["DEC"] = dec.degrees
+            statusdata["RA_STR"] = "%02i:%02i:%03.1f" % ra.hms
+            statusdata["DEC_STR"] = "%02i:%02i:%03.1f" % dec.hms
+
         statusdata['ACC_LEN' ] = self.acc_len
         statusdata["BASE_BW" ] = self.filter_bw
         statusdata["BANKNAM" ] = self.bank.name if self.bank else 'NOTSET'
@@ -555,7 +564,7 @@ class GuppiBackend(Backend):
         statusdata['OFFSET3' ] = '0.0'
         statusdata['ONLY_I'  ] = self.only_i
         statusdata['OVERLAP' ] = self.overlap
-
+        statusdata['CAL_FREQ'] = self.cal_freq
 
         statusdata['POL_TYPE'] = self.pol_type
         statusdata['PFB_OVER'] = self.pfb_overlap

@@ -12,6 +12,7 @@ import time
 from datetime import datetime, timedelta
 from i2c import I2C
 from set_arp import set_arp
+import apwlib.convert as apw
 
 ######################################################################
 # Some constants
@@ -119,6 +120,8 @@ class Backend:
         self.max_databuf_size = 128 # in MBytes
         self.observer = "unspecified"
         self.source = "unspecified"
+        self.source_ra_dec = None
+        self.cal_freq = "unspecified"
         self.telescope = "unspecified"
         self.projectid = "JUNK"
         self.datadir = self.dataroot + "/" + self.projectid
@@ -146,8 +149,10 @@ class Backend:
         self.params["noise_tone_1" ] = self.setNoiseTone1
         self.params["noise_tone_2" ] = self.setNoiseTone2
         self.params["noise_source" ] = self.setNoiseSource
+        self.params["cal_freq"     ] = self.setCalFreq
         self.params["scan_length"  ] = self.setScanLength
         self.params["source"       ] = self.setSource
+        self.params["source_ra_dec"] = self.setSourceRADec
         self.params["telescope"    ] = self.setTelescope
 
         # CODD mode is special: One roach has up to 8 interfaces, and
@@ -569,6 +574,30 @@ class Backend:
         This parameter sets the SRC_NAME shared memory value.
         """
         self.source = source
+
+    def setSourceRADec(self, radec):
+        """This parameter sets the source's RA & Dec.
+
+        Source RA/Dec may be specified as a string:
+
+           set_param(source_ra_dec="J141213.23+161252.12")
+
+        or
+
+           set_param(source_ra_dec="03:14:15.9 +26:37:10.11")
+
+        """
+        try:
+            self.source_ra_dec = apw.parseRADecString(radec)
+        except ValueError:
+            raise Exception("source_ra_dec must be specified as a string. " \
+                            "See help for this parameter for details.")
+
+    def setCalFreq(self, cal_freq):
+        """
+        This parameter records the cal on/off frequency used on the telescope, in Hz.
+        """
+        self.cal_freq = cal_freq
 
     def setTelescope(self, telescope):
         """

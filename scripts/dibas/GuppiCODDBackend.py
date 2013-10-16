@@ -601,6 +601,15 @@ class GuppiCODDBackend(Backend):
         Collect and set the status memory keywords
         """
         statusdata = {}
+
+        if self.source_ra_dec:
+            ra = self.source_ra_dec[0]
+            dec = self.source_ra_dec[1]
+            statusdata["RA"] = ra.degrees
+            statusdata["DEC"] = dec.degrees
+            statusdata["RA_STR"] = "%02i:%02i:%03.1f" % ra.hms
+            statusdata["DEC_STR"] = "%02i:%02i:%03.1f" % dec.hms
+
         statusdata['ACC_LEN'  ] = self.acc_len
         statusdata["BASE_BW"  ] = self.filter_bw
         statusdata['BLOCSIZE' ] = self.blocsize
@@ -616,7 +625,7 @@ class GuppiCODDBackend(Backend):
         statusdata['SRC_NAME' ] = self.source
         statusdata['TELESCOP' ] = self.telescope
         statusdata['SCANLEN'  ] = self.scan_length
-
+        statusdata['CAL_FREQ' ] = self.cal_freq
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len
