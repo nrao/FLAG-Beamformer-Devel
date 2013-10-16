@@ -14,6 +14,7 @@ Contents:
    introduction
    player
    dealer
+   configfile
 
 Indices and tables
 ==================

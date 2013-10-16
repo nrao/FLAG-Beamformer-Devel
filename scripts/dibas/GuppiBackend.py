@@ -9,19 +9,26 @@ from Backend import Backend
 import os
 
 class GuppiBackend(Backend):
-    """
-    A class which implements some of the GUPPI specific parameter calculations.
-    This class is specific to the Incoherent BOF designs.
+    """A class which implements some of the GUPPI specific parameter
+    calculations.  This class is specific to the Incoherent BOF designs.
 
     GuppiBackend(theBank, theMode, theRoach, theValon, unit_test)
 
-    * *theBank:* A *BankData* object, bank data from the configuration file.
-    * *theMode:* A *ModeData* object, mode data from the configuration file
-    * *theRoach:* A *katcp_wrapper* object, the katcp client to the FPGA
-    * *theValon:* A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
-    * *unit_test:* Unit test flag; set to *True* if unit testing,
+    *theBank:*
+      A *BankData* object, bank data from the configuration file.
+    *theMode:*
+      A *ModeData* object, mode data from the configuration file
+    *theRoach:*
+      A *katcp_wrapper* object, the katcp client to the FPGA
+    *theValon:*
+      A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
+    *hpc_macs:*
+      A dict of mac addresses for the HPC computers, keyed by the last octet of the IP address
+    *unit_test:*
+      Unit test flag; set to *True* if unit testing,
       *False* if not. Allows unit testing without involving the
       hardware.
+
     """
     def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
@@ -264,13 +271,15 @@ class GuppiBackend(Backend):
         """
         start(self, starttime = None)
 
-        *starttime:* a datetime object
+        *starttime:*
+          a datetime object
 
         --OR--
 
-        *starttime:* a tuple or list(for ease of JSON serialization) of
-        datetime compatible values: (year, month, day, hour, minute,
-        second, microsecond), UTC.
+        *starttime:*
+          a tuple or list(for ease of JSON serialization) of
+          datetime compatible values: (year, month, day, hour, minute,
+          second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
         appropriate time, based on *starttime*.  If *starttime* is not

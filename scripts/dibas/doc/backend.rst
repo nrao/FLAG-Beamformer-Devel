@@ -17,6 +17,9 @@ The Bank class uses a strategy pattern [strategy]_ to deal with each different B
 
 The base class provides the interface and a fair amount of common functionality (gettting/setting status memory, roach registers, etc.) The individual derived backend classes provide the functionality that must be specific to each backend.
 
+.. toctree::
+   :maxdepth: 1
+
 class Backend
 -------------
 

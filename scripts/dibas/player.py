@@ -262,6 +262,7 @@ class Bank(object):
     def increment_scan_number(self):
         """
         increment_scan_number()
+
         Increments the current scan number
         """
         self.scan_number = self.scan_number+1
@@ -308,33 +309,36 @@ class Bank(object):
         return modes
 
     def set_mode(self, mode, bandwidth = None, force = False):
-        """
-        set_mode(mode, bandwidth = None, force=False)
-
-        mode: mode name
+        """set_mode(mode, bandwidth = None, force=False)
 
         Sets the operating mode for the roach.  Does this by programming
         the roach.
 
-        mode: A string; A keyword which is one of the '[MODEX]'
-        sections of the configuration file, which must have been loaded
-        earlier.
+        *mode:*
+          A string; A keyword which is one of the '[MODEX]'
+          sections of the configuration file, which must have been loaded
+          earlier.
 
-        bandwidth: The valon bandwidth for this new mode. If not
-        specified the last value used will be reused. If no value was
-        ever provided the config file value will be used.
+        *bandwidth:*
+          The valon bandwidth for this new mode. If not
+          specified the last value used will be reused. If no value was
+          ever provided the config file value will be used.
 
-        force: A boolean flag; if 'True' and the new mode is the same as
-        the current mode, the mode will be reloaded. It is set to
-        'False' by default, in which case the new mode will not be
-        reloaded if it is already the current mode.
+        *force:*
+          A boolean flag; if 'True' and the new mode is the same as
+          the current mode, the mode will be reloaded. It is set to
+          'False' by default, in which case the new mode will not be
+          reloaded if it is already the current mode.
 
         Returns a tuple consisting of (status, 'msg') where 'status' is
         a boolean, 'True' if the mode was loaded, 'False' otherwise; and
         'msg' explains the error if any.
 
-        Example: s, msg = f.set_mode('MODE1')
-                 s, msg = f.set_mode(mode='MODE1', force=True)
+        Example::
+
+            s, msg = f.set_mode('MODE1') s, msg =
+            f.set_mode(mode='MODE1', force=True)
+
         """
         frequency = bandwidth
 
@@ -545,8 +549,9 @@ class Bank(object):
         """
         A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
 
-        Example usage:
-        help_param(exposure)
+        Example usage::
+
+          help_param(exposure)
         """
 
         if self.backend is not None:
@@ -555,17 +560,18 @@ class Bank(object):
             raise Exception("Cannot set parameters until a mode is selected")
 
     def get_param(self, name = None):
-        """
-        A pass-thru method which gets the values of a backend specific parameter.
+        """A pass-thru method which gets the values of a backend specific parameter.
 
-        Example usage:
-        get_param(exposure)
+        Example usage::
+
+          get_param(exposure)
+
         """
 
         if self.backend is not None:
             return self.backend.get_param(name)
         else:
-            raise Exception("Cannot set parameters until a mode is selected")
+            raise Exception("Cannot get parameters until a mode is selected")
 
 
     def prepare(self):
@@ -626,18 +632,22 @@ class Bank(object):
             raise Exception("Cannot clear switcvhing states until a mode has been selected")
 
     def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
-        """
-        add_switching_state(duration, blank, cal, sig):
+        """add_switching_state(duration, blank, cal, sig):
 
         Add a description of one switching phase (backend dependent).
-        Where:
-            duration is the length of this phase in seconds,
-            blank is the state of the blanking signal (True = blank, False = no blank)
-            cal is the state of the cal signal (True = cal, False = no cal)
-            sig is the state of the sig_ref signal (True = ref, false = sig)
+
+        *duration*
+          the length of this phase in seconds,
+        *blank*
+          the state of the blanking signal (True = blank, False = no blank)
+        *cal*
+          the state of the cal signal (True = cal, False = no cal)
+        *sig*
+          the state of the sig_ref signal (True = ref, false = sig)
 
         Example to set up a 8 phase signal (4-phase if blanking is not
-        considered) with blanking, cal, and sig/ref, total of 400 mS:
+        considered) with blanking, cal, and sig/ref, total of 400 mS::
+
           be = Backend(None) # no real backend needed for example
           be.clear_switching_states()
           be.add_switching_state(0.01, blank = True, cal = True, sig = True)
@@ -648,6 +658,7 @@ class Bank(object):
           be.add_switching_state(0.09, sig = True)
           be.add_switching_state(0.01, blank = True)
           be.add_switching_state(0.09)
+
         """
         if self.backend:
             return self.backend.add_switching_state(duration, blank, cal, sig_ref_1)
@@ -655,23 +666,25 @@ class Bank(object):
             raise Exception("Cannot add switching states until a mode has been selected.")
 
     def set_gbt_ss(self, period, ss_list):
-        """
-        set_gbt_ss(period, ss_list):
+        """set_gbt_ss(period, ss_list):
 
         adds a complete GBT style switching signal description.
 
-        period: The complete period length of the switching signal.
-        ss_list: A list of GBT phase components. Each component is a tuple:
-        (phase_start, sig_ref, cal, blanking_time)
-        There is one of these tuples per GBT style phase.
+        *period*
+          The complete period length of the switching signal.
+        *ss_list*
+          A list of GBT phase components. Each component is a tuple:
+          (phase_start, sig_ref, cal, blanking_time) There is one of
+          these tuples per GBT style phase.
 
-        Example:
-        b.set_gbt_ss(period = 0.1,
-                     ss_list = ((0.0, SWbits.SIG, SWbits.CALON, 0.025),
-                                (0.25, SWbits.SIG, SWbits.CALOFF, 0.025),
-                                (0.5, SWbits.REF, SWbits.CALON, 0.025),
-                                (0.75, SWbits.REF, SWbits.CALOFF, 0.025))
-                    )
+        Example::
+
+            b.set_gbt_ss(period = 0.1,
+                         ss_list = ((0.0, SWbits.SIG, SWbits.CALON, 0.025),
+                                    (0.25, SWbits.SIG, SWbits.CALOFF, 0.025),
+                                    (0.5, SWbits.REF, SWbits.CALON, 0.025),
+                                    (0.75, SWbits.REF, SWbits.CALOFF, 0.025))
+                        )
 
         """
         if self.backend:
