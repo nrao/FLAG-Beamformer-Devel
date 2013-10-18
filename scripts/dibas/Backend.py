@@ -623,7 +623,7 @@ class Backend:
 
     def setFilterBandwidth(self, fbw):
         """
-        Filter bandwidth. Must be a value in [950, 1150, 1400]
+        Filter bandwidth. Must be a value in [450, 1450, 1900]
         """
 
         if fbw not in self.filter_bw_bits:

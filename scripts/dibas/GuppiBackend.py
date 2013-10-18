@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta
 from Backend import Backend
 import os
+import apwlib.convert as apw
 
 class GuppiBackend(Backend):
     """A class which implements some of the GUPPI specific parameter
@@ -537,8 +538,8 @@ class GuppiBackend(Backend):
             dec = self.source_ra_dec[1]
             statusdata["RA"] = ra.degrees
             statusdata["DEC"] = dec.degrees
-            statusdata["RA_STR"] = "%02i:%02i:%03.1f" % ra.hms
-            statusdata["DEC_STR"] = "%02i:%02i:%03.1f" % dec.hms
+            statusdata["RA_STR"] = "%02i:%02i:%05.3f" % ra.hms
+            statusdata["DEC_STR"] = apw.degreesToString(dec.degrees)
 
         statusdata['ACC_LEN' ] = self.acc_len
         statusdata["BASE_BW" ] = self.filter_bw
