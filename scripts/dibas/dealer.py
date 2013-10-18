@@ -357,7 +357,7 @@ class Dealer(object):
         if starttime:
              if earliest_start > starttime:
                 return (False, "Start time %s is earlier that earliest possible start time %s" % \
-                            (str(starttime), str(earliset_start)))
+                            (str(starttime), str(earliest_start)))
         else:
             starttime = earliest_start
 
