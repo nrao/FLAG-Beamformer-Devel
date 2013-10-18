@@ -59,6 +59,7 @@ import types
 import inspect
 import thread
 import time
+import datetime
 
 try:
     from zmq.error import ZMQError
@@ -288,6 +289,27 @@ class ZMQJSONProxyClient(object):
         del self._sock
         del self._poller
         self._initialized = False
+
+
+    def set_request_reply_timeout(self, timeout):
+        """
+        Sets the time that a request will wait for a reply.
+        
+        timeout:
+        timeout value, in seconds
+        """
+        if type(timeout) == datetime.timedelta:
+            to = timeout.seconds
+        else:
+            to = timeout
+
+        self._time_out = to * 1000
+
+    def get_request_reply_timeout(self):
+        """
+        Gets the time that a request will wait for a reply, in seconds.
+        """
+        return self._time_out / 1000
 
     def _connect_and_register(self):
         """

@@ -32,6 +32,7 @@ import os
 import ConfigParser
 import time
 import threading
+import pytz
 
 from datetime import datetime, timedelta
 from ZMQJSONProxy import ZMQJSONProxyClient
@@ -73,7 +74,7 @@ class BankProxy(ZMQJSONProxyClient):
             playerport = config.getint(name.upper(), 'player_port')
             self.url = "tcp://%s:%i" % (playerhost, playerport)
 
-        ZMQJSONProxyClient.__init__(self, ctx, 'bank', self.url)
+        ZMQJSONProxyClient.__init__(self, ctx, 'bank', self.url, time_out = 180)
         self.roach = ZMQJSONProxyClient(ctx, 'bank.roach', self.url)
         self.valon = ZMQJSONProxyClient(ctx, 'bank.valon', self.url)
 
@@ -132,7 +133,7 @@ class Dealer(object):
 
         return rval
 
-    def _pexecute(self, function, args = (), kwargs = {}):
+    def _pexecute(self, function, expected_delay, args = (), kwargs = {}):
         """Executes player functions concurrently. Use for any functions that
         must be executed at a specific time, or functions that take a
         long time to complete.
@@ -140,13 +141,19 @@ class Dealer(object):
         """
         rval = {}
         threads = []
+        old_time_out = None
 
         for p in self.players:
             try:
+                if expected_delay:
+                    old_time_out = self.players[p].get_request_reply_timeout()
+                    self.players[p].set_request_reply_timeout(expected_delay)
+                
                 method = self.players[p].__dict__[function]
                 ex = Executor(p, method, args, kwargs)
                 threads.append(ex)
                 ex.start()
+
             except AttributeError as e:
                 rval[p] = (False, "Lost connection to server for %s." % (p))
 
@@ -155,6 +162,10 @@ class Dealer(object):
         for t in threads:
             t.join()
             rval[t.player] = t.return_val
+
+        if old_time_out:
+            for p in self.players:
+                self.players[p].set_request_reply_timeout(old_time_out)
 
         return rval
 
@@ -294,7 +305,7 @@ class Dealer(object):
           rval = d.set_mode(mode='MODE1', force=True)
 
         """
-        return self._pexecute("set_mode", [mode, bandwidth, force])
+        return self._pexecute("set_mode", 120, [mode, bandwidth, force])
 
     def _all_same(self, m):
         """
@@ -327,7 +338,7 @@ class Dealer(object):
         # TBF: player's 'earliest_start()' returns (True, (time tuple))
         # We want just the time tuple. Should throw if any player
         # returns 'False'.
-        rval = self._pexecute("earliest_start")
+        rval = self._pexecute("earliest_start", None)
         player_starts = []
 
         for p in rval:
@@ -336,7 +347,9 @@ class Dealer(object):
 
         player_starts.sort() # once sorted the last element is the one we seek.
         earliest_start = player_starts[-1]
-        return datetime(*earliest_start)
+        es = datetime(*earliest_start)
+        es = es.replace(tzinfo=pytz.utc)
+        return es
 
     def start(self, starttime = None):
         """start(self, starttime = None)
@@ -347,6 +360,15 @@ class Dealer(object):
           None, in which case the start time will be negotiated with the
           players.
 
+        **NOTE:** ``starttime`` must be an offset-aware datetime. That
+          is, it must have time-zone information set. As it must also
+          be UTC. For example::
+
+             import pytz
+             from datetime import datetime
+             s = datetime.utcnow()
+             s = s.replace(tzinfo=pytz.utc)
+
         **NOTE:** ``start()`` will abort any currently running scan and restart!
 
         """
@@ -355,15 +377,29 @@ class Dealer(object):
         earliest_start = self.earliest_start()
         # 2. Check to see if given start time is reasonable
         if starttime:
-             if earliest_start > starttime:
-                return (False, "Start time %s is earlier that earliest possible start time %s" % \
+            try:
+                if starttime.tzname() != 'UTC':
+                    raise Exception("Start time must be specified in UTC, and must have " \
+                                        "UTC time zone set. Example: import pytz; "\
+                                        "u=datetime.utcnow(); u=u.replace(tzinfo=pytz.utc")
+                if earliest_start > starttime:
+                    return (False,
+                            "Start time %s is earlier that earliest possible start time %s" % \
                             (str(starttime), str(earliest_start)))
+            except AttributeError as e:
+                raise Exception("start time provided to Dealer.start() must be a datetime.")
         else:
             starttime = earliest_start
 
+        # 3. If our start is delayed by more than the client time out
+        # value there will be trouble. Tell the client about the
+        # expected delay.
+        now = datetime.utcnow().replace(tzinfo=pytz.utc)
+        delay = starttime - now + timedelta(seconds = 30) # for good measure
+
         # 3. Tell them to go!
         st = datetime_to_tuple(starttime,)
-        return self._pexecute("start", [st])
+        return self._pexecute("start", delay, [st])
 
     def stop(self):
         """
