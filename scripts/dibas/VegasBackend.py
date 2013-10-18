@@ -8,6 +8,7 @@ import subprocess
 import time
 from datetime import datetime, timedelta
 import os
+import apwlib.convert as apw
 
 class VegasBackend(Backend):
     """
@@ -462,6 +463,10 @@ class VegasBackend(Backend):
         statusdata["OBSID"    ] = DEFAULT_VALUE;
         statusdata["PKTFMT"   ] = DEFAULT_VALUE;
         statusdata["SRC_NAME" ] = DEFAULT_VALUE;
+        statusdata["RA"       ] = DEFAULT_VALUE
+        statusdata["DEC"      ] = DEFAULT_VALUE
+        statusdata["RA_STR"   ] = DEFAULT_VALUE
+        statusdata["DEC_STR"  ] = DEFAULT_VALUE
         statusdata["SUB0FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB1FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB2FREQ" ] = DEFAULT_VALUE;
@@ -483,6 +488,15 @@ class VegasBackend(Backend):
 
         statusdata["OBSERVER" ] = self.observer
         statusdata["SRC_NAME" ] = self.source
+
+        if self.source_ra_dec:
+            ra = self.source_ra_dec[0]
+            dec = self.source_ra_dec[1]
+            statusdata["RA"] = ra.degrees
+            statusdata["DEC"] = dec.degrees
+            statusdata["RA_STR"] = "%02i:%02i:%05.3f" % ra.hms
+            statusdata["DEC_STR"] = apw.degreesToString(dec.degrees)
+
         statusdata["TELESCOP" ] = self.telescope
         statusdata["BW_MODE"  ] = "high" # mode 1
         statusdata["BOFFILE"  ] = str(self.bof_file)
@@ -523,6 +537,7 @@ class VegasBackend(Backend):
         statusdata['DATADIR'  ] = self.dataroot
         statusdata['PROJID'   ] = self.projectid
         statusdata['SCANLEN'  ] = self.scan_length
+        statusdata['CAL_FREQ' ] = self.cal_freq
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
@@ -760,111 +775,3 @@ class VegasBackend(Backend):
         os.write(fh, cmd + '\n')
         return True
 
-######################################################################
-# TBF: Make these work!
-
-def testCase1():
-    """
-    An example test case FWIW.
-    """
-    global be
-
-    be = VegasBackend(None)
-    # A few things which should come from the conf file via the bank
-    # b.bank_name='BankH'
-    be.mode = 1 ## get this from bank when bank is not None
-    be.acc_len = 768 ## from MODE config
-
-    be.clear_switching_states()
-    ssg_duration = 0.025
-    be.set_gbt_ss(ssg_duration,
-                  ((0.0, SWbits.SIG, SWbits.CALON, 0.0),
-                   (0.25, SWbits.SIG, SWbits.CALOFF, 0.0),
-                   (0.5, SWbits.REF, SWbits.CALON, 0.0),
-                   (0.75, SWbits.REF, SWbits.CALOFF, 0.0))
-                  )
-
-    be.setValonFrequency(1E9)
-    be.setPolarization('SELF')
-    be.setNumberChannels(1024) # mode 1
-    be.setFilterBandwidth(950)
-    be.setIntegrationTime(ssg_duration)
-
-    # call dependency methods and update shared memory
-    be.prepare()
-
-def testCase2():
-    """
-    An example test case from configtool setup.
-    """
-
-    global be
-
-    config = ConfigParser.ConfigParser()
-    config.readfp(open("dibas.conf"))
-    b = BankData()
-    b.load_config(config, "BANKA")
-    m = ModeData()
-    m.load_config(config, "MODE1")
-
-    be = VegasBackend(b, m, None, None, unit_test = True)
-    # A few things which should come from the conf file via the bank
-#    be.mode = 1 ## get this from bank?
-#    be.acc_len = 768 ## from MODE config
-
-    be.clear_switching_states()
-    ssg_duration = 0.1
-    be.set_gbt_ss(ssg_duration,
-                  ((0.0, SWbits.SIG, SWbits.CALON, 0.002),
-                   (0.25, SWbits.SIG, SWbits.CALOFF, 0.002),
-                   (0.5, SWbits.REF, SWbits.CALON, 0.002),
-                   (0.75, SWbits.REF, SWbits.CALOFF, 0.002))
-                  )
-
-    be.setValonFrequency(1E9)    # config file
-    be.setPolarization('SELF')
-    be.setNumberChannels(1024)   # mode 1 (config file)
-    be.setFilterBandwidth(1400) # config file?
-    be.setIntegrationTime(ssg_duration)
-
-    # call dependency methods and update shared memory
-    be.prepare()
-
-
-def testCase3():
-    """
-    Example of how to set up a VEGAS-style 8-phase switching signal of
-    duration 400mS, CAL on for 200 mS then off, and sig/ref switching
-    every 100 mS. Blanking occurs on every phase transition of CAL and
-    sig/ref.
-    """
-    global be
-    be = VegasBackend(None)
-    be.mode = 1 ## get this from bank?
-    be.acc_len = 768 ## from MODE config
-
-    be.setValonFrequency(1E9)    # config file
-    be.setPolarization('SELF')
-    be.setNumberChannels(1024)   # mode 1 (config file)
-    be.setFilterBandwidth(1150) # config file?
-    be.setIntegrationTime(0.4)
-
-    be.clear_switching_states()
-    be.add_switching_state(0.01, blank = True,  cal = True,  sig = True)
-    be.add_switching_state(0.09, blank = False, cal = True,  sig = True)
-    be.add_switching_state(0.01, blank = True,  cal = True,  sig = False)
-    be.add_switching_state(0.09, blank = False, cal = True,  sig = False)
-    be.add_switching_state(0.01, blank = True,  cal = False, sig = True)
-    be.add_switching_state(0.09, blank = False, cal = False, sig = True)
-    be.add_switching_state(0.01, blank = True,  cal = False, sig = False)
-    be.add_switching_state(0.09, blank = False, cal = False, sig = False)
-
-    # # call dependency methods and update shared memory
-    be.prepare()
-
-
-if __name__ == "__main__":
-
-    # testCase1()
-    testCase2()
-    # testCase3()

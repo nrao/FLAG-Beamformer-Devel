@@ -7,21 +7,29 @@ import time
 from datetime import datetime, timedelta
 from Backend import Backend
 import os
+import apwlib.convert as apw
 
 class GuppiBackend(Backend):
-    """
-    A class which implements some of the GUPPI specific parameter calculations.
-    This class is specific to the Incoherent BOF designs.
+    """A class which implements some of the GUPPI specific parameter
+    calculations.  This class is specific to the Incoherent BOF designs.
 
     GuppiBackend(theBank, theMode, theRoach, theValon, unit_test)
 
-    * *theBank:* A *BankData* object, bank data from the configuration file.
-    * *theMode:* A *ModeData* object, mode data from the configuration file
-    * *theRoach:* A *katcp_wrapper* object, the katcp client to the FPGA
-    * *theValon:* A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
-    * *unit_test:* Unit test flag; set to *True* if unit testing,
+    *theBank:*
+      A *BankData* object, bank data from the configuration file.
+    *theMode:*
+      A *ModeData* object, mode data from the configuration file
+    *theRoach:*
+      A *katcp_wrapper* object, the katcp client to the FPGA
+    *theValon:*
+      A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
+    *hpc_macs:*
+      A dict of mac addresses for the HPC computers, keyed by the last octet of the IP address
+    *unit_test:*
+      Unit test flag; set to *True* if unit testing,
       *False* if not. Allows unit testing without involving the
       hardware.
+
     """
     def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
@@ -264,13 +272,15 @@ class GuppiBackend(Backend):
         """
         start(self, starttime = None)
 
-        *starttime:* a datetime object
+        *starttime:*
+          a datetime object
 
         --OR--
 
-        *starttime:* a tuple or list(for ease of JSON serialization) of
-        datetime compatible values: (year, month, day, hour, minute,
-        second, microsecond), UTC.
+        *starttime:*
+          a tuple or list(for ease of JSON serialization) of
+          datetime compatible values: (year, month, day, hour, minute,
+          second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
         appropriate time, based on *starttime*.  If *starttime* is not
@@ -522,6 +532,15 @@ class GuppiBackend(Backend):
         Collect the status keywords
         """
         statusdata = {}
+
+        if self.source_ra_dec:
+            ra = self.source_ra_dec[0]
+            dec = self.source_ra_dec[1]
+            statusdata["RA"] = ra.degrees
+            statusdata["DEC"] = dec.degrees
+            statusdata["RA_STR"] = "%02i:%02i:%05.3f" % ra.hms
+            statusdata["DEC_STR"] = apw.degreesToString(dec.degrees)
+
         statusdata['ACC_LEN' ] = self.acc_len
         statusdata["BASE_BW" ] = self.filter_bw
         statusdata["BANKNAM" ] = self.bank.name if self.bank else 'NOTSET'
@@ -555,7 +574,7 @@ class GuppiBackend(Backend):
         statusdata['OFFSET3' ] = '0.0'
         statusdata['ONLY_I'  ] = self.only_i
         statusdata['OVERLAP' ] = self.overlap
-
+        statusdata['CAL_FREQ'] = self.cal_freq
 
         statusdata['POL_TYPE'] = self.pol_type
         statusdata['PFB_OVER'] = self.pfb_overlap

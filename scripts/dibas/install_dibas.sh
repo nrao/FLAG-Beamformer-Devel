@@ -2,12 +2,18 @@
 #
 # Install script specific to the DIBAS project.
 # Requirements/usage:
-# ./install_dibas $DIBAS_DIR
+# ./install_dibas $DIBAS_DIR username groupname install_name
+# ./install_dibas /opt/dibas/ dibas dibas test20131016
+
 # Where:
 #    DIBAS_DIR is the installation root (directory must exist)
+#    username is the user name for the ownership of the directory
+#    groupname is the group name to install the directory to
+#    install_name is the name of the installation directory
 #    python executable must be in current PATH
 # Error checking
-#
+#    THIS SCRIPT MUST BE RUN AS ROOT TO PROPERLY SET PERMISSIONS
+
 
 main()
 {
