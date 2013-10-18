@@ -438,6 +438,10 @@ class Dealer(object):
 
           d.set_param(exposure=x,switch_period=1.0, ...)
 
+        NOTE: set_param() will set all players the same way. To set each
+        player differently, use d (where 'd' is the dealer)
+        d.players[player].set_param() for each player.
+
         """
         return self._execute("set_param", kwargs = kvpairs)
 
