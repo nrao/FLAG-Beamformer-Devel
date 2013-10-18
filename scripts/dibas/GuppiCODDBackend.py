@@ -10,6 +10,7 @@ import os
 import sys
 import traceback
 from set_arp import set_arp
+import apwlib.convert as apw
 
 def formatExceptionInfo(maxTBlevel=5):
     """
@@ -197,15 +198,15 @@ class GuppiCODDBackend(Backend):
         """
         Sets the observing mode.
         Legal values for the currently selected mode are:
-        COHERENT_SEARCH, COHERENT_FOLD, or COHERENT_CAL
+        COHERENT_SEARCH, COHERENT_FOLD, COHERENT_CAL, and RAW
         """
         # Only coherent modes. Incoherent modes handled by 'GuppiBackend' class.
-        legalmodes = ["COHERENT_SEARCH", "COHERENT_FOLD", "COHERENT_CAL"]
+        legalmodes = ["COHERENT_SEARCH", "COHERENT_FOLD", "COHERENT_CAL", "RAW"]
         m = mode.upper()
         if m in legalmodes:
             self.obs_mode = m
         else:
-            Exception("set_obs_mode: mode must be one of %s" % str(legalmodes))
+            raise Exception("set_obs_mode: mode must be one of %s" % str(legalmodes))
 
     def set_obs_frequency(self, f):
         """
@@ -467,11 +468,10 @@ class GuppiCODDBackend(Backend):
     def _node_nchan_dep(self):
         """
         Calculates the number of channels received by this node.
+        This is always the total number of channels divided by
+        the number of nodes for coherent modes.
         """
-        if 'COHERENT' in self.obs_mode:
-            self.node_nchan = self.nchan/self.num_nodes # number of nodes
-        else:
-            self.node_nchan = self.nchan
+        self.node_nchan = self.nchan/self.num_nodes # number of nodes
 
     def _pfb_overlap_dep(self):
         """
@@ -481,16 +481,10 @@ class GuppiCODDBackend(Backend):
 
     def _pol_type_dep(self):
         """
-        Calculates the POL_TYPE status keyword.
-        Depends upon a synthetic mode name having FAST4K for that mode, otherwise
-        non-4k coherent mode is assumed.
+        Calculates the POL_TYPE status keyword.  This is always AABBCRCI for
+        coherent modes.
         """
-        if 'COHERENT' in self.obs_mode.upper():
-            self.pol_type = 'AABBCRCI'
-        elif 'FAST4K' in self.mode.name.upper():
-            self.pol_type = 'AA+BB'
-        else:
-            self.pol_type = 'IQUV'
+        self.pol_type = 'AABBCRCI'
 
     def _npol_dep(self):
         """
@@ -508,10 +502,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculations the bandwidth seen by this HPC node
         """
-        if 'COHERENT' in self.obs_mode:
-            self.node_bandwidth = self.bandwidth / self.num_nodes
-        else:
-            self.node_bandwidth = self.bandwidth
+        self.node_bandwidth = self.bandwidth / self.num_nodes
 
     def _tbin_dep(self):
         """
@@ -528,10 +519,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculates the PKTFMT status keyword
         """
-        if 'FAST4K' in self.mode.name.upper():
-            self.packet_format = 'FAST4K'
-        else:
-            self.packet_format = '1SFA'
+        self.packet_format = '1SFA'
 
 
     def _only_I_dep(self):
@@ -586,7 +574,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculate the OVERLAP, FFTLEN, and BLOCSIZE status keywords
         """
-        if 'COHERENT' in self.obs_mode:
+        if True:
             (fftlen, overlap_r, blocsize) = self.fft_size_params(self.rf_frequency,
                                                              self.bandwidth,
                                                              self.nchan,
@@ -612,8 +600,8 @@ class GuppiCODDBackend(Backend):
             dec = self.source_ra_dec[1]
             statusdata["RA"] = ra.degrees
             statusdata["DEC"] = dec.degrees
-            statusdata["RA_STR"] = "%02i:%02i:%03.1f" % ra.hms
-            statusdata["DEC_STR"] = "%02i:%02i:%03.1f" % dec.hms
+            statusdata["RA_STR"] = "%02i:%02i:%05.3f" % ra.hms
+            statusdata["DEC_STR"] = apw.degreesToString(dec.degrees)
 
         statusdata['ACC_LEN'  ] = self.acc_len
         statusdata["BASE_BW"  ] = self.filter_bw
