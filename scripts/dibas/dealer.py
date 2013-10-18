@@ -171,12 +171,12 @@ class Dealer(object):
         return self.players.keys()
 
     def add_active_player(self, *args):
-        """
-        Adds the player(s) specified in in the argument list to the
+        """Adds the player(s) specified in in the argument list to the
         active list. The arguments must be strings, the names of the
-        players:
+        players::
 
-        d.add_active_player('BANKA', 'BANKB')
+          d.add_active_player('BANKA', 'BANKB')
+
         """
         try:
             for p in args:
@@ -187,11 +187,11 @@ class Dealer(object):
             return self.list_active_players()
 
     def remove_active_player(self, *args):
-        """
-        Removes the named player(s) from the active player list. The
-        player arguments must be strings:
+        """Removes the named player(s) from the active player list. The
+        player arguments must be strings::
 
-        d.remove_active_player('BANKA', 'BANKB')
+          d.remove_active_player('BANKA', 'BANKB')
+
         """
         try:
             for p in args:
@@ -220,8 +220,7 @@ class Dealer(object):
         return self._execute("increment_scan_number")
 
     def set_status(self, **kwargs):
-        """
-        set_status(self, **kwargs)
+        """set_status(self, **kwargs)
 
         Updates the values for the keys specified in the parameter list
         as keyword value pairs. So::
@@ -229,12 +228,12 @@ class Dealer(object):
             d.set_status(PROJID='JUNK', OBS_MODE='HBW')
 
         would set those two parameters.
+
         """
         return self._execute("set_status", kwargs = kwargs)
 
     def get_status(self, keys = None):
-        """
-        get_status(keys=None)
+        """get_status(keys=None)
 
         Returns the specified key's value, or the values of several
         keys, or the entire contents of the shared memory status
@@ -249,6 +248,7 @@ class Dealer(object):
 
         * *keys is a single string:* a single value will be looked up
           and returned using 'keys' as the single key.
+
         """
         return self._execute("get_status", [keys])
 
@@ -262,24 +262,26 @@ class Dealer(object):
         return self.players[players[0]].list_modes()
 
     def set_mode(self, mode, bandwidth = False, force = False):
-        """
-        set_mode(mode, frequency = False, force=False)
+        """set_mode(mode, frequency = False, force=False)
 
         Sets the operating mode for the roach.  Does this by programming
         the roach.
 
-        *mode:* The mode name, a string; A keyword which is one of the
-        '[MODEX]' sections of the configuration file, which must have
-        been loaded earlier.
+        *mode:*
+          The mode name, a string; A keyword which is one of the
+          '[MODEX]' sections of the configuration file, which must have
+          been loaded earlier.
 
-        *frequency:* The valon frequency for this mode. If not
-         provided, last one used on this mode will be reused. The
-         value is originally specified in the config file.
+        *bandwidth:*
+           The valon frequency for this mode. If not provided,
+           last one used on this mode will be reused. The value is
+           originally specified in the config file.
 
-        *force:* A boolean flag; if 'True' and the new mode is the same
-        as the current mode, the mode will be reloaded. It is set to
-        'False' by default, in which case the new mode will not be
-        reloaded if it is already the current mode.
+        *force:*
+          A boolean flag; if 'True' and the new mode is the same
+          as the current mode, the mode will be reloaded. It is set to
+          'False' by default, in which case the new mode will not be
+          reloaded if it is already the current mode.
 
         Returns a dictionary of tuples, where the keys are the Player
         names, and the values consists of (status, 'msg') where 'status'
@@ -290,6 +292,7 @@ class Dealer(object):
 
           rval = d.set_mode('MODE1')
           rval = d.set_mode(mode='MODE1', force=True)
+
         """
         return self._pexecute("set_mode", [mode, bandwidth, force])
 
@@ -314,12 +317,12 @@ class Dealer(object):
         return self._all_same(m)
 
     def earliest_start(self):
-        """
-        earliest_start(self):
+        """earliest_start(self):
 
         Returns the earliest time that all backends can be safely
         started. This is done by querying all the backends and selecting
         the furthest starttime in the future.
+
         """
         # TBF: player's 'earliest_start()' returns (True, (time tuple))
         # We want just the time tuple. Should throw if any player
@@ -336,13 +339,16 @@ class Dealer(object):
         return datetime(*earliest_start)
 
     def start(self, starttime = None):
-        """
-        start(self, starttime = None)
+        """start(self, starttime = None)
 
-        *starttime:* a datetime with the desired start time, which should
-        be in UTC, as that is how the player will interpret it. Default
-        is None, in which case the start time will be negotiated with
-        the players.
+        *starttime:*
+          a datetime with the desired start time, which should be in
+          UTC, as that is how the player will interpret it. Default is
+          None, in which case the start time will be negotiated with the
+          players.
+
+        **NOTE:** ``start()`` will abort any currently running scan and restart!
+
         """
 
         # 1. Negotiate earliest start time (UTC) with players:
@@ -425,33 +431,36 @@ class Dealer(object):
         return self._execute("prepare")
 
     def set_param(self, **kvpairs):
-        """
-        A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
+        """A pass-thru method which conveys a backend specific parameter to the
+        modes parameter engine.
 
         Example usage::
+
           d.set_param(exposure=x,switch_period=1.0, ...)
+
         """
         return self._execute("set_param", kwargs = kvpairs)
 
     def help_param(self, param = None):
-        """
-        Returns the help doc string for a specified parameters, or a
+        """Returns the help doc string for a specified parameters, or a
         dictionary of parameters with their doc strings if *param* is
         None.
 
-        *param:* A valid parameter name.  Should be *None* if help for
-         all parameters is desired.
+        *param:*
+           A valid parameter name.  Should be *None* if help for
+           all parameters is desired.
+
         """
         m = self._execute("help_param", [param])
         return m[m.keys()[0]]
 
     def get_param(self, param):
-        """
-        Returns the value a specified parameters, or a dictionary of
+        """Returns the value a specified parameters, or a dictionary of
         parameters with their values if *param* is None.
 
         *param:* A valid parameter name.  Should be *None* if values for
          all parameters is desired.
+
         """
         return self._execute("get_param", [param])
 
@@ -491,17 +500,18 @@ class Dealer(object):
         return  self._execute("clear_switching_states")
 
     def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
-        """
-        add_switching_state(duration, blank, cal, sig_ref_1):
+        """add_switching_state(duration, blank, cal, sig_ref_1):
 
         Add a description of one switching phase (backend dependent).
 
-        Where:
-
-        * *duration* is the length of this phase in seconds,
-        * *blank* is the state of the blanking signal (True = blank, False = no blank)
-        * *cal* is the state of the cal signal (True = cal, False = no cal)
-        * *sig_ref_1* is the state of the sig_ref_1 signal (True = ref, false = sig)
+        *duration*
+          the length of this phase in seconds,
+        *blank*
+          the state of the blanking signal (True = blank, False = no blank)
+        *cal*
+          is the state of the cal signal (True = cal, False = no cal)
+        *sig_ref_1*
+          the state of the sig_ref_1 signal (True = ref, false = sig)
 
         Example to set up a 8 phase signal (4-phase if blanking is not
         considered) with blanking, cal, and sig/ref, total of 400 mS::
