@@ -8,19 +8,7 @@ import subprocess
 import time
 from datetime import datetime, timedelta
 import os
-
-def convertToMHz(f):
-    """
-    Sometimes values are expressed in Hz instead of MHz.
-    This routine assumes anything over 5000 to be in Hz.
-    """
-    f = abs(f)
-    if f > 5000:
-        return f/1E6 # Convert to MHz
-    else:
-        return f     # already in MHz
-
-
+import apwlib.convert as apw
 
 class VegasBackend(Backend):
     """
@@ -37,7 +25,7 @@ class VegasBackend(Backend):
     * *unit_test:* Set to true to unit test. Will not attempt to talk to
       roach, shared memory, etc.
     """
-    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
         Creates an instance of the vegas internals.
         """
@@ -45,7 +33,7 @@ class VegasBackend(Backend):
         # mode_number may be treated as a constant; the Player will
         # delete this backend object and create a new one on mode
         # change.
-        Backend.__init__(self, theBank, theMode, theRoach , theValon, unit_test)
+        Backend.__init__(self, theBank, theMode, theRoach , theValon, hpc_macs, unit_test)
         # Important to do this as soon as possible, so that status application
         # can change its data buffer format
         self.set_status(BACKEND='VEGAS')
@@ -59,7 +47,7 @@ class VegasBackend(Backend):
         self.setNumberChannels(self.mode.nchan)
         self.requested_integration_time = 1.0
         self.setAccLen(self.mode.acc_len)
-        self.setValonFrequency(self.mode.frequency)
+        # self.setValonFrequency(self.mode.frequency)
 
         # dependent values, computed from Parameters:
         self.nspectra = 1
@@ -78,7 +66,7 @@ class VegasBackend(Backend):
         # the status memory key/value pair dictionary
         self.sskeys = {}
         # the switching signals builder
-        self.ss = SwitchingSignals(self.frequency, self.nchan)
+        self.ss = SwitchingSignals(self.frequency * 1e6, self.nchan)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
         self.prepare()
@@ -99,6 +87,7 @@ class VegasBackend(Backend):
         This explicitly cleans up any child processes. This will be called
         by the player before deleting the backend object.
         """
+        print "VegasBackend: cleaning up hpc and fits writer."
         self.stop_hpc()
         self.stop_fits_writer()
 
@@ -188,12 +177,6 @@ class VegasBackend(Backend):
             bsource = 0 # internal
             ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
             self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
-        if self.valon:
-            f = convertToMHz(self.frequency)
-            if f > 199 and f < 2100:
-                self.valon.set_frequency(0, f)
-            else:
-                raise Exception("Valon frequency of %f is invalid" % f)
 
 
     # Algorithmic dependency methods, not normally called by a users
@@ -211,14 +194,14 @@ class VegasBackend(Backend):
         # 'MODEx' where 'x' is the number we want:
         mode = int(self.mode.name[4:])
 
-        if mode < 13:
-            self.sampler_frequency = self.frequency * 2
+        if mode < 4:
+            self.sampler_frequency = self.frequency * 1e6 * 2
             self.nsubband = 1
         else:
-            self.sampler_frequency = self.frequency / 64
+            self.sampler_frequency = self.frequency * 1e6 / 64
             self.nsubband = 8
         # calculate the fpga frequency
-        self.fpga_clock = self.frequency / 8
+        self.fpga_clock = self.frequency * 1e6 / 8
 
 
     def clear_switching_states(self):
@@ -476,10 +459,14 @@ class VegasBackend(Backend):
         statusdata["OBSFREQ"  ] = DEFAULT_VALUE;
         statusdata["OBSNCHAN" ] = DEFAULT_VALUE;
         statusdata["OBS_MODE" ] = DEFAULT_VALUE;
-        statusdata["OBSSEVER" ] = DEFAULT_VALUE;
+        statusdata["OBSERVER" ] = DEFAULT_VALUE;
         statusdata["OBSID"    ] = DEFAULT_VALUE;
         statusdata["PKTFMT"   ] = DEFAULT_VALUE;
-
+        statusdata["SRC_NAME" ] = DEFAULT_VALUE;
+        statusdata["RA"       ] = DEFAULT_VALUE
+        statusdata["DEC"      ] = DEFAULT_VALUE
+        statusdata["RA_STR"   ] = DEFAULT_VALUE
+        statusdata["DEC_STR"  ] = DEFAULT_VALUE
         statusdata["SUB0FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB1FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB2FREQ" ] = DEFAULT_VALUE;
@@ -489,6 +476,7 @@ class VegasBackend(Backend):
         statusdata["SUB6FREQ" ] = DEFAULT_VALUE;
         statusdata["SUB7FREQ" ] = DEFAULT_VALUE;
         statusdata["SWVER"    ] = DEFAULT_VALUE;
+        statusdata["TELESCOP" ] = DEFAULT_VALUE;
 
         # add in the config file default keywords; being defaults they
         # may be overridden below.
@@ -499,6 +487,17 @@ class VegasBackend(Backend):
             statusdata[x] = y
 
         statusdata["OBSERVER" ] = self.observer
+        statusdata["SRC_NAME" ] = self.source
+
+        if self.source_ra_dec:
+            ra = self.source_ra_dec[0]
+            dec = self.source_ra_dec[1]
+            statusdata["RA"] = ra.degrees
+            statusdata["DEC"] = dec.degrees
+            statusdata["RA_STR"] = "%02i:%02i:%05.3f" % ra.hms
+            statusdata["DEC_STR"] = apw.degreesToString(dec.degrees)
+
+        statusdata["TELESCOP" ] = self.telescope
         statusdata["BW_MODE"  ] = "high" # mode 1
         statusdata["BOFFILE"  ] = str(self.bof_file)
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
@@ -512,14 +511,14 @@ class VegasBackend(Backend):
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
         statusdata["NSUBBAND" ] = self.nsubband
-        statusdata["SUB0FREQ" ] = self.frequency / 2
-        statusdata["SUB1FREQ" ] = self.frequency / 2
-        statusdata["SUB2FREQ" ] = self.frequency / 2
-        statusdata["SUB3FREQ" ] = self.frequency / 2
-        statusdata["SUB4FREQ" ] = self.frequency / 2
-        statusdata["SUB5FREQ" ] = self.frequency / 2
-        statusdata["SUB6FREQ" ] = self.frequency / 2
-        statusdata["SUB7FREQ" ] = self.frequency / 2
+        statusdata["SUB0FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB1FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB2FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB3FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB4FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB5FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB6FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB7FREQ" ] = self.frequency * 1e6 / 2
 
         statusdata["BASE_BW"  ] = self.filter_bw # From MODE
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'
@@ -538,6 +537,7 @@ class VegasBackend(Backend):
         statusdata['DATADIR'  ] = self.dataroot
         statusdata['PROJID'   ] = self.projectid
         statusdata['SCANLEN'  ] = self.scan_length
+        statusdata['CAL_FREQ' ] = self.cal_freq
 
         for i in range(8):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
@@ -590,16 +590,10 @@ class VegasBackend(Backend):
         exception is thrown.
         """
 
-        if self.hpc_process is None:
-            self.start_hpc()
-        if self.fits_writer_process is None:
-            self.start_fits_writer()
-
         self.stop() # stop any possible monitor mode first. Monitor mode
                     # harmless, but keeps things straight here.
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
-        max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
 
         if starttime:
             if type(starttime) == tuple or type(starttime) == list:
@@ -620,10 +614,19 @@ class VegasBackend(Backend):
             starttime = earliest_start
 
         self.start_time = starttime
-
-        print "self.starttime =", self.start_time
-        # everything OK now, starttime is valid, go through the start procedure.
+        max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
         print now, starttime, max_delay
+        # if simulating, just sleep until start time and return
+        if self.test_mode:
+            sleeptime = self.start_time - now
+            sleep(sleeptime.seconds)
+            return (True, "Successfully started roach for starttime=%s" % str(self.start_time))
+
+        # everything OK now, starttime is valid, go through the start procedure.
+        if self.hpc_process is None:
+            self.start_hpc()
+        if self.fits_writer_process is None:
+            self.start_fits_writer()
 
         # The CODD bof's don't have a status register
         if not self.mode.cdd_mode:
@@ -730,22 +733,31 @@ class VegasBackend(Backend):
         if self.fits_writer_process is None:
             return False # Nothing to do
 
-        # First ask nicely
-        self.fits_writer_process.communicate("quit\n")
-        # Kill if necessary
-        if self.fits_writer_process.poll() == None:
-            # still running, try once more
+        try:
+            # First ask nicely
             self.fits_writer_process.communicate("quit\n")
             time.sleep(1)
+            # Kill if necessary
+            if self.fits_writer_process.poll() == None:
+                # still running, try once more
+                self.fits_writer_process.terminate()
+                time.sleep(1)
 
-            if self.fits_writer_process.poll() is not None:
-                killed = True
+                if self.fits_writer_process.poll() is not None:
+                    killed = True
+                else:
+                    self.fits_writer_process.kill()
+                    killed = True;
             else:
-                self.fits_writer_process.communicate()
-                killed = True;
-        else:
+                killed = False
+            self.fits_writer_process = None
+        except OSError, e:
+            print "While killing child process:", e
             killed = False
-        self.fits_writer_process = None
+        finally:
+            del self.hpc_process
+            self.hpc_process = None
+
         return killed
 
     def fits_writer_cmd(self, cmd):
@@ -763,111 +775,3 @@ class VegasBackend(Backend):
         os.write(fh, cmd + '\n')
         return True
 
-######################################################################
-# TBF: Make these work!
-
-def testCase1():
-    """
-    An example test case FWIW.
-    """
-    global be
-
-    be = VegasBackend(None)
-    # A few things which should come from the conf file via the bank
-    # b.bank_name='BankH'
-    be.mode = 1 ## get this from bank when bank is not None
-    be.acc_len = 768 ## from MODE config
-
-    be.clear_switching_states()
-    ssg_duration = 0.025
-    be.set_gbt_ss(ssg_duration,
-                  ((0.0, SWbits.SIG, SWbits.CALON, 0.0),
-                   (0.25, SWbits.SIG, SWbits.CALOFF, 0.0),
-                   (0.5, SWbits.REF, SWbits.CALON, 0.0),
-                   (0.75, SWbits.REF, SWbits.CALOFF, 0.0))
-                  )
-
-    be.setValonFrequency(1E9)
-    be.setPolarization('SELF')
-    be.setNumberChannels(1024) # mode 1
-    be.setFilterBandwidth(950)
-    be.setIntegrationTime(ssg_duration)
-
-    # call dependency methods and update shared memory
-    be.prepare()
-
-def testCase2():
-    """
-    An example test case from configtool setup.
-    """
-
-    global be
-
-    config = ConfigParser.ConfigParser()
-    config.readfp(open("dibas.conf"))
-    b = BankData()
-    b.load_config(config, "BANKA")
-    m = ModeData()
-    m.load_config(config, "MODE1")
-
-    be = VegasBackend(b, m, None, None, unit_test = True)
-    # A few things which should come from the conf file via the bank
-#    be.mode = 1 ## get this from bank?
-#    be.acc_len = 768 ## from MODE config
-
-    be.clear_switching_states()
-    ssg_duration = 0.1
-    be.set_gbt_ss(ssg_duration,
-                  ((0.0, SWbits.SIG, SWbits.CALON, 0.002),
-                   (0.25, SWbits.SIG, SWbits.CALOFF, 0.002),
-                   (0.5, SWbits.REF, SWbits.CALON, 0.002),
-                   (0.75, SWbits.REF, SWbits.CALOFF, 0.002))
-                  )
-
-    be.setValonFrequency(1E9)    # config file
-    be.setPolarization('SELF')
-    be.setNumberChannels(1024)   # mode 1 (config file)
-    be.setFilterBandwidth(1400) # config file?
-    be.setIntegrationTime(ssg_duration)
-
-    # call dependency methods and update shared memory
-    be.prepare()
-
-
-def testCase3():
-    """
-    Example of how to set up a VEGAS-style 8-phase switching signal of
-    duration 400mS, CAL on for 200 mS then off, and sig/ref switching
-    every 100 mS. Blanking occurs on every phase transition of CAL and
-    sig/ref.
-    """
-    global be
-    be = VegasBackend(None)
-    be.mode = 1 ## get this from bank?
-    be.acc_len = 768 ## from MODE config
-
-    be.setValonFrequency(1E9)    # config file
-    be.setPolarization('SELF')
-    be.setNumberChannels(1024)   # mode 1 (config file)
-    be.setFilterBandwidth(1150) # config file?
-    be.setIntegrationTime(0.4)
-
-    be.clear_switching_states()
-    be.add_switching_state(0.01, blank = True,  cal = True,  sig = True)
-    be.add_switching_state(0.09, blank = False, cal = True,  sig = True)
-    be.add_switching_state(0.01, blank = True,  cal = True,  sig = False)
-    be.add_switching_state(0.09, blank = False, cal = True,  sig = False)
-    be.add_switching_state(0.01, blank = True,  cal = False, sig = True)
-    be.add_switching_state(0.09, blank = False, cal = False, sig = True)
-    be.add_switching_state(0.01, blank = True,  cal = False, sig = False)
-    be.add_switching_state(0.09, blank = False, cal = False, sig = False)
-
-    # # call dependency methods and update shared memory
-    be.prepare()
-
-
-if __name__ == "__main__":
-
-    # testCase1()
-    testCase2()
-    # testCase3()

@@ -30,6 +30,12 @@ import threading
 import zmq
 from ZMQJSONProxy import ZMQJSONProxyServer, ZMQJSONProxyClient
 from nose import with_setup
+import random
+
+try:
+    from zmq.error import ZMQError
+except ImportError:
+    from zmq.core import ZMQError
 
 class Foo:
     def cat(self):
@@ -56,8 +62,23 @@ class Foo:
         """
         return x + y
 
+    def long_delay(self, delay):
+        """
+        waits 'delay' seconds before returning.
+        """
+        time.sleep(delay)
+        return delay
 
-url = "inproc://beautiful_unique_sparklepony"
+
+def get_ephemeral_port():
+    f=open('/proc/sys/net/ipv4/ip_local_port_range', 'r')
+    lines = f.readlines()
+    f.close()
+    pts = [int(p) for p in lines[0].rstrip().split('\t')]
+    return random.randint(*pts)
+
+url = ""
+
 proxy = None
 foo = None
 ctx = zmq.Context()
@@ -65,8 +86,17 @@ ctx = zmq.Context()
 def setup_zmq_server():
     global proxy
     global foo
+    global url
+    fail = True
 
-    proxy = ZMQJSONProxyServer(ctx, url)
+    while fail:
+        try:
+            url = "tcp://127.0.0.1:" + str(get_ephemeral_port())
+            proxy = ZMQJSONProxyServer(ctx, url)
+            fail = False
+        except ZMQError:
+            pass
+
     foo = Foo()
     proxy.expose("foo", foo)
 
@@ -142,7 +172,7 @@ def test_ZMQ_Proxy_Interface():
     assert frog_ret == "rivet!"
 
     list_ret.sort() # Ensure they are in the order test thinks they are
-    assert len(list_ret) == 4 # 4 functions: cat, dog, frog, add_two
+    assert len(list_ret) == 5 # 5 functions: cat, dog, frog, add_two, long_delay
     # test for function name & doc string
     assert 'add_two' in list_ret[0]
     assert 'Adds two' in list_ret[0][1]

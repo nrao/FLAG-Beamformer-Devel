@@ -9,6 +9,8 @@ from Backend import Backend
 import os
 import sys
 import traceback
+from set_arp import set_arp
+import apwlib.convert as apw
 
 def formatExceptionInfo(maxTBlevel=5):
     """
@@ -43,15 +45,20 @@ class GuppiCODDBackend(Backend):
 
     GuppiCODDBackend(theBank, theMode, theRoach, theValon, unit_test)
 
-    * *theBank:* A *BankData* object, bank data from the configuration file.
-    * *theMode:* A *ModeData* object, mode data from the configuration file
-    * *theRoach:* A *katcp_wrapper* object, the katcp client to the FPGA
-    * *theValon:* A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
-    * *unit_test:* Unit test flag; set to *True* if unit testing,
+    *theBank:*
+      A *BankData* object, bank data from the configuration file.
+    *theMode:*
+      A *ModeData* object, mode data from the configuration file
+    *theRoach:*
+      A *katcp_wrapper* object, the katcp client to the FPGA
+    *theValon:*
+      A *ValonKATCP* object, the interface to the ROACH's Valon synthesizer
+    *unit_test:*
+      Unit test flag; set to *True* if unit testing,
       *False* if not. Allows unit testing without involving the
       hardware.
     """
-    def __init__(self, theBank, theMode, theRoach, theValon, unit_test = False):
+    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False):
         """
         Creates an instance of the class.
         """
@@ -62,9 +69,9 @@ class GuppiCODDBackend(Backend):
         # this HPC does control a roach in other modes.
 
         if theMode.cdd_master_hpc == theBank.name:
-            Backend.__init__(self, theBank, theMode, theRoach, theValon, unit_test)
+            Backend.__init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test)
         else:
-            Backend.__init__(self, theBank, theMode, None, None, unit_test)
+            Backend.__init__(self, theBank, theMode, None, None, None, unit_test)
 
         # This needs to happen on construction so that status monitors can
         # change their data buffer format.
@@ -75,7 +82,7 @@ class GuppiCODDBackend(Backend):
         self.scale_p0 = 1.0
         self.scale_p1 = 1.0
         self.only_i = 0
-        self.set_bandwidth(1500)
+        self.bandwidth = self.frequency
         self.dm = 0.0
         self.rf_frequency = 1430.0
         self.overlap = 0
@@ -98,7 +105,7 @@ class GuppiCODDBackend(Backend):
         self.parfile = 'example.par'
         self.datadir = '/lustre/gbtdata/JUNK' # Needs integration with projectid
         # register set methods
-        self.params["bandwidth"         ] = self.set_bandwidth
+#        self.params["bandwidth"         ] = self.set_bandwidth
         self.params["dm"                ] = self.set_dm
         self.params["integration_time"  ] = self.set_integration_time
         self.params["nbin"              ] = self.set_nbin
@@ -123,6 +130,12 @@ class GuppiCODDBackend(Backend):
             self.set_param('scale_p0', float(self.mode.roach_kvpairs['SCALE_P0']))
         if 'SCALE_P1' in self.mode.roach_kvpairs.keys():
             self.set_param('scale_p1', float(self.mode.roach_kvpairs['SCALE_P1']))
+
+        if self.hpc_process is None:
+            self.start_hpc()
+
+        if self.cdd_master():
+            self.arm_roach()
 
     def cdd_master(self):
         """
@@ -168,13 +181,6 @@ class GuppiCODDBackend(Backend):
         """
         self.tfold = tf
 
-    def set_bandwidth(self, bw):
-        """
-        Sets the total bandwidth in MHz. This value should match the valon output frequency.
-        (The sampling rate being twice the valon frequency.)
-        """
-        self.bandwidth = bw
-
     def set_dm(self, dm):
         """
         Sets the dispersion measure for COHERENT_SEARCH mode.
@@ -192,15 +198,15 @@ class GuppiCODDBackend(Backend):
         """
         Sets the observing mode.
         Legal values for the currently selected mode are:
-        COHERENT_SEARCH, COHERENT_FOLD, or COHERENT_CAL
+        COHERENT_SEARCH, COHERENT_FOLD, COHERENT_CAL, and RAW
         """
         # Only coherent modes. Incoherent modes handled by 'GuppiBackend' class.
-        legalmodes = ["COHERENT_SEARCH", "COHERENT_FOLD", "COHERENT_CAL"]
+        legalmodes = ["COHERENT_SEARCH", "COHERENT_FOLD", "COHERENT_CAL", "RAW"]
         m = mode.upper()
         if m in legalmodes:
             self.obs_mode = m
         else:
-            Exception("set_obs_mode: mode must be one of %s" % str(legalmodes))
+            raise Exception("set_obs_mode: mode must be one of %s" % str(legalmodes))
 
     def set_obs_frequency(self, f):
         """
@@ -261,36 +267,36 @@ class GuppiCODDBackend(Backend):
         self._npol_dep()
         self._tfold_dep()
         self._node_rf_frequency_dep()
+        self._dm_dep()
         self._fft_params_dep()
 
         self._set_status_keys()
         self.set_if_bits()
 
-        if self.hpc_process is None:
-            self.start_hpc()
-            time.sleep(5)
         if self.cdd_master():
             self.set_registers()
             # program I2C: input filters, noise source, noise or tone
             self.set_if_bits()
-            self.arm_roach()
 
     def earliest_start(self):
         now = datetime.utcnow()
-        earliest_start = self.round_second_up(now + self.mode.needed_arm_delay + timedelta(seconds=2))
+        earliest_start = self.round_second_up(
+            now + self.mode.needed_arm_delay + timedelta(seconds=2))
         return earliest_start
 
     def start(self, starttime):
         """
         start(self, starttime = None)
 
-        starttime: a datetime object
+        starttime:
+          a datetime object
 
         --OR--
 
-        starttime: a tuple or list(for ease of JSON serialization) of
-        datetime compatible values: (year, month, day, hour, minute,
-        second, microsecond), UTC.
+        starttime:
+          a tuple or list(for ease of JSON serialization) of
+          datetime compatible values: (year, month, day, hour, minute,
+          second, microsecond), UTC.
 
         Sets up the system for a measurement and kicks it off at the
         appropriate time, based on 'starttime'.  If 'starttime' is not
@@ -307,9 +313,6 @@ class GuppiCODDBackend(Backend):
         signal. At that time it wakes up and arms the ROACH. The ROACH
         should then send the initial packet at that time.
         """
-
-        if self.hpc_process is None:
-            self.start_hpc()
 
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
@@ -331,9 +334,18 @@ class GuppiCODDBackend(Backend):
             starttime = earliest_start
 
         self.start_time = starttime
-        # everything OK now, starttime is valid, go through the start procedure.
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
         print now, starttime, max_delay
+
+        # if simulating, just sleep until start time and return
+        if self.test_mode:
+            sleeptime = self.start_time - now
+            sleep(sleeptime.seconds)
+            return (True, "Successfully started roach for starttime=%s" % str(self.start_time))
+
+        # everything OK now, starttime is valid, go through the start procedure.
+        if self.hpc_process is None:
+            self.start_hpc()
 
         self.hpc_cmd('START')
         status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
@@ -440,14 +452,26 @@ class GuppiCODDBackend(Backend):
         else:
             self.ds_freq = 1
 
+    def _dm_dep(self):
+        """
+        Read DM from the parfile if COHERENT_FOLD mode, otherwise keep
+        the user-set value.
+        """
+        if self.obs_mode.upper() == "COHERENT_FOLD":
+            if self.parfile is not None:
+                if self.parfile[0] == '/':
+                    full_parfile = self.parfile
+                else:
+                    full_parfile = '%s/%s' % (self.pardir, self.parfile)
+                self.dm = self.dm_from_parfile(full_parfile)
+
     def _node_nchan_dep(self):
         """
         Calculates the number of channels received by this node.
+        This is always the total number of channels divided by
+        the number of nodes for coherent modes.
         """
-        if 'COHERENT' in self.obs_mode:
-            self.node_nchan = self.nchan/self.num_nodes # number of nodes
-        else:
-            self.node_nchan = self.nchan
+        self.node_nchan = self.nchan/self.num_nodes # number of nodes
 
     def _pfb_overlap_dep(self):
         """
@@ -457,16 +481,10 @@ class GuppiCODDBackend(Backend):
 
     def _pol_type_dep(self):
         """
-        Calculates the POL_TYPE status keyword.
-        Depends upon a synthetic mode name having FAST4K for that mode, otherwise
-        non-4k coherent mode is assumed.
+        Calculates the POL_TYPE status keyword.  This is always AABBCRCI for
+        coherent modes.
         """
-        if 'COHERENT' in self.obs_mode.upper():
-            self.pol_type = 'AABBCRCI'
-        elif 'FAST4K' in self.mode.name.upper():
-            self.pol_type = 'AA+BB'
-        else:
-            self.pol_type = 'IQUV'
+        self.pol_type = 'AABBCRCI'
 
     def _npol_dep(self):
         """
@@ -484,10 +502,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculations the bandwidth seen by this HPC node
         """
-        if 'COHERENT' in self.obs_mode:
-            self.node_bandwidth = self.bandwidth / self.num_nodes
-        else:
-            self.node_bandwidth = self.bandwidth
+        self.node_bandwidth = self.bandwidth / self.num_nodes
 
     def _tbin_dep(self):
         """
@@ -504,10 +519,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculates the PKTFMT status keyword
         """
-        if 'FAST4K' in self.mode.name.upper():
-            self.packet_format = 'FAST4K'
-        else:
-            self.packet_format = '1SFA'
+        self.packet_format = '1SFA'
 
 
     def _only_I_dep(self):
@@ -524,24 +536,36 @@ class GuppiCODDBackend(Backend):
         """
         Calculates the bandwidth seen by this HPC node
         """
-        self.node_bandwidth =  self.bandwidth/self.num_nodes
+        self.node_bandwidth =  float(self.bandwidth) / float(self.num_nodes)
 
     def _node_rf_frequency_dep(self):
         """
-        The band is divided amoung the various nodes like so:
-         ^       ^^       ^^     ctr freq    ^^
-         |       ||       ||        ^        ||
-         +-------++-------++-----------------++--------- ...
+        The band is divided amoung the various nodes like so::
+
+          ^       ^^       ^^     ctr freq    ^^
+          |       ||       ||        ^        ||
+          +-------++-------++-----------------++--------- ...
              c0       c1            c2             c3
 
-         So to mark each node's ctr freq c0...cn:
+        So to mark each node's ctr freq c0...cn:
 
-         where:
-             rf_frequency is the center band center at the rx
-             total_bandwidth is the number of nodes * node_bandwidth of each node
-             chan_bw is the calculated number from the node_bandwidth and
-             number of node channels
+        where:
+
+        rf_frequency
+          is the center band center at the rx
+        total_bandwidth
+          is the number of nodes * node_bandwidth of each node
+        chan_bw
+          is the calculated number from the node_bandwidth and
+          number of node channels
         """
+        print "_node_rf_frequency_dep()"
+        print "self.rf_frequency", self.rf_frequency
+        print "self.bandwidth", self.bandwidth
+        print "self.node_number", self.node_number
+        print "self.node_bandwidth", self.node_bandwidth
+        print "self.chan_bw", self.chan_bw
+
         self.node_rf_frequency = self.rf_frequency - self.bandwidth/2.0 + \
                                  self.node_number * self.node_bandwidth + \
                                  0.5*self.node_bandwidth - self.chan_bw/2.0
@@ -550,7 +574,7 @@ class GuppiCODDBackend(Backend):
         """
         Calculate the OVERLAP, FFTLEN, and BLOCSIZE status keywords
         """
-        if 'COHERENT' in self.obs_mode:
+        if True:
             (fftlen, overlap_r, blocsize) = self.fft_size_params(self.rf_frequency,
                                                              self.bandwidth,
                                                              self.nchan,
@@ -570,20 +594,31 @@ class GuppiCODDBackend(Backend):
         Collect and set the status memory keywords
         """
         statusdata = {}
-        statusdata['ACC_LEN' ] = self.acc_len
-        statusdata["BASE_BW" ] = self.filter_bw
-        statusdata['BLOCSIZE'] = self.blocsize
-        statusdata['BANKNUM' ] = self.node_number
+
+        if self.source_ra_dec:
+            ra = self.source_ra_dec[0]
+            dec = self.source_ra_dec[1]
+            statusdata["RA"] = ra.degrees
+            statusdata["DEC"] = dec.degrees
+            statusdata["RA_STR"] = "%02i:%02i:%05.3f" % ra.hms
+            statusdata["DEC_STR"] = apw.degreesToString(dec.degrees)
+
+        statusdata['ACC_LEN'  ] = self.acc_len
+        statusdata["BASE_BW"  ] = self.filter_bw
+        statusdata['BLOCSIZE' ] = self.blocsize
+        statusdata['BANKNUM'  ] = self.node_number
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOTSET'
-        statusdata['CHAN_DM' ] = self.dm
-        statusdata['CHAN_BW' ] = self.chan_bw
+        statusdata['CHAN_DM'  ] = self.dm
+        statusdata['CHAN_BW'  ] = self.chan_bw
         statusdata["DATAHOST" ] = self.datahost;
         statusdata["DATAPORT" ] = self.dataport;
-        statusdata['DATADIR' ] = self.dataroot
-        statusdata['PROJID'  ] = self.projectid
-        statusdata['OBSERVER'] = self.observer
-        statusdata['SCANLEN' ] = self.scan_length
-
+        statusdata['DATADIR'  ] = self.dataroot
+        statusdata['PROJID'   ] = self.projectid
+        statusdata['OBSERVER' ] = self.observer
+        statusdata['SRC_NAME' ] = self.source
+        statusdata['TELESCOP' ] = self.telescope
+        statusdata['SCANLEN'  ] = self.scan_length
+        statusdata['CAL_FREQ' ] = self.cal_freq
 
         statusdata['DS_TIME' ] = self.ds_time
         statusdata['FFTLEN'  ] = self.fft_len
@@ -631,8 +666,6 @@ class GuppiCODDBackend(Backend):
         if not self.cdd_master():
             return
 
-        if self.valon:
-            self.valon.set_frequency(0, abs(self.bandwidth))
         regs = {}
         regs['SCALE_P0'] = int(self.scale_p0 * 65536)
         regs['SCALE_P1'] = int(self.scale_p1 * 65536)
@@ -640,6 +673,23 @@ class GuppiCODDBackend(Backend):
         #regs['FFT_SHIFT'] = 0xaaaaaaaa (Set by config file)
 
         self.set_register(**regs)
+
+    # From guppi2_utils.py
+    def dm_from_parfile(self,parfile):
+        """
+        dm_from_parfile(self,parfile):
+            Read DM value out of a parfile and return it.
+        """
+        pf = open(parfile, 'r')
+        for line in pf:
+            fields = line.split()
+            key = fields[0]
+            val = fields[1]
+            if key == 'DM':
+                pf.close()
+                return float(val)
+        pf.close()
+        return 0.0
 
 
     # Straight out of guppi2_utils.py massaged to fit in:
@@ -732,5 +782,9 @@ class GuppiCODDBackend(Backend):
                 dest_port = self.mode.cdd_hpc_ip_info[i][1]
                 self.roach.write_int(ip_reg, dest_ip)
                 self.roach.write_int(pt_reg, dest_port)
+
+            # now set up the arp tables:
+            regs = [gigbit_name + '%i' % i for i in range(len(self.mode.cdd_roach_ips))]
+            set_arp(self.roach, regs, self.hpc_macs)
 
         return 'ok'

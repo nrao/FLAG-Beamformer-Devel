@@ -32,6 +32,7 @@ import os
 import ConfigParser
 import time
 import threading
+import pytz
 
 from datetime import datetime, timedelta
 from ZMQJSONProxy import ZMQJSONProxyClient
@@ -48,8 +49,6 @@ class Executor(threading.Thread):
         self.args = args
         self.kwargs = kwargs
         self.return_val = None
-        print "self.args =", args
-        print "self.kwargs =", kwargs
 
     def run(self):
         self.return_val = self.method(*self.args, **self.kwargs)
@@ -75,8 +74,8 @@ class BankProxy(ZMQJSONProxyClient):
             playerport = config.getint(name.upper(), 'player_port')
             self.url = "tcp://%s:%i" % (playerhost, playerport)
 
-        ZMQJSONProxyClient.__init__(self, ctx, 'bank', self.url)
-        self.katcp = ZMQJSONProxyClient(ctx, 'bank.katcp', self.url)
+        ZMQJSONProxyClient.__init__(self, ctx, 'bank', self.url, time_out = 180)
+        self.roach = ZMQJSONProxyClient(ctx, 'bank.roach', self.url)
         self.valon = ZMQJSONProxyClient(ctx, 'bank.valon', self.url)
 
 
@@ -85,49 +84,133 @@ class Dealer(object):
     Dealer brings together all Player Bank objects in one script,
     allowing them to be coordinated and to operate as one instrument.
     """
-    def __init__(self):
+    def __init__(self, players = None):
         """
         Initializes a Dealer object. It does this by reading
         'dibas.conf' to determine how many BankProxy objects to create,
         then stores them in a dictionary for later use by the class.
         """
         self.ctx = zmq.Context()
-        dibas_dir = os.getenv('DIBAS_DIR')
+        self.available_players = {}
+        self.players = {}
 
-        if dibas_dir == None:
-            raise Exception("'DIBAS_DIR' is not set!")
+        if players == None:
+            dibas_dir = os.getenv('DIBAS_DIR')
 
-        config_file = dibas_dir + '/etc/config/dibas.conf'
-        config = ConfigParser.ConfigParser()
-        config.readfp(open(config_file))
-        player_list = [i.lstrip('" ,').rstrip('" ,') \
-                           for i in config.get('DEALER', 'players').lstrip('"').rstrip('"').split()]
+            if dibas_dir == None:
+                raise Exception("'DIBAS_DIR' is not set!")
 
-        self.players = {name:BankProxy(self.ctx, name) for name in player_list}
+            config_file = dibas_dir + '/etc/config/dibas.conf'
+            config = ConfigParser.ConfigParser()
+            config.readfp(open(config_file))
+            player_list = [i.lstrip('" ,').rstrip('" ,') \
+                               for i in config.get('DEALER', 'players').lstrip('"').rstrip('"').split()]
+
+            for name in player_list:
+                self.available_players[name] = BankProxy(self.ctx, name)
+        else:
+            if type(players) != dict:
+                raise Exception('Players must be in form of dict: {"Bank":"URL"}')
+            for p in players:
+                self.available_players[p] = BankProxy(self.ctx, p, players[p])
+
+        if "BANKA" in self.list_available_players():
+            self.add_active_player("BANKA")
 
     def _execute(self, function, args = (), kwargs = {}):
+        """Executes player functions serially, in the order they are fetched
+        from the self.players dictionary. Do not use for any functions
+        that take an appreciable length of time to execute.
+
+        """
         rval = {}
         for p in self.players:
-            method = self.players[p].__dict__[function]
-            rval[p] = method(*args, **kwargs)
+            try:
+                method = self.players[p].__dict__[function]
+                rval[p] = method(*args, **kwargs)
+            except AttributeError as e:
+                rval[p] = (False, "Lost connection to server for %s." % (p))
 
         return rval
 
-    def _pexecute(self, function, args = (), kwargs = {}):
+    def _pexecute(self, function, expected_delay, args = (), kwargs = {}):
+        """Executes player functions concurrently. Use for any functions that
+        must be executed at a specific time, or functions that take a
+        long time to complete.
+
+        """
         rval = {}
         threads = []
+        old_time_out = None
 
         for p in self.players:
-            method = self.players[p].__dict__[function]
-            ex = Executor(p, method, args, kwargs)
-            threads.append(ex)
-            ex.start()
+            try:
+                if expected_delay:
+                    old_time_out = self.players[p].get_request_reply_timeout()
+                    self.players[p].set_request_reply_timeout(expected_delay)
+                
+                method = self.players[p].__dict__[function]
+                ex = Executor(p, method, args, kwargs)
+                threads.append(ex)
+                ex.start()
 
+            except AttributeError as e:
+                rval[p] = (False, "Lost connection to server for %s." % (p))
+
+        # These all ran. AttributeError above causes the thread not to
+        # be created and included in 'threads'.
         for t in threads:
             t.join()
             rval[t.player] = t.return_val
 
+        if old_time_out:
+            for p in self.players:
+                self.players[p].set_request_reply_timeout(old_time_out)
+
         return rval
+
+    def list_available_players(self):
+        """
+        Lists the available players.
+        """
+        return self.available_players.keys()
+
+    def list_active_players(self):
+        """
+        Lists the players selected for use from the available player pool.
+        """
+        return self.players.keys()
+
+    def add_active_player(self, *args):
+        """Adds the player(s) specified in in the argument list to the
+        active list. The arguments must be strings, the names of the
+        players::
+
+          d.add_active_player('BANKA', 'BANKB')
+
+        """
+        try:
+            for p in args:
+                self.players[p] = self.available_players[p]
+        except KeyError as e:
+            print e, "not in list of available players"
+        finally:
+            return self.list_active_players()
+
+    def remove_active_player(self, *args):
+        """Removes the named player(s) from the active player list. The
+        player arguments must be strings::
+
+          d.remove_active_player('BANKA', 'BANKB')
+
+        """
+        try:
+            for p in args:
+                self.players.pop(p)
+        except KeyError as e:
+            print e, "not in list of active players."
+        finally:
+            return self.list_active_players()
 
     def set_scan_number(self, num):
         """
@@ -136,9 +219,7 @@ class Dealer(object):
         Sets the scan number to 'num'
         """
         self.scan_number = num
-        self._execute("set_scan_number", (num))
-        # for p in self.players:
-        #     self.players[p].set_scan_number(num)
+        self._execute("set_scan_number", [num])
 
     def increment_scan_number(self):
         """
@@ -148,12 +229,9 @@ class Dealer(object):
         """
         self.scan_number = self.scan_number+1
         return self._execute("increment_scan_number")
-        # for p in self.players:
-        #     self.players[p].increment_scan_number()
 
     def set_status(self, **kwargs):
-        """
-        set_status(self, **kwargs)
+        """set_status(self, **kwargs)
 
         Updates the values for the keys specified in the parameter list
         as keyword value pairs. So::
@@ -161,14 +239,12 @@ class Dealer(object):
             d.set_status(PROJID='JUNK', OBS_MODE='HBW')
 
         would set those two parameters.
+
         """
         return self._execute("set_status", kwargs = kwargs)
-        # for p in self.players:
-        #     self.players[p].set_status(**kwargs)
 
     def get_status(self, keys = None):
-        """
-        get_status(keys=None)
+        """get_status(keys=None)
 
         Returns the specified key's value, or the values of several
         keys, or the entire contents of the shared memory status
@@ -183,27 +259,40 @@ class Dealer(object):
 
         * *keys is a single string:* a single value will be looked up
           and returned using 'keys' as the single key.
-        """
-        return self._execute("get_status", (keys))
-        # status = {p:self.players[p].get_status(keys) for p in self.players}
 
-        # return status
-
-    def set_mode(self, mode, force = False):
         """
-        set_mode(mode, force=False)
+        return self._execute("get_status", [keys])
+
+    def list_modes(self):
+        """
+        list_modes():
+
+        Returns a list of modes available.
+        """
+        players = self.players.keys()
+        return self.players[players[0]].list_modes()
+
+    def set_mode(self, mode, bandwidth = False, force = False):
+        """set_mode(mode, frequency = False, force=False)
 
         Sets the operating mode for the roach.  Does this by programming
         the roach.
 
-        *mode:* The mode name, a string; A keyword which is one of the
-        '[MODEX]' sections of the configuration file, which must have
-        been loaded earlier.
+        *mode:*
+          The mode name, a string; A keyword which is one of the
+          '[MODEX]' sections of the configuration file, which must have
+          been loaded earlier.
 
-        *force:* A boolean flag; if 'True' and the new mode is the same
-        as the current mode, the mode will be reloaded. It is set to
-        'False' by default, in which case the new mode will not be
-        reloaded if it is already the current mode.
+        *bandwidth:*
+           The valon frequency for this mode. If not provided,
+           last one used on this mode will be reused. The value is
+           originally specified in the config file.
+
+        *force:*
+          A boolean flag; if 'True' and the new mode is the same
+          as the current mode, the mode will be reloaded. It is set to
+          'False' by default, in which case the new mode will not be
+          reloaded if it is already the current mode.
 
         Returns a dictionary of tuples, where the keys are the Player
         names, and the values consists of (status, 'msg') where 'status'
@@ -214,10 +303,9 @@ class Dealer(object):
 
           rval = d.set_mode('MODE1')
           rval = d.set_mode(mode='MODE1', force=True)
+
         """
-        return self._pexecute("set_mode", (mode, force))
-        # results = {p:self.players[p].set_mode(mode, force) for p in self.players}
-        # return results
+        return self._pexecute("set_mode", 120, [mode, bandwidth, force])
 
     def _all_same(self, m):
         """
@@ -237,57 +325,87 @@ class Dealer(object):
         a tuple consisting of (False, {bank:mode, bank:mode...})
         """
         m = self._execute("get_mode")
-        # m = {p:self.players[p].get_mode() for p in self.players}
-        # return self._all_same(m)
+        return self._all_same(m)
 
     def earliest_start(self):
-        """
-        earliest_start(self):
+        """earliest_start(self):
 
         Returns the earliest time that all backends can be safely
         started. This is done by querying all the backends and selecting
         the furthest starttime in the future.
+
         """
         # TBF: player's 'earliest_start()' returns (True, (time tuple))
         # We want just the time tuple. Should throw if any player
         # returns 'False'.
-        player_starts = [self.players[p].earliest_start()[1] for p in self.players]
+        rval = self._pexecute("earliest_start", None)
+        player_starts = []
+
+        for p in rval:
+            if rval[p][0]: # if returned True...
+                player_starts.append(rval[p][1])
+
         player_starts.sort() # once sorted the last element is the one we seek.
         earliest_start = player_starts[-1]
-        return earliest_start
+        es = datetime(*earliest_start)
+        es = es.replace(tzinfo=pytz.utc)
+        return es
 
     def start(self, starttime = None):
-        """
-        start(self, starttime = None)
+        """start(self, starttime = None)
 
-        *starttime:* a datetime with the desired start time, which should
-        be in UTC, as that is how the player will interpret it. Default
-        is None, in which case the start time will be negotiated with
-        the players.
+        *starttime:*
+          a datetime with the desired start time, which should be in
+          UTC, as that is how the player will interpret it. Default is
+          None, in which case the start time will be negotiated with the
+          players.
+
+        **NOTE:** ``starttime`` must be an offset-aware datetime. That
+          is, it must have time-zone information set. As it must also
+          be UTC. For example::
+
+             import pytz
+             from datetime import datetime
+             s = datetime.utcnow()
+             s = s.replace(tzinfo=pytz.utc)
+
+        **NOTE:** ``start()`` will abort any currently running scan and restart!
+
         """
 
         # 1. Negotiate earliest start time (UTC) with players:
-        earliest_start = datetime(*self.earliest_start())
+        earliest_start = self.earliest_start()
         # 2. Check to see if given start time is reasonable
         if starttime:
-             if earliest_start < starttime:
-                return (False, "Start time %s is earlier that earliest possible start time %s" % \
-                            (str(starttime), str(earliset_start)))
+            try:
+                if starttime.tzname() != 'UTC':
+                    raise Exception("Start time must be specified in UTC, and must have " \
+                                        "UTC time zone set. Example: import pytz; "\
+                                        "u=datetime.utcnow(); u=u.replace(tzinfo=pytz.utc")
+                if earliest_start > starttime:
+                    return (False,
+                            "Start time %s is earlier that earliest possible start time %s" % \
+                            (str(starttime), str(earliest_start)))
+            except AttributeError as e:
+                raise Exception("start time provided to Dealer.start() must be a datetime.")
         else:
             starttime = earliest_start
 
+        # 3. If our start is delayed by more than the client time out
+        # value there will be trouble. Tell the client about the
+        # expected delay.
+        now = datetime.utcnow().replace(tzinfo=pytz.utc)
+        delay = starttime - now + timedelta(seconds = 30) # for good measure
+
         # 3. Tell them to go!
         st = datetime_to_tuple(starttime,)
-        print "st =", st
-        return self._pexecute("start", [st])
-        # return {p:self.players[p].start(datetime_to_tuple(starttime)) for p in self.players}
+        return self._pexecute("start", delay, [st])
 
     def stop(self):
         """
         Stops a running scan, or exits monitor mode.
         """
         return self._execute("stop")
-        # return {p:self.players[p].stop() for p in self.players}
 
     def monitor(self):
         """
@@ -301,7 +419,6 @@ class Dealer(object):
         packets are arriving, 'waiting' if not.
         """
         return self._execute("monitor")
-        # return {p:self.players[p].monitor() for p in self.players}
 
     def scan_status(self):
         """
@@ -312,7 +429,6 @@ class Dealer(object):
         is the Player's name.
         """
         return self._execute("scan_status")
-        # return {p:self.players[p].scan_status() for p in self.players}
 
     def wait_for_scan(self, verbose = False):
         """
@@ -349,42 +465,44 @@ class Dealer(object):
         Perform calculations for the current set of parameter settings
         """
         return self._execute("prepare")
-        # rval = {p:self.players[p].prepare() for p in self.players}
-        # return rval
 
     def set_param(self, **kvpairs):
-        """
-        A pass-thru method which conveys a backend specific parameter to the modes parameter engine.
+        """A pass-thru method which conveys a backend specific parameter to the
+        modes parameter engine.
 
         Example usage::
+
           d.set_param(exposure=x,switch_period=1.0, ...)
+
+        NOTE: set_param() will set all players the same way. To set each
+        player differently, use d (where 'd' is the dealer)
+        d.players[player].set_param() for each player.
+
         """
         return self._execute("set_param", kwargs = kvpairs)
-        # return {p:self.players[p].set_param(**kvpairs) for p in self.players}
 
-    def help_param(self, param):
-        """
-        Returns the help doc string for a specified parameters, or a
+    def help_param(self, param = None):
+        """Returns the help doc string for a specified parameters, or a
         dictionary of parameters with their doc strings if *param* is
         None.
 
-        *param:* A valid parameter name.  Should be *None* if help for
-         all parameters is desired.
+        *param:*
+           A valid parameter name.  Should be *None* if help for
+           all parameters is desired.
+
         """
-        m = self._execute("help_param", (param))
-        # m = {p:self.players[p].help_param(param) for p in self.players}
-        return self._all_same(m)
+        m = self._execute("help_param", [param])
+        return m[m.keys()[0]]
 
     def get_param(self, param):
-        """
-        Returns the value a specified parameters, or a dictionary of
+        """Returns the value a specified parameters, or a dictionary of
         parameters with their values if *param* is None.
 
         *param:* A valid parameter name.  Should be *None* if values for
          all parameters is desired.
+
         """
-        return self._execute("help_param", (param))
-        # return {p:self.players[p].help_param(param) for p in self.players}
+        return self._execute("get_param", [param])
 
     def _check_keypress(self, expected_ch):
         """
@@ -420,20 +538,20 @@ class Dealer(object):
         resets/deletes the switching_states (backend dependent)
         """
         return  self._execute("clear_switching_states")
-        # return {p:self.players[p].clear_switching_states() for p in self.players}
 
     def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
-        """
-        add_switching_state(duration, blank, cal, sig_ref_1):
+        """add_switching_state(duration, blank, cal, sig_ref_1):
 
         Add a description of one switching phase (backend dependent).
 
-        Where:
-
-        * *duration* is the length of this phase in seconds,
-        * *blank* is the state of the blanking signal (True = blank, False = no blank)
-        * *cal* is the state of the cal signal (True = cal, False = no cal)
-        * *sig_ref_1* is the state of the sig_ref_1 signal (True = ref, false = sig)
+        *duration*
+          the length of this phase in seconds,
+        *blank*
+          the state of the blanking signal (True = blank, False = no blank)
+        *cal*
+          is the state of the cal signal (True = cal, False = no cal)
+        *sig_ref_1*
+          the state of the sig_ref_1 signal (True = ref, false = sig)
 
         Example to set up a 8 phase signal (4-phase if blanking is not
         considered) with blanking, cal, and sig/ref, total of 400 mS::
@@ -449,8 +567,7 @@ class Dealer(object):
           d.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False) # |  |   |
 
         """
-        return self_execute("add_switching_state", (duration, blank, cal, sig_ref_1))
-        # return {p:self.players[p].add_switching_state(duration, blank, cal, sig_ref_1) for p in self.players}
+        return self_execute("add_switching_state", [duration, blank, cal, sig_ref_1])
 
     def set_gbt_ss(self, period, ss_list):
         """
@@ -473,5 +590,4 @@ class Dealer(object):
                         )
 
         """
-        return self._execute("set_gbt_ss", (period, ss_list))
-        # return {p:self.players[p].set_gbt_ss(period, ss_list) for p in self.players}
+        return self._execute("set_gbt_ss", [period, ss_list])

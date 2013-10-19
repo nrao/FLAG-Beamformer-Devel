@@ -2,12 +2,18 @@
 #
 # Install script specific to the DIBAS project.
 # Requirements/usage:
-# ./install_dibas $DIBAS_DIR
+# ./install_dibas $DIBAS_DIR username groupname install_name
+# ./install_dibas /opt/dibas/ dibas dibas test20131016
+
 # Where:
 #    DIBAS_DIR is the installation root (directory must exist)
+#    username is the user name for the ownership of the directory
+#    groupname is the group name to install the directory to
+#    install_name is the name of the installation directory
 #    python executable must be in current PATH
 # Error checking
-#
+#    THIS SCRIPT MUST BE RUN AS ROOT TO PROPERLY SET PERMISSIONS
+
 
 main()
 {
@@ -161,7 +167,7 @@ install_vegas_daq()
     for i in  \
         vegas_hpc/src/check_vegas_status \
         vegas_hpc/src/check_vegas_databuf \
-        vegas_hpc/src/clean_vegas_shmem ;
+        vegas_hpc/src/clean_vegas_shmem;
     do
         if [ -x  $i ]; then
             j=`basename $i`
@@ -172,6 +178,19 @@ install_vegas_daq()
                 install -o $2 -g $3 -m 6755 $i $1/bin/x86_64-linux
                 echo "$j installed suid $2"
             fi
+        else
+            echo "$i doesn't exist"
+            g=`dirname $i`
+            echo "cd to $g and run make first"
+        fi
+    done
+    for i in  \
+	    vegas_data_monitor/vegasdm;
+    do
+        if [ -x  $i ]; then
+            j=`basename $i`
+            install -o $2 -g $3 -m 6755 $i $1/bin/x86_64-linux
+            echo "$j installed suid $2"
         else
             echo "$i doesn't exist"
             g=`dirname $i`

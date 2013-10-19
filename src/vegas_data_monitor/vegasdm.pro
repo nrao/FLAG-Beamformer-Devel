@@ -1,6 +1,6 @@
 CONFIG += debug thread
 
-CONFIG(debug, debug|release) {
+CONFIG(release, debug|release) {
     TARGET = debugvegasdm
 } else {
     TARGET = vegasdm
@@ -10,12 +10,11 @@ unix {
     HARDWARE_PLATFORM = $$system(uname -i)
     contains( HARDWARE_PLATFORM, x86_64 ) {
         ARCH = x86_64-linux
-        QWTHOME = /home/gbt1/RH664/qwt-6.0.1
-    } else {
-        ARCH = i386-linux
-        QWTHOME = /home/gbt1/RH532/qwt-5.1.2
+        QWTHOME = /opt/dibas/dibaslibs/qwt-6.0.1
     }
 }
+
+DIBASHOME = /opt/dibas
 
 TEMPLATE = app
 
@@ -25,9 +24,9 @@ INCLUDEPATH += .
 
 INCLUDEPATH += $$QWTHOME/include
 
-INCLUDEPATH += /home/gbt1/RH664/include
+INCLUDEPATH += $$DIBASHOME/dibaslibs/include
 
-LIBS += /home/gbt1/RH664/lib/libkatcp.a
+LIBS += $$DIBASHOME/dibaslibs/lib/libkatcp.a
 
 LIBS += -L$$QWTHOME/lib -lqwt
 

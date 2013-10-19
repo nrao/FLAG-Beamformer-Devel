@@ -102,23 +102,18 @@ bool _get_config(ConfigData &d)
         catch (ConfigFile::Exception e)
         {
 
-            fn = getenv("YGOR_TELESCOPE");
+	  fn = getenv("DIBAS_DIR");
 
-            if (fn.empty())
+	  try
             {
-                fn = getenv("DIBAS_DIR");
+	      fn += "/etc/config/vegasdm.conf";
+	      cout << "Trying config file: " << fn << endl;
+	      cf.Load(fn);
             }
-
-            try
+	  catch (ConfigFile::Exception e)
             {
-                fn += "/etc/config/vegasdm.conf";
-                cout << "Trying config file: " << fn << endl;
-                cf.Load(fn);
-            }
-            catch (ConfigFile::Exception e)
-            {
-                cerr << "_get_config() encountered an exception: " << e.what() << endl;
-                return false;
+	      cerr << "_get_config() encountered an exception: " << e.what() << endl;
+	      return false;
             }
         }
     }
@@ -132,23 +127,14 @@ bool _get_config(ConfigData &d)
         cf.Get("subsystems", sub_sys);
         string subdeviceA = "BankAMgr";
 
-        if (d.source == "accessor")
-        {
-            for (vector<int>::iterator i = sub_sys.begin(); i != sub_sys.end(); ++i)
-            {
-                string subdev = subdeviceA;
-                subdev[4] += *i - 1;
-                d.devices.push_back(subdev);
-            }
-        }
-        else if (d.source == "katcp") // katcp we want 'vegasr2-1,
-                                      // vegasr2-2' etc.
+	if (d.source == "katcp") // katcp we want 'dibasr2-1,
+                                 // dibas2-2' etc.
         {
             for (vector<int>::iterator i = sub_sys.begin(); i != sub_sys.end(); ++i)
             {
                 char buf[12];
 
-                snprintf(buf, 12, "vegasr2-%i", *i);
+                snprintf(buf, 12, "dibasr2-%i", *i);
                 d.devices.push_back(buf);
             }
         }
@@ -182,7 +168,7 @@ bool _get_config(ConfigData &d)
 void _get_default_config(ConfigData &d)
 
 {
-    d.source = "accessor";
+    d.source = "katcp";
     d.manual_scaling = false;
     d.ymin = 0.0;
     d.ymax = 0.0;

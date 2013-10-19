@@ -33,14 +33,14 @@ import socket
 from datetime import datetime, timedelta
 
 def _hostname_to_ip(hostname):
-    """
-    _hostname_to_ip(hostname)
+    """_hostname_to_ip(hostname)
 
     Takes a hostname string and returns an IP address string::
 
-    ip = _hostname_to_ip('vegasr2-1')
-    print(ip)
-    10.17.0.64
+      ip = _hostname_to_ip('vegasr2-1')
+      print(ip)
+      10.17.0.64
+
     """
     try:
         rval = socket.gethostbyaddr(hostname)[2][0]
@@ -53,11 +53,11 @@ def _ip_string_to_int(ip):
     """_ip_string_to_int(ip)
 
     Takes an IP address in string representation and returns an integer
-    representation:
+    representation::
 
-    iip = _ip_string_to_int('10.17.0.51')
-    print(hex(iip))
-    0x0A110040
+      iip = _ip_string_to_int('10.17.0.51')
+      print(hex(iip))
+      0x0A110040
 
     """
     try:
@@ -68,15 +68,15 @@ def _ip_string_to_int(ip):
     return rval
 
 class AutoVivification(dict):
-    """
-    Implementation of perl's autovivification feature. This allows a
+    """Implementation of perl's autovivification feature. This allows a
     blank dictionary (one with value '{}') to be initialized using
-    multiple keys at once:
+    multiple keys at once::
 
-    d = {}
-    d['foo']['bar'] = 'baz'
+      d = {}
+      d['foo']['bar'] = 'baz'
 
     (see http://stackoverflow.com/questions/651794/whats-the-best-way-to-initialize-a-dict-of-dicts-in-python)
+
     """
     def __getitem__(self, item):
         try:
@@ -86,10 +86,10 @@ class AutoVivification(dict):
             return value
 
 class ConfigData(object):
-    """
-    A common base class for data read out of a config file using
+    """A common base class for data read out of a config file using
     ConfigParser. It's main purpose is to serve as a common area for
     helper functions.
+
     """
 
     def __init__(self):
@@ -102,12 +102,14 @@ class ConfigData(object):
         self._mandatory_mode = False
 
     def read_kv_pairs(self, config, section, kvkey):
-        """
-        read_kv_pairs(self, config, section, kvkey)
+        """read_kv_pairs(self, config, section, kvkey)
 
-        *config:* an open ConfigParser object
-        *section:* the name of a section in the config file
-        *kvkey:* the key of keys
+        *config:*
+          an open ConfigParser object
+        *section:*
+          the name of a section in the config file
+        *kvkey:*
+          the key of keys
 
         returns: A dictionary of kv pairs, empty if *kvkey* is not
         there, or if it doesn't have any value, or if any of the values
@@ -135,6 +137,7 @@ class ConfigData(object):
         as implied in this example, is to store these values in shared
         status memory. Another use is to read register/value pairs to be
         directly written to the FPGA.
+
         """
         keys_string = self._get_string(section, kvkey)
 
@@ -158,16 +161,19 @@ class ConfigData(object):
         return kvpairs
 
     def _get_value(self, section, key, val_type):
-        """
-        _get_value(self, config, section, key, val_type)
+        """_get_value(self, config, section, key, val_type)
 
         Helper function that looks for 'key' in 'config' and returns the
         requested value as type 'val_type', or None if that is not
         possible or the key or value doesn't exist.
 
-        *section:* the name of a section in the config file
-        *key:* the key
-        *val_type:* The desired value type. May be str, int, or float.
+        *section:*
+          the name of a section in the config file
+        *key:*
+          the key
+        *val_type:*
+          The desired value type. May be str, int, or float.
+
         """
         try:
             if val_type == str:
@@ -194,38 +200,43 @@ class ConfigData(object):
         return val
 
     def _get_string(self, section, key):
-        """
-        get_string(section, key)
+        """get_string(section, key)
 
         Returns a value of type string, or None if that is not
         possible. The string is cleaned up: leading and trailing '"'
         characters and whitespaces are removed.
 
-        *section:* the name of a section in the config file
-        *key:* the key
+        *section:*
+          the name of a section in the config file
+        *key:*
+          the key
 
         """
         return self._get_value(section, key, str)
 
     def _get_int(self, section, key):
-        """
-        get_int(section, key)
+        """get_int(section, key)
 
         Returns a value of type int, or None if that is not possible.
 
-        *section:* the name of a section in the config file
-        *key:* the key
+        *section:*
+          the name of a section in the config file
+        *key:*
+          the key
+
         """
         return self._get_value(section, key, int)
 
     def _get_float(self, section, key):
-        """
-        get_float(section, key)
+        """get_float(section, key)
 
         Returns a value of type float, or None if that is not possible.
 
-        *section:* the name of a section in the config file
-        *key:* the key
+        *section:*
+          the name of a section in the config file
+        *key:*
+          the key
+
         """
         return self._get_value(section, key, float)
 
@@ -236,8 +247,10 @@ class ConfigData(object):
         value in the config file should be one of 'true'|'false' (of any
         character case combination of this), or 0 or 1.
 
-        *section:* the name of a section in the config file
-        *key:* the key
+        *section:*
+          the name of a section in the config file
+        *key:*
+          the key
 
         """
         return self._get_value(section, key, bool)
@@ -316,28 +329,28 @@ class BankData(ConfigData):
         """
 
     def __repr__(self):
-        return "BankData (name=%s, has_roach=%s, datahost=%s, dataport=%i, dest_ip=%s," \
-               "dest_port=%i, " \
-               "katcp_ip=%s, katcp_port=%i, synth=%s, synth_port=%s, synth_ref=%i, " \
-               "synth_ref_freq=%i, synth_vco_range=%s, synth_rf_level=%i, " \
-               "synth_options=%s, mac_base=%i, shmkvpairs=%s, roach_kvpairs=%s, " \
+        return "BankData (name=%s, has_roach=%s, datahost=%s, dataport=%s, dest_ip=%s," \
+               "dest_port=%s, " \
+               "katcp_ip=%s, katcp_port=%s, synth=%s, synth_port=%s, synth_ref=%s, " \
+               "synth_ref_freq=%s, synth_vco_range=%s, synth_rf_level=%s, " \
+               "synth_options=%s, mac_base=%s, shmkvpairs=%s, roach_kvpairs=%s, " \
                "i_am_master=%s)" \
             % (self.name,
                self.has_roach,
                self.datahost,
-               self.dataport,
-               self.dest_ip,
-               self.dest_port,
+               str(self.dataport),
+               str(self.dest_ip),
+               str(self.dest_port),
                self.katcp_ip,
-               self.katcp_port,
+               str(self.katcp_port),
                self.synth,
                self.synth_port,
-               self.synth_ref,
-               self.synth_ref_freq,
+               str(self.synth_ref),
+               str(self.synth_ref_freq),
                str(self.synth_vco_range),
-               self.synth_rf_level,
+               str(self.synth_rf_level),
                str(self.synth_options),
-               self.mac_base,
+               str(self.mac_base),
                str(self.shmkvpairs),
                str(self.roach_kvpairs),
                str(self.i_am_master))
@@ -449,16 +462,20 @@ class ModeData(ConfigData):
           0x00,0x00,0x00,0x0E,0x00,0x00
 
         The order of the elements is as follows, where 'm' is master,
-        's' is slave, 'int' is internal, and 'ext' is external:
+        's' is slave, 'int' is internal, and 'ext' is external::
 
           m/int/int, m/int/ext, m/ext/ext, s/int/int, s/int/ext, s/ext/ext
 
         A typical use would be: ``ssg_ms_sel =
         self.name.master_slave_sels[master][ss_source][bl_source]``
-        where *master* is the master flag (0=slave, 1=master),
-        *ss_source* is the switching signal source (0=internal or
-        1=external), and *bl_source* is the blanking source (0=internal
-        or 1=external)
+        where:
+
+        *master*
+          is the master flag (0=slave, 1=master),
+        *ss_source*
+          is the switching signal source (0=internal or 1=external), and
+        *bl_source*
+          is the blanking source (0=internal or 1=external)
         """
         self.needed_arm_delay = 0
         """
@@ -473,7 +490,7 @@ class ModeData(ConfigData):
         roach. The CoDD roach has 8 of these. This is a dictionary,
         keyed by bank name::
 
-        datahost = self.cdd_roach_ips[bankname]
+          datahost = self.cdd_roach_ips[bankname]
 
         """
         self.cdd_hpcs = []

@@ -11,8 +11,10 @@ Contents:
 .. toctree::
    :maxdepth: 1
 
+   introduction
    player
    dealer
+   configfile
 
 Indices and tables
 ==================

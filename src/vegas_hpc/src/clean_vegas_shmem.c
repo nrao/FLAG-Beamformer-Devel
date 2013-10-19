@@ -17,6 +17,7 @@
 int main(int argc, char *argv[]) {
     int rv,ex=0;
 
+#if 0 
     /* Status shared mem, force unlock first */
     struct vegas_status s;
     sem_unlink(VEGAS_STATUS_SEMID);
@@ -38,11 +39,12 @@ int main(int argc, char *argv[]) {
         perror("sem_unlink");
         ex=1;
     }
+#endif
 
     /* Databuf shared mem */
     struct vegas_databuf *d=NULL;
     int i = 0;
-    for (i=1; i<=2; i++) {
+    for (i=1; i<=3; i++) {
         d = vegas_databuf_attach(i); // Repeat for however many needed ..
         if (d==NULL) continue;
         if (d->semid) { 
