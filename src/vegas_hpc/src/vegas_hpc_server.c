@@ -65,6 +65,27 @@ int check_thread_exit(struct vegas_thread_args *args, int nthread) {
     return(rv);
 }
 
+// keyword listing and default values.
+struct KeywordValues keywords[] =
+{
+    { "net_thread_mask", 0x0 },
+    { "pfb_thread_mask",   0x0 },
+    { "accum_thread_mask",  0x0 },
+    { "psrfits_thread_mask", 0x0 },
+    { "sdfits_thread_mask", 0x0 },    
+    { "rawdisk_thread_mask", 0x0 },
+    { "null_thread_mask", 0x0 },
+    
+    { "net_thread_priority", 0x0 },
+    { "pfb_thread_priority",   0x0 },
+    { "accum_thread_priority", 0x0  },
+    { "sdfits_thread_priority",  0x0 },
+    { "psrfits_thread_priority", 0x0 },
+    { "rawdisk_thread_priority", 0x0 },
+    { "null_thread_priority", 0x0 },
+    { NULL, 0x0 },
+};
+
 #define NET_THREAD 0
 
 #define HBW_ACCUM_THREAD 1
@@ -164,18 +185,25 @@ void start_lbw_mode(struct vegas_thread_args *args, pthread_t *ids)
 {
     // TODO error checking...
     int rv;
+    mask_to_cpuset(&args[NET_THREAD].cpuset, get_config_key_value("net_thread_mask", keywords));
     rv = pthread_create(&ids[NET_THREAD], NULL, vegas_net_thread, (void*)&args[NET_THREAD]);
+    mask_to_cpuset(&args[LBW_PFB_THREAD].cpuset, get_config_key_value("pfb_thread_mask", keywords));
     rv = pthread_create(&ids[LBW_PFB_THREAD], NULL, vegas_pfb_thread, (void*)&args[LBW_PFB_THREAD]);
+    mask_to_cpuset(&args[LBW_ACCUM_THREAD].cpuset, get_config_key_value("accum_thread_mask", keywords));
     rv = pthread_create(&ids[LBW_ACCUM_THREAD], NULL, vegas_accum_thread, (void*)&args[LBW_ACCUM_THREAD]);
 #ifdef RAW_DISK
+    mask_to_cpuset(&args[LBW_DISK_THREAD].cpuset, get_config_key_value("rawdisk_thread_mask", keywords));
     rv = pthread_create(&ids[LBW_DISK_THREAD], NULL, vegas_rawdisk_thread, (void *)&args[LBW_DISK_THREAD]);
 #elif defined NULL_DISK
+    mask_to_cpuset(&args[LBW_DISK_THREAD].cpuset, get_config_key_value("null_thread_mask", keywords));
     rv = pthread_create(&ids[LBW_DISK_THREAD], NULL, vegas_null_thread, (void *)&args[LBW_DISK_THREAD]);
 #elif defined EXT_DISK
     rv = 0;
 #elif FITS_TYPE == PSRFITS
+    mask_to_cpuset(&args[LBW_DISK_THREAD].cpuset, get_config_key_value("psrfits_thread_mask", keywords));
     rv = pthread_create(&ids[LBW_DISK_THREAD], NULL, vegas_psrfits_thread, (void *)&args[LBW_DISK_THREAD]);
 #elif FITS_TYPE == SDFITS
+    mask_to_cpuset(&args[LBW_DISK_THREAD].cpuset, get_config_key_value("sdfits_thread_mask", keywords));
     rv = pthread_create(&ids[LBW_DISK_THREAD], NULL, vegas_sdfits_thread, (void *)&args[LBW_DISK_THREAD]);
 #endif
 
@@ -187,18 +215,24 @@ void start_hbw_mode(struct vegas_thread_args *args, pthread_t *ids)
 {
     // TODO error checking...
     int rv;
+    mask_to_cpuset(&args[NET_THREAD].cpuset, get_config_key_value("net_thread_mask", keywords));    
     rv = pthread_create(&ids[NET_THREAD], NULL, vegas_net_thread, (void*)&args[NET_THREAD]);
+    mask_to_cpuset(&args[HBW_ACCUM_THREAD].cpuset, get_config_key_value("accum_thread_mask", keywords));
     rv = pthread_create(&ids[HBW_ACCUM_THREAD], NULL, vegas_accum_thread, (void*)&args[HBW_ACCUM_THREAD]);
 
 #ifdef RAW_DISK
+    mask_to_cpuset(&args[HBW_DISK_THREAD].cpuset, get_config_key_value("rawdisk_thread_mask", keywords));
     rv = pthread_create(&ids[HBW_DISK_THREAD], NULL, vegas_rawdisk_thread, (void *)&args[HBW_DISK_THREAD]);
 #elif defined NULL_DISK
+    mask_to_cpuset(&args[HBW_DISK_THREAD].cpuset, get_config_key_value("null_thread_mask", keywords));
     rv = pthread_create(&ids[HBW_DISK_THREAD], NULL, vegas_null_thread, (void *)&args[HBW_DISK_THREAD]);
 #elif defined EXT_DISK
     rv = 0;
 #elif FITS_TYPE == PSRFITS
+    mask_to_cpuset(&args[HBW_DISK_THREAD].cpuset, get_config_key_value("psrfits_thread_mask", keywords));
     rv = pthread_create(&ids[HBW_DISK_THREAD], NULL, vegas_psrfits_thread, (void *)&args[HBW_DISK_THREAD]);
 #elif FITS_TYPE == SDFITS
+    mask_to_cpuset(&args[HBW_DISK_THREAD].cpuset, get_config_key_value("sdfits_thread_mask", keywords));
     rv = pthread_create(&ids[HBW_DISK_THREAD], NULL, vegas_sdfits_thread, (void *)&args[HBW_DISK_THREAD]);
 #endif
 
@@ -207,7 +241,9 @@ void start_hbw_mode(struct vegas_thread_args *args, pthread_t *ids)
 void start_monitor_mode(struct vegas_thread_args *args, pthread_t *ids) {
     // TODO error checking...
     int rv;
+    mask_to_cpuset(&args[NET_THREAD].cpuset, get_config_key_value("net_thread_mask", keywords));
     rv = pthread_create(&ids[NET_THREAD], NULL, vegas_net_thread, (void*)&args[NET_THREAD]);
+    mask_to_cpuset(&args[MONITOR_NULL_THREAD].cpuset, get_config_key_value("null_thread_mask", keywords));
     rv = pthread_create(&ids[MONITOR_NULL_THREAD], NULL, vegas_null_thread, (void*)&args[MONITOR_NULL_THREAD]);
 }
 

@@ -47,22 +47,26 @@ int safe_fclose(FILE *f) {
 
 void vegas_rawdisk_thread(void *_args) {
 
+    /* Get args */
+    struct vegas_thread_args *args = (struct vegas_thread_args *)_args;
+
     /* Set cpu affinity */
-    cpu_set_t cpuset, cpuset_orig;
-    sched_getaffinity(0, sizeof(cpu_set_t), &cpuset_orig);
-    CPU_ZERO(&cpuset);
-    CPU_SET(FITS_THREAD_CORE, &cpuset);
-    int rv = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+    int rv = sched_setaffinity(0, sizeof(cpu_set_t), &args->cpuset);
     if (rv<0) { 
         vegas_error("vegas_rawdisk_thread", "Error setting cpu affinity.");
         perror("sched_setaffinity");
     }
 
-    /* Get args */
-    struct vegas_thread_args *args = (struct vegas_thread_args *)_args;
 
     /* Set priority */
-    rv = setpriority(PRIO_PROCESS, 0, 0);
+    rv=0;
+    if (args->priority != 0)
+    {
+        struct sched_param priority_param;
+        priority_param.sched_priority = args->priority;
+        rv = pthread_setschedparam(pthread_self(), SCHED_FIFO, &priority_param);
+    }
+
     if (rv<0) {
         vegas_error("vegas_rawdisk_thread", "Error setting priority level.");
         perror("set_priority");

@@ -55,27 +55,28 @@ extern void vegas_read_subint_params(char *buf,
 
 void vegas_null_thread(void *_args) {
 
+    /* Get args */
+    struct vegas_thread_args *args = (struct vegas_thread_args *)_args;
     int rv;
     /* Set cpu affinity */
-    cpu_set_t cpuset, cpuset_orig;
-    sched_getaffinity(0, sizeof(cpu_set_t), &cpuset_orig);
-    CPU_ZERO(&cpuset);
-    CPU_SET(GPU_THREAD_CORE, &cpuset);
-    rv = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+    rv = sched_setaffinity(0, sizeof(cpu_set_t), &args->cpuset);
     if (rv<0) { 
         vegas_error("vegas_null_thread", "Error setting cpu affinity.");
         perror("sched_setaffinity");
     }
 
     /* Set priority */
-    rv = setpriority(PRIO_PROCESS, 0, 0);
+    if (args->priority != 0)
+    {
+        struct sched_param priority_param;
+        priority_param.sched_priority = args->priority;
+        rv = pthread_setschedparam(pthread_self(), SCHED_FIFO, &priority_param);
+    }
+
     if (rv<0) {
         vegas_error("vegas_null_thread", "Error setting priority level.");
         perror("set_priority");
     }
-
-    /* Get args */
-    struct vegas_thread_args *args = (struct vegas_thread_args *)_args;
 
     /* Attach to status shared mem area */
     struct vegas_status st;
