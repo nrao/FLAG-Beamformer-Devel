@@ -15,27 +15,18 @@ ifdef NULL_DISK
 	OPT_FLAGS += -DNULL_DISK
 endif
 
-# EXT_DISK controls whether the DAQ program should or should not write to disk.
-# If EXT_DISK is set, it will not. DIBAS uses an external disk writer, so EXT_DISK
-# should always be used.
+ifdef EXT_DISK
+	OPT_FLAGS += -DEXT_DISK
+endif
 
-#ifdef EXT_DISK
-#	OPT_FLAGS += -DEXT_DISK
-#endif
-
-OPT_FLAGS += -DEXT_DISK
-
-# use -O3. Debugging: -O0
 CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
-		-I$(SLALIB) -I$(VEGAS_DIR)/src -I/opt/local/include \
-		-I/opt/dibas/dibaslibs/include \
-		$(OPT_FLAGS)
+		-I$(PYSLALIB) -I$(VEGAS_DIR)/src -I/opt/local/include $(OPT_FLAGS)
 
 NVCCFLAGS  = -gencode arch=compute_35,code=sm_35
 #NVCCFLAGS  = -arch=compute_35 -code=compute_35
 NVCCFLAGS += -I$(CUDA)/include -I/opt/local/include -I$(VEGAS_INCL)
 
-LIBS = -L. -L$(SLALIB) -L$(VEGAS_LIB) -L/opt/dibas/pulsar/src/presto/lib -L/opt/dibas/dibaslibs/lib -lcfitsio -lsla -lm -lpthread -lcap
+LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread -lcap
 CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread
 
 PROGS = check_vegas_databuf check_vegas_status clean_vegas_shmem
