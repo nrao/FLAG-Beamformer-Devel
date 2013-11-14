@@ -40,6 +40,14 @@
 #define BLANKING_MASK   (0x8)
 #define CAL_SR_MASK     (0x7)
 
+struct BlockStats
+{
+    int nblock_int;
+    int npacket;
+    int n_pkt_drop;
+    int n_heap_drop;
+};
+
 // Read a status buffer all of the key observation paramters
 extern void vegas_read_obs_params(char *buf, 
                                   struct vegas_params *g, 
@@ -49,6 +57,14 @@ extern void vegas_read_obs_params(char *buf,
 extern void vegas_read_subint_params(char *buf, 
                                      struct vegas_params *g,
                                      struct sdfits *p);
+                                     
+extern int check_scan_length(int64_t time_counter, double fpgafreq, double scanlen);
+
+void write_full_integration(struct vegas_databuf *db_out, int *cur_block_out, 
+                       struct vegas_databuf *db_in,  int  cur_block_in, 
+                       char *accum_dirty, float **accumulator, 
+                       struct sdfits_data_columns* data_cols,
+                       struct sdfits *sdf,struct BlockStats *blkstat);
 
 /* Dynamically allocates memory for the vector accumulators */
 void create_accumulators(float ***accumulator, int num_chans, int num_subbands)
@@ -247,10 +263,10 @@ void vegas_accum_thread(void *_args) {
     char *hdr_in=NULL, *hdr_out=NULL;
     struct databuf_index *index_in, *index_out;
     uint64_t scan_length_time_counter;
-    uint64_t raw_time_counter=0, last_raw_time_counter = 0;
-    uint64_t upper_timer_bits = 0;
+    uint64_t raw_time_counter=0;
+    struct BlockStats blkstats;
 
-    int nblock_int=0, npacket=0, n_pkt_drop=0, n_heap_drop=0;
+    // int nblock_int=0, npacket=0, n_pkt_drop=0, n_heap_drop=0;
     int debug_tick = 0;
 
     signal(SIGINT,cc);
@@ -298,6 +314,13 @@ void vegas_accum_thread(void *_args) {
             
             scan_length_time_counter = 0;
             first=0;
+            check_scan_length(0,0,0); // resets function static local variables
+
+
+            blkstats.nblock_int = 0;
+            blkstats.npacket = 0;
+            blkstats.n_pkt_drop = 0;
+            blkstats.n_heap_drop = 0;
         }
 
         /* Loop through each spectrum (heap) in input buffer */
@@ -308,7 +331,7 @@ void vegas_accum_thread(void *_args) {
             /* If invalid, record it and move to next heap */
             if(!index_in->cpu_gpu_buf[heap].heap_valid)
             {
-                n_heap_drop++;
+                blkstats.n_heap_drop++;
                 continue;
             }
 
@@ -336,9 +359,9 @@ void vegas_accum_thread(void *_args) {
 
             /*Debug: print heap */
 #if 0
-            printf("%d, %d, %d, %d, %d, %d\n", freq_heap->time_cntr, freq_heap->spectrum_cntr,
+            printf("FH: %d, %d, %d, %d, %d, %d %f %f %d\n", freq_heap->time_cntr, freq_heap->spectrum_cntr,
                 freq_heap->integ_size, freq_heap->mode, freq_heap->status_bits,
-                freq_heap->payload_data_off);
+                freq_heap->payload_data_off, accum_time, reqd_exposure, integ_num);
 #endif
             // calculate the 40 bit raw time counter
             raw_time_counter = (((uint64_t)freq_heap->time_cntr_top8) << 32)
@@ -347,7 +370,7 @@ void vegas_accum_thread(void *_args) {
             /* If we have accumulated for long enough, write vectors to output block */
             if(accum_time >= reqd_exposure)
             {
-#if 1            
+#if 0            
                 // DEBUG status of switching signals
                 char swstatbuf[64];
                 sprintf(swstatbuf, "%c %c %c %c",                       
@@ -361,126 +384,28 @@ void vegas_accum_thread(void *_args) {
                 vegas_status_unlock_safe(&st);
                 // end debug
 #endif                 
-                for(i = 0; i < NUM_SW_STATES; i++)
-                {
-                    /*If a particular accumulator is dirty, write it to output buffer */
-                    if(accum_dirty[i])
-                    {
-                        /*If insufficient space, first mark block as filled and request new block*/
-                        index_out = (struct databuf_index*)(vegas_databuf_index(db_out, curblock_out));
-
-                        if( (index_out->num_datasets+1) *
-                            (index_out->array_size + sizeof(struct sdfits_data_columns)) > 
-                            db_out->block_size)
-                        {
-                            // printf("Accumulator finished with output block %d\n", curblock_out);
-
-                            /* Write block number to status buffer */
-                            vegas_status_lock_safe(&st);
-                            hputi4(st.buf, "ACCBLKOU", curblock_out);
-                            vegas_status_unlock_safe(&st);
-
-                            /* Update packet count and loss fields in output header */
-                            hputi4(hdr_out, "NBLOCK", nblock_int);
-                            hputi4(hdr_out, "NPKT", npacket);
-                            hputi4(hdr_out, "NPKTDROP", n_pkt_drop);
-                            hputi4(hdr_out, "NHPDROP", n_heap_drop);
-
-                            /* Close out current integration */
-                            vegas_databuf_set_filled(db_out, curblock_out);
-
-                            if (use_scanlen)
-                            {
-                            
-                                double scan_length_clock;
-                                if (last_raw_time_counter > raw_time_counter)
-                                {
-                                    /* 40 bit time counter has rolled over */
-                                    upper_timer_bits += 1LL<<40;   
-                                }
-                                last_raw_time_counter = raw_time_counter;
-                                scan_length_time_counter = upper_timer_bits + raw_time_counter;
-                                /* check if scan length has been reached */
-                                scan_length_clock = (double)(scan_length_time_counter) / fpgafreq;
-                                /*
-                                printf("raw_counter=%lu scan_length_time_counter = %lu, upper_bits=%lu fpgafreq=%f "
-                                       "scan_length_clock=%f, scan_length_seconds=%f\n",
-                                       raw_time_counter, scan_length_time_counter,
-                                       upper_timer_bits, fpgafreq, scan_length_clock, scan_length_seconds);
-                                */
-                                if (scan_length_clock > scan_length_seconds)
-                                {
-                                    printf("Scanlength completed %f, %f, %f\n", 
-                                           scan_length_seconds, scan_length_clock, fpgafreq);
-                                    pthread_exit(0);
-                                }
-                            }
-
-                            /* Wait for next output buf */
-                            curblock_out = (curblock_out + 1) % db_out->n_block;
-                            vegas_databuf_wait_free(db_out, curblock_out);
-
-                            while ((rv=vegas_databuf_wait_free(db_out, curblock_out)) != VEGAS_OK)
-                            {
-                                if (rv==VEGAS_TIMEOUT) {
-                                    vegas_warn("vegas_accum_thread", "timeout while waiting for output block");
-                                    continue;
-                                } else {
-                                    vegas_error("vegas_accum_thread", "error waiting for free databuf");
-                                    run=0;
-                                    pthread_exit(NULL);
-                                    break;
-                                }
-                            }
-
-                            hdr_out = vegas_databuf_header(db_out, curblock_out);
-                            memcpy(hdr_out, vegas_databuf_header(db_in, curblock_in),
-                                    VEGAS_STATUS_SIZE);
-
-                            /* Initialise the index in new output block */
-                            index_out = (struct databuf_index*)vegas_databuf_index(db_out, curblock_out);
-                            index_out->num_datasets = 0;
-                            index_out->array_size = sf.hdr.nsubband * sf.hdr.nchan * NUM_STOKES * 4;
-                            
-                            nblock_int=0;
-                            npacket=0;
-                            n_pkt_drop=0;
-                            n_heap_drop=0;
-                        }            
-
-                        /*Update index for output buffer*/
-                        index_out = (struct databuf_index*)(vegas_databuf_index(db_out, curblock_out));
-
-                        if(index_out->num_datasets == 0)
-                            struct_offset = 0;
-                        else
-                            struct_offset = index_out->disk_buf[index_out->num_datasets-1].array_offset +
-                                            index_out->array_size;
-
-                        array_offset =  struct_offset + sizeof(struct sdfits_data_columns);
-                        index_out->disk_buf[index_out->num_datasets].struct_offset = struct_offset;
-                        index_out->disk_buf[index_out->num_datasets].array_offset = array_offset;
-                        
-                        /*Copy sdfits_data_columns struct to disk buffer */
-                        memcpy(vegas_databuf_data(db_out, curblock_out) + struct_offset,
-                                &data_cols[i], sizeof(struct sdfits_data_columns));
-
-                        /*Copy data array to disk buffer */
-                        memcpy(vegas_databuf_data(db_out, curblock_out) + array_offset,
-                                accumulator[i], index_out->array_size);
-                        
-                        /*Update SDFITS data_columns pointer to data array */
-                        ((struct sdfits_data_columns*)
-                        (vegas_databuf_data(db_out, curblock_out) + struct_offset))->data = 
-                        (unsigned char*)(vegas_databuf_data(db_out, curblock_out) + array_offset);
-
-                        index_out->num_datasets = index_out->num_datasets + 1;
-                    }
+                /* Write block number to status buffer */
+                vegas_status_lock_safe(&st);
+                hputi4(st.buf, "ACCBLKOU", curblock_out);
+                vegas_status_unlock_safe(&st);
                 
-                }
-
+                write_full_integration(db_out, &curblock_out, 
+                                       db_in,   curblock_in, 
+                                       accum_dirty, accumulator, data_cols, &sf, &blkstats);
                 accum_time = 0;
                 integ_num += 1;
+                if (use_scanlen)
+                {
+                    if (check_scan_length(raw_time_counter, fpgafreq, scan_length_seconds))
+                    {
+                        // set the incomplete block as filled so that the next stage
+                        // sees the partial block. num_datasets indicates the amount of 
+                        // partial data.      
+                        vegas_databuf_set_filled(db_out, curblock_out);
+                        pthread_exit(0);
+                    }
+                }
+                
 
                 reset_accumulators(accumulator, data_cols, accum_dirty,
                                 sf.hdr.nsubband, sf.hdr.nchan);
@@ -562,9 +487,9 @@ void vegas_accum_thread(void *_args) {
         }
 
         /* Update packet count and loss fields from input header */
-        nblock_int++;
-        npacket += gp.num_pkts_rcvd;
-        n_pkt_drop += gp.num_pkts_dropped;
+        blkstats.nblock_int++;
+        blkstats.npacket += gp.num_pkts_rcvd;
+        blkstats.n_pkt_drop += gp.num_pkts_dropped;
 
         /* Done with current input block */
         vegas_databuf_set_free(db_in, curblock_in);
@@ -583,3 +508,140 @@ void vegas_accum_thread(void *_args) {
     pthread_cleanup_pop(0); /* Closes vegas_status_detach */
     pthread_cleanup_pop(0); /* Closes vegas_databuf_detach */
 }
+
+int check_scan_length(int64_t time_counter, double fpgafreq, double scanlen)
+{
+    static int64_t last_time_counter = 0;
+    static int64_t upper_bits = 0;
+    double scan_length_clock;
+    int64_t scanlen_time_counter;
+    
+    if (fpgafreq < 0.1)
+    {
+        // I hate to do this, but this is a signal to reset our static vars
+        last_time_counter = 0;
+        upper_bits = 0;
+        return 0;
+    }
+    
+    if (last_time_counter > time_counter)
+    {
+        /* 40 bit time counter has rolled over */
+        upper_bits += 1LL<<40;   
+    }
+    last_time_counter = time_counter;
+    scanlen_time_counter = upper_bits + time_counter;
+    /* check if scan length has been reached */
+    scan_length_clock = (double)(scanlen_time_counter) / fpgafreq;
+
+    if (scan_length_clock > scanlen)
+    {
+        // printf("Scanlength completed %f, %f\n", scan_length_clock, scanlen);
+        return(1);
+    }
+    return(0);
+}
+
+void write_full_integration(struct vegas_databuf *db_out, int *cur_block_out, 
+                       struct vegas_databuf *db_in,  int  curblock_in, 
+                       char *accum_dirty, float **accumulator, 
+                       struct sdfits_data_columns* data_cols,
+                       struct sdfits *sdf, struct BlockStats *blkstat)
+{
+    int i;
+    struct databuf_index* index_out;
+    int curblock_out = *cur_block_out;
+    char *hdr_out = vegas_databuf_header(db_out, curblock_out);
+    char *hdr_in  = vegas_databuf_header(db_in, curblock_in);
+    int struct_offset, array_offset;
+    
+    int rv = 0;
+    
+    for(i = 0; i < NUM_SW_STATES; i++)
+    {
+        /*If a particular accumulator is dirty, write it to output buffer */
+        if(accum_dirty[i])
+        {
+            /*If insufficient space, first mark block as filled and request new block*/
+            index_out = (struct databuf_index*)(vegas_databuf_index(db_out, curblock_out));
+
+            if( (index_out->num_datasets+1) *
+                (index_out->array_size + sizeof(struct sdfits_data_columns)) > 
+                db_out->block_size)
+            {
+                // printf("Accumulator finished with output block %d\n", curblock_out);
+
+                /* Update packet count and loss fields in output header */
+                hputi4(hdr_out, "NBLOCK",  blkstat->nblock_int);
+                hputi4(hdr_out, "NPKT",    blkstat->npacket);
+                hputi4(hdr_out, "NPKTDROP",blkstat->n_pkt_drop);
+                hputi4(hdr_out, "NHPDROP", blkstat->n_heap_drop);
+
+                /* Close out current integration */
+                vegas_databuf_set_filled(db_out, curblock_out);
+                /* Wait for next output buf */
+                curblock_out = (curblock_out + 1) % db_out->n_block;
+                vegas_databuf_wait_free(db_out, curblock_out);
+
+                while ((rv=vegas_databuf_wait_free(db_out, curblock_out)) != VEGAS_OK)
+                {
+                    if (rv==VEGAS_TIMEOUT) {
+                        vegas_warn("vegas_accum_thread", "timeout while waiting for output block");
+                        continue;
+                    } else {
+                        vegas_error("vegas_accum_thread", "error waiting for free databuf");
+                        run=0;
+                        *cur_block_out = curblock_out;
+                        pthread_exit(NULL);
+                        break;
+                    }
+                }
+
+                hdr_out = vegas_databuf_header(db_out, curblock_out);
+                memcpy(hdr_out, vegas_databuf_header(db_in, curblock_in),
+                        VEGAS_STATUS_SIZE);
+
+                /* Initialise the index in new output block */
+                index_out = (struct databuf_index*)vegas_databuf_index(db_out, curblock_out);
+                index_out->num_datasets = 0;
+                index_out->array_size = sdf->hdr.nsubband * sdf->hdr.nchan * NUM_STOKES * 4;
+                
+                blkstat->nblock_int=0;
+                blkstat->npacket=0;
+                blkstat->n_pkt_drop=0;
+                blkstat->n_heap_drop=0;
+            }            
+
+            /*Update index for output buffer*/
+            index_out = (struct databuf_index*)(vegas_databuf_index(db_out, curblock_out));
+
+            if(index_out->num_datasets == 0)
+                struct_offset = 0;
+            else
+                struct_offset = index_out->disk_buf[index_out->num_datasets-1].array_offset +
+                                index_out->array_size;
+
+            array_offset =  struct_offset + sizeof(struct sdfits_data_columns);
+            index_out->disk_buf[index_out->num_datasets].struct_offset = struct_offset;
+            index_out->disk_buf[index_out->num_datasets].array_offset = array_offset;
+            
+            /*Copy sdfits_data_columns struct to disk buffer */
+            memcpy(vegas_databuf_data(db_out, curblock_out) + struct_offset,
+                    &data_cols[i], sizeof(struct sdfits_data_columns));
+
+            /*Copy data array to disk buffer */
+            memcpy(vegas_databuf_data(db_out, curblock_out) + array_offset,
+                    accumulator[i], index_out->array_size);
+            
+            /*Update SDFITS data_columns pointer to data array */
+            ((struct sdfits_data_columns*)
+            (vegas_databuf_data(db_out, curblock_out) + struct_offset))->data = 
+            (unsigned char*)(vegas_databuf_data(db_out, curblock_out) + array_offset);
+
+            index_out->num_datasets = index_out->num_datasets + 1;
+        }
+    
+    }
+    *cur_block_out = curblock_out;
+}
+
