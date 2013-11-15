@@ -65,6 +65,7 @@ void write_full_integration(struct vegas_databuf *db_out, int *cur_block_out,
                        char *accum_dirty, float **accumulator, 
                        struct sdfits_data_columns* data_cols,
                        struct sdfits *sdf,struct BlockStats *blkstat);
+void flush_end_of_scan(struct vegas_databuf *db_out, int *cur_block_out);                       
 
 /* Dynamically allocates memory for the vector accumulators */
 void create_accumulators(float ***accumulator, int num_chans, int num_subbands)
@@ -236,6 +237,7 @@ void vegas_accum_thread(void *_args) {
     /* Read nchan and nsubband from status shared memory */
     vegas_read_obs_params(st.buf, &gp, &sf);
     use_scanlen = read_scan_length(st.buf, &fpgafreq, &scan_length_seconds);
+
     /* read switching signal inversion mask, if present */
     if (hgeti4(st.buf, "_SWSGPLY", &accumid_xor_mask) == 0)
     {
@@ -315,7 +317,6 @@ void vegas_accum_thread(void *_args) {
             scan_length_time_counter = 0;
             first=0;
             check_scan_length(0,0,0); // resets function static local variables
-
 
             blkstats.nblock_int = 0;
             blkstats.npacket = 0;
@@ -400,8 +401,9 @@ void vegas_accum_thread(void *_args) {
                     {
                         // set the incomplete block as filled so that the next stage
                         // sees the partial block. num_datasets indicates the amount of 
-                        // partial data.      
-                        vegas_databuf_set_filled(db_out, curblock_out);
+                        // partial data.     
+                        printf("hpc detected end of scan\n"); 
+                        flush_end_of_scan(db_out, &curblock_out);
                         pthread_exit(0);
                     }
                 }
@@ -536,7 +538,7 @@ int check_scan_length(int64_t time_counter, double fpgafreq, double scanlen)
 
     if (scan_length_clock > scanlen)
     {
-        // printf("Scanlength completed %f, %f\n", scan_length_clock, scanlen);
+        printf("Scanlength completed %f, %f\n", scan_length_clock, scanlen);
         return(1);
     }
     return(0);
@@ -645,3 +647,37 @@ void write_full_integration(struct vegas_databuf *db_out, int *cur_block_out,
     *cur_block_out = curblock_out;
 }
 
+void flush_end_of_scan(struct vegas_databuf *db_out, int *cur_block_out)
+{
+    int curblock_out = *cur_block_out;
+    struct databuf_index* index_out;
+    struct sdfits_data_columns data_cols;
+    int rv;
+        
+    // flush the current buffer
+    vegas_databuf_set_filled(db_out, curblock_out);
+    // get the next free output buffer
+    curblock_out = (curblock_out + 1) % db_out->n_block;
+    while ((rv=vegas_databuf_wait_free(db_out, curblock_out)) != VEGAS_OK)
+    {
+        if (rv==VEGAS_TIMEOUT) {
+            vegas_warn("flush_end_of_scan", "timeout while waiting for output block");
+            continue;
+        } else {
+            vegas_error("flush_end_of_scan", "error waiting for free databuf");
+            run=0;
+            *cur_block_out = curblock_out;
+            pthread_exit(NULL);
+            break;
+        }
+    }
+    memset(&data_cols, 0, sizeof(data_cols));
+    /* Initialise the index in new output block */
+    index_out = (struct databuf_index*)vegas_databuf_index(db_out, curblock_out);
+    index_out->num_datasets = 1;
+    data_cols.integ_num = -1;                
+    memcpy(vegas_databuf_data(db_out, curblock_out),
+           &data_cols, sizeof(data_cols));          
+    vegas_databuf_set_filled(db_out, curblock_out);
+    *cur_block_out = curblock_out;
+}
