@@ -34,5 +34,7 @@ void read_thread_configuration(struct KeywordValues *keywords);
 unsigned int get_config_key_value(char *keyword, struct KeywordValues *keywords);
 /// Converts an affinity bitmask to a cpu_set structure.
 void mask_to_cpuset(cpu_set_t *cpuset, unsigned int mask);
+/// For debugging
+int cpuset_to_mask(cpu_set_t *cpuset);
         
 #endif

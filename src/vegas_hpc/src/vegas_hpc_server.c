@@ -356,6 +356,7 @@ int main(int argc, char *argv[]) {
     printf("\nvegas_daq_server started at %s", ctime_r(&curtime,tmp));
     fflush(stdout);
 
+    read_thread_configuration(keywords);
     /* hmm.. keep this old signal stuff?? */
     run=1;
     srv_run=1;

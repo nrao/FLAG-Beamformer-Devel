@@ -65,13 +65,16 @@ void read_thread_configuration(struct KeywordValues *keywords)
         /* Use YGOR_TELESCOPE if available */
         snprintf(conf_file_name, sizeof(conf_file_name), "%s/etc/config/vegas_threads.conf", ygor_root);
     }
-    else if (conf_root == 0)
+    else if (conf_root)
+    {
+        snprintf(conf_file_name, sizeof(conf_file_name), "%s/vegas_threads.conf", conf_root);
+    }
+    else
     {
         printf("Neither of YGOR_TELESCOPE or VEGAS_DIR is not set to a config directory\n");
         printf("Thread pinning disabled\n");
         return;
     }
-    snprintf(conf_file_name, sizeof(conf_file_name), "%s/vegas_threads.conf", conf_root);
     fin = fopen(conf_file_name, "r");
     if (!fin)
     {
@@ -119,6 +122,7 @@ unsigned int get_config_key_value(char *keyword, struct KeywordValues *keywords)
             return keywords[i].value;
         }
     }
+    printf("vegas_threads config keyword %s not found\n", keyword);
     return 0;
 }
 
@@ -130,13 +134,27 @@ void mask_to_cpuset(cpu_set_t *cpuset, unsigned int mask)
         return;
         
     CPU_ZERO(cpuset);
-    for (core=1; core<31; core++)
+    for (core=0; core<31; core++)
     {
         if ((1<<core) & mask)
         {
             CPU_SET(core, cpuset);
         }
     }
+}
+
+int cpuset_to_mask(cpu_set_t *cpuset)
+{
+    int core;
+    int mask = 0;    
+    for (core=0; core<31; core++)
+    {
+        if (CPU_ISSET(core, cpuset))
+        {
+            mask = mask | 1<<core;
+        }
+    }
+    return mask;
 }
 
 
