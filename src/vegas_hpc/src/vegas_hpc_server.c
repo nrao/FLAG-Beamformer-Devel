@@ -29,6 +29,8 @@
 
 #include "vegas_thread_main.h"
 
+extern int g_debug_accumulator_thread; // For debugging REMOVE THIS before official release
+
 #define vegas_DAQ_CONTROL "/tmp/vegas_daq_control"
 
 void usage() {
@@ -37,6 +39,7 @@ void usage() {
             "Options:\n"
             "  -h, --help         This message\n"
             "  -r, --resize-obuf  HPC will resize the output buffer block when starting a scan\n"
+            "  -d, --accumulator-debug HPC will emit debugging info for each spectra\n"
            );
 }
 
@@ -262,12 +265,16 @@ int main(int argc, char *argv[]) {
     static struct option long_opts[] = {
         {"help",   0, NULL, 'h'},
         {"resize-obuf", 0, NULL, 'r'},
+        {"accumulator-debug", 0, NULL, 'd'},
+        {"init-gpu", 0, NULL, 'g'},
         {0,0,0,0}
     };
     int opt, opti;
     /* resize output buffer based on status memory setup */
     int do_dbuf_resize = 0;
-    while ((opt=getopt_long(argc,argv,"hr",long_opts,&opti))!=-1) {
+    int initialize_gpu_at_startup = 0;
+    
+    while ((opt=getopt_long(argc,argv,"hrdg",long_opts,&opti))!=-1) {
         switch (opt) {
             default:
             case 'h':
@@ -276,6 +283,12 @@ int main(int argc, char *argv[]) {
                 break;
             case 'r':
                 do_dbuf_resize =1;
+                break;
+            case 'd':
+                g_debug_accumulator_thread=1;
+                break;
+            case 'g':
+                initialize_gpu_at_startup = 1;
                 break;
         }
     }
@@ -363,11 +376,13 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, srv_cc);
     signal(SIGTERM, srv_quit);
     
-    init_cuda_context();
-    vegas_status_lock(&stat);
-    hputs(stat.buf, "GPUCTXIN", "TRUE");
-    vegas_status_unlock(&stat);
-
+    if (initialize_gpu_at_startup)
+    {
+        init_cuda_context();
+        vegas_status_lock(&stat);
+        hputs(stat.buf, "GPUCTXIN", "TRUE");
+        vegas_status_unlock(&stat);
+    }
     /* Loop over recv'd commands, process them */
     int cmd_wait=1;
     while (cmd_wait && srv_run) {
@@ -546,7 +561,12 @@ int main(int argc, char *argv[]) {
             vegas_status_unlock(&stat);
             nthread_cur = 0;
         } 
-        
+        else if (strncasecmp(cmd, "INIT_GPU", MAX_CMD_LEN)==0) {
+            init_cuda_context();
+            vegas_status_lock(&stat);
+            hputs(stat.buf, "GPUCTXIN", "TRUE");
+            vegas_status_unlock(&stat);            
+        }
         else {
             // Unknown command
             printf("Unrecognized command '%s'\n", cmd);
