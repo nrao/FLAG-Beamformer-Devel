@@ -352,7 +352,7 @@ void *vegas_net_thread(void *_args) {
     unsigned int seq_num=0, last_seq_num=1050;
     int heap_cntr_diff, seq_num_diff;
     unsigned int obs_started = 0;
-    unsigned long long npacket_total, npacket_this_block=0, ndropped_total;
+    unsigned long long npacket_total = 0, npacket_this_block=0, ndropped_total = 0;
     double drop_frac_avg=0.0;
     const double drop_lpf = 0.25;
     prev_heap_cntr = 0;

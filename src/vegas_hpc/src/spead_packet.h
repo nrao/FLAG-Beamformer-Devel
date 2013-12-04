@@ -82,9 +82,9 @@ typedef struct _VegasSpeadPacketHeader VegasSpeadPacketHeader;
 /// Not sure where this is otherwise documented. The LBW header
 /// appears to follow the convention:
 /// +-----------------------------------------+
-/// | unused:12 | status:4 | fpga_counter:48  |
+/// |  fpga_counter:60             | status:4 |
 /// +-----------------------------------------+
-/// | unused:12 | status:4 | fpga_counter:48  |
+/// |  fpga_counter:60             | status:4 |
 /// +-----------------------------------------+
 /// |  8192 bytes of data                     |
 /// +-----------------------------------------+
@@ -94,9 +94,8 @@ typedef struct _VegasSpeadPacketHeader VegasSpeadPacketHeader;
 /// The structure of a raw LBW packet header after byte swapping
 struct _LBW_Packet
 {
-    uint64_t time_counter:48;
-    uint8_t  status:8;        // only lower 4 bits are used
-    uint8_t  notused:8;
+    uint8_t  status:4;        // only lower 4 bits are used
+    uint64_t time_counter:60;
 };
 typedef struct _LBW_Packet LBW_Packet;
 

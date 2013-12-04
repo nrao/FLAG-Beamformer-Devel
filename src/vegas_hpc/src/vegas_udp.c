@@ -140,12 +140,12 @@ void lbw_packet_to_host_spead(struct vegas_udp_packet *b)
     uint64_t tmcounter = wire->le.time_counter;
     uint8_t  status_bits = wire->le.status & 0xF; // Status is lower 4 bits.
     
-    // What are these constants ? JJB
     // It apears that the first field is the FPGA counter, which increments
     // by 0x800 in each packet. Hence the packet sequence number is tmcounter
-    // (48 bits) shifted down by 8 (a 40 bit value which now fits into a 
-    // SPEAD item_address field. Not sure what the subtract 10 does.
-    uint64_t pktnum = (tmcounter-10) / 2048;
+    // (60 bits) shifted down by 11 leaving a 49 bit value. Only 40 bits
+    // fits into a SPEAD item_address field, so the top 9 bits are shaved off.
+    uint64_t pktnum = tmcounter >> 11;
+    tmcounter = tmcounter & 0xFFFFFFFFFFLL;
     
     // Now insert the fake spead header from the template
 	memcpy(b->data,sphead,sizeof(sphead));
@@ -159,6 +159,7 @@ void lbw_packet_to_host_spead(struct vegas_udp_packet *b)
     hdr_ptr[6].item_address = status_bits;           ///< SPECTRUM_PER_INTEGRATION_ID ?
     
     b->packet_size = 8192 + 72; // 8202 - sizeof(int64_t) + 
+        
 }
 
 /// Initialize the UDP socket connection
