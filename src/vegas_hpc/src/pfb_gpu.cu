@@ -125,7 +125,6 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
     cufftResult iCUFFTRet = CUFFT_SUCCESS;
     int iRet = EXIT_SUCCESS;
     int iMaxThreadsPerBlock = 0;
-    const char *coeff_dir;
 
     g_buf_in_block_size = input_block_sz;
     g_buf_out_block_size = output_block_sz;
@@ -179,17 +178,40 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
     printf("pfb_gpu.cu:  CUDA_SAFE_CALL(cudaMalloc((void...\n");
 
     /* read filter coefficients */
-    /* Locate the coefficient directory. If the environment variable CONFIG_DIR
-       is not set, look in the current working directory.
+    /* Locate the coefficient directory.  This searches for the configuration
+     * directory in one of YGOR_TELESCOPE, VEGAS_DIR or CONFIG_DIR
+       If none of the environment variables above are specified
+       then we punt and use the current working directory.
      */
-    if ((coeff_dir = getenv("CONFIG_DIR")) == NULL)
+     
+     
+    char *ygor_root = getenv("YGOR_TELESCOPE");
+    char *vdir_root = getenv("VEGAS_DIR");
+    char *config_root = getenv("CONFIG_DIR");
+    char conf_dir_root[128];
+    
+    if (ygor_root)
     {
-        coeff_dir = ".";
+        /* Use YGOR_TELESCOPE if available */
+        snprintf(conf_dir_root, sizeof(conf_dir_root), "%s/etc/config", ygor_root);
     }
+    else if (config_root)
+    {
+        snprintf(conf_dir_root, sizeof(conf_dir_root), "%s", config_root);
+    }
+    else if (vdir_root)
+    {
+        snprintf(conf_dir_root, sizeof(conf_dir_root), "%s", vdir_root);
+    }
+    else
+    {
+        snprintf(conf_dir_root, sizeof(conf_dir_root), ".");
+    }
+
     /* build file name */
-    (void) sprintf(g_acFileCoeff,
+    (void) snprintf(g_acFileCoeff, sizeof(g_acFileCoeff),
                    "%s/%s_%s_%d_%d_%d%s",
-                   coeff_dir,                   
+                   conf_dir_root,                   
                    FILE_COEFF_PREFIX,
                    FILE_COEFF_DATATYPE,
                    VEGAS_NUM_TAPS,
@@ -240,6 +262,11 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
                                            * sizeof(char4)))));
     printf("pfb_gpu.cu: CUDA_SAFE_CALL(cudaMalloc((void...)\n");
     g_pc4DataRead_d = g_pc4Data_d;
+    
+    g_iPrevBlankingState = TRUE;
+    g_iTotHeapOut = 0;
+    g_iHeapOut = 0;
+    g_iSpecPerAcc = 0;
 
     /* calculate kernel parameters */
     /* ASSUMPTION: g_nchan >= iMaxThreadsPerBlock */
@@ -327,6 +354,7 @@ void do_pfb(struct vegas_databuf *db_in,
 
     hdr_out = vegas_databuf_header(db_out, g_iPFBCurBlockOut);
     index_out = (struct databuf_index*)vegas_databuf_index(db_out, g_iPFBCurBlockOut);
+    // index_out->num_heaps = 0;
     memcpy(hdr_out, vegas_databuf_header(db_in, curblock_in),
             VEGAS_STATUS_SIZE);
 
@@ -439,7 +467,7 @@ void do_pfb(struct vegas_databuf *db_in,
                 {
                     /* This is not supposed to happen (but may happen if odd number of pkts are dropped
                        right at the end of the buffer, so we therefore do not exit) */
-                    (void) fprintf(stderr,
+                    (void) fprintf(stdout,
                                    "WARNING: Heap count %d exceeds available number of heaps %d!\n",
                                    heap_in,
                                    num_in_heaps_gpu_buffer);
@@ -458,7 +486,7 @@ void do_pfb(struct vegas_databuf *db_in,
         iCUDARet = cudaGetLastError();
         if (iCUDARet != cudaSuccess)
         {
-            (void) fprintf(stderr,
+            (void) fprintf(stdout,
                            "ERROR: File <%s>, Line %d: %s\n",
                            __FILE__,
                            __LINE__,
@@ -470,7 +498,7 @@ void do_pfb(struct vegas_databuf *db_in,
         iRet = do_fft();
         if (iRet != VEGAS_OK)
         {
-            (void) fprintf(stderr, "ERROR: FFT failed!\n");
+            (void) fprintf(stdout, "ERROR: FFT failed!\n");
             run = 0;
             break;
         }
@@ -482,7 +510,7 @@ void do_pfb(struct vegas_databuf *db_in,
             iRet = accumulate();
             if (iRet != VEGAS_OK)
             {
-                (void) fprintf(stderr, "ERROR: Accumulation failed!\n");
+                (void) fprintf(stdout, "ERROR: Accumulation failed!\n");
                 run = 0;
                 break;
             }
@@ -523,11 +551,12 @@ void do_pfb(struct vegas_databuf *db_in,
                 index_out->cpu_gpu_buf[g_iHeapOut].heap_cntr = g_iTotHeapOut;
                 index_out->cpu_gpu_buf[g_iHeapOut].heap_rcvd_mjd =
                          index_in->cpu_gpu_buf[g_iFirstHeapIn].heap_rcvd_mjd ;
+                index_out->num_heaps++;
 
                 iRet = get_accumulated_spectrum_from_device(payload_addr_out);
                 if (iRet != VEGAS_OK)
                 {
-                    (void) fprintf(stderr, "ERROR: Getting accumulated spectrum failed!\n");
+                    (void) fprintf(stdout, "ERROR: Getting accumulated spectrum failed!\n");
                     run = 0;
                     break;
                 }
@@ -542,7 +571,10 @@ void do_pfb(struct vegas_databuf *db_in,
                 g_iPrevBlankingState = TRUE;
             }
         }
-        // printf("g_iSpecPerAcc=%d, acc_len=%d\n",g_iSpecPerAcc,acc_len);
+#undef  SPECDEBUG
+#ifdef  SPECDEBUG
+        printf("g_iSpecPerAcc=%d, acc_len=%d\n",g_iSpecPerAcc,acc_len);
+#endif
         if (g_iSpecPerAcc == acc_len)
         {
             /* dump to buffer */
@@ -578,11 +610,11 @@ void do_pfb(struct vegas_databuf *db_in,
             iRet = get_accumulated_spectrum_from_device(payload_addr_out);
             if (iRet != VEGAS_OK)
             {
-                (void) fprintf(stderr, "ERROR: Getting accumulated spectrum failed!\n");
+                (void) fprintf(stdout, "ERROR: Getting accumulated spectrum failed!\n");
                 run = 0;
                 break;
             }
-
+            index_out->num_heaps++;
             ++g_iHeapOut;
             ++g_iTotHeapOut;
 
@@ -611,7 +643,8 @@ void do_pfb(struct vegas_databuf *db_in,
         if (g_iHeapOut == g_iMaxNumHeapOut)
         {
             /* Set the number of heaps written to this block */
-            index_out->num_heaps = g_iHeapOut;
+            // JJB index_out->num_heaps = g_iHeapOut;
+            printf("gpu filled num_heaps=%d snum=%d\n", index_out->num_heaps, g_iTotHeapOut);
 
             /* Mark output buffer as filled */
             vegas_databuf_set_filled(db_out, g_iPFBCurBlockOut);
@@ -646,6 +679,7 @@ void do_pfb(struct vegas_databuf *db_in,
 
             hdr_out = vegas_databuf_header(db_out, g_iPFBCurBlockOut);
             index_out = (struct databuf_index*)vegas_databuf_index(db_out, g_iPFBCurBlockOut);
+            index_out->num_heaps = 0;
             memcpy(hdr_out, vegas_databuf_header(db_in, curblock_in),
                     VEGAS_STATUS_SIZE);
 
