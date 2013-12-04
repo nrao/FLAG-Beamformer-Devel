@@ -1,7 +1,7 @@
 # Makefile to install VEGAS C code
 # Commented lines are lines that were modified by Simon Scott to allow installation on otto.
 
-OPT_FLAGS =
+OPT_FLAGS = -DEXT_DISK
 
 ifdef PAYLOAD
 	OPT_FLAGS += -DPAYLOAD_SIZE=$(PAYLOAD)
