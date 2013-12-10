@@ -164,7 +164,11 @@ void vegas_accum_thread(void *_args) {
     int accumid_xor_mask = 0;
     uint64_t end_exposure_spectrum_number;
     uint64_t spectra_per_exposure;
+    uint64_t end_exposure_clock_number = 0;
+    uint64_t clocks_per_exposure;
     struct Clock clock;
+    int is_hbw = 1;
+    int exposure_complete = 0;
 
 
     /* Get arguments */
@@ -244,14 +248,33 @@ void vegas_accum_thread(void *_args) {
     if (hgets(st.buf, "BW_MODE", 16, bw_mode))
     {
         if(strncmp(bw_mode, "high", 4) == 0)
+        {
             payload_type = INT_PAYLOAD;
+            is_hbw=1;
+        }
         else if(strncmp(bw_mode, "low", 3) == 0)
+        {
             payload_type = FLOAT_PAYLOAD;
+            is_hbw = 0;
+        }
         else
             vegas_error("vegas_accum_thread", "Unsupported bandwidth mode");
     }
     else
         vegas_error("vegas_accum_thread", "BW_MODE not set");
+
+    // In LBW mode, spectra numbering is unreliable, so we revert to using clocks per exposure.
+    if (!is_hbw)
+    {
+        char  expoclkstr[80] = {0};
+        if (hgets(st.buf, "EXPOCLKS", sizeof(expoclkstr), expoclkstr))
+        {
+            sscanf(expoclkstr, "%lu", &clocks_per_exposure);
+            end_exposure_clock_number = clocks_per_exposure;
+        }
+        else
+            vegas_error("vegas_accum_thread", "LBW specified and EXPOCLKS not set");
+    }
     vegas_status_unlock_safe(&st);
 
     /* Read nchan and nsubband from status shared memory */
@@ -272,9 +295,9 @@ void vegas_accum_thread(void *_args) {
     pthread_cleanup_push((void *)destroy_accumulators, accumulator);    
     spectra_per_exposure = sf.data_columns.exposure/sf.hdr.hwexposr;
     
-    if (spectra_per_exposure < 2)
+    if ((is_hbw && spectra_per_exposure < 2) || (!is_hbw && clocks_per_exposure < 1000))
     {
-        vegas_error("vegas_accum thread", "exposure/hwposer is too small exiting...");
+        vegas_error("vegas_accum thread", "exposure/hwposure/clocks_per_exposure is too small exiting...");
         pthread_exit(0);
     }
     end_exposure_spectrum_number = spectra_per_exposure;
@@ -407,9 +430,39 @@ void vegas_accum_thread(void *_args) {
                     freq_heap->integ_size, freq_heap->mode, freq_heap->status_bits,
                     freq_heap->payload_data_off, accum_time, reqd_exposure, integ_num);
             }
-            /* If we have accumulated for long enough, write vectors to output block */
-            // if(accum_time >= reqd_exposure)
-            if (freq_heap->spectrum_cntr >= end_exposure_spectrum_number)
+            /* If we have accumulated for long enough, write vectors to output block 
+               Two methods are used. In HBW we can rely upon the spectrum counter
+               to count even if packets are dropped or blanked. In the LBW case,
+               the PFB thread ignores lost packets and blanked packets, making the
+               spectrum number unreliable for keeping exposures in sync with switch periods.
+               Thus the LBW case uses FPGA clocks per exposure provided by the manager to
+               estimate when exposures should end.
+            */
+
+            if (is_hbw)
+            {
+                if (freq_heap->spectrum_cntr >= end_exposure_spectrum_number)
+                {
+                    exposure_complete = 1;
+                    do
+                    {
+                        end_exposure_spectrum_number += spectra_per_exposure;
+                    } while (freq_heap->spectrum_cntr > end_exposure_spectrum_number);
+                }
+            }
+            else  // lbw
+            {
+                if (full_time_counter >= end_exposure_clock_number)
+                {
+                    exposure_complete = 1;
+                    do
+                    {
+                        end_exposure_clock_number += clocks_per_exposure;
+                    } while (full_time_counter > end_exposure_clock_number);
+                }
+            }
+
+            if (exposure_complete)
             {
 #if 0            
                 // DEBUG status of switching signals
@@ -435,8 +488,8 @@ void vegas_accum_thread(void *_args) {
                                        accum_dirty, accumulator, data_cols, &sf, &blkstats);
                 accum_time = 0;
                 integ_num += 1;
-                end_exposure_spectrum_number = freq_heap->spectrum_cntr + spectra_per_exposure;
-                
+                exposure_complete = 0;
+
                 if (use_scanlen)
                 {
                     if (check_scan_length(&clock, full_time_counter, fpgafreq, scan_length_seconds))
