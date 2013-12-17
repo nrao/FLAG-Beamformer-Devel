@@ -105,11 +105,16 @@ void vegas_pfb_thread(void *_args) {
     /* Loop */
     char *hdr_in = NULL;
     int curblock_in=0;
+    int curblock_out = 0;
     int first=1;
     int acc_len = 0;
     int nchan = 0;
     int nsubband = 0;
+    struct databuf_index *index_out;
     signal(SIGINT,cc);
+    
+    index_out = (struct databuf_index*)vegas_databuf_index(db_out, curblock_out);
+    index_out->num_heaps = 0;
 
     vegas_status_lock_safe(&st);
     if (hgeti4(st.buf, "NCHAN", &nchan)==0) {
@@ -158,7 +163,7 @@ void vegas_pfb_thread(void *_args) {
         vegas_read_subint_params(hdr_in, &gp, &sf);
 
         /* Call PFB function */
-        do_pfb(db_in, curblock_in, db_out, first, st, acc_len);
+        do_pfb(db_in, curblock_in, db_out, &curblock_out, first, st, acc_len);
 
         /* Mark input block as free */
         vegas_databuf_set_free(db_in, curblock_in);

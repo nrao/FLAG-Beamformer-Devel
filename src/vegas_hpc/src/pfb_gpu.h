@@ -13,11 +13,11 @@
 #define FILE_COEFF_SUFFIX   ".dat"
 
 #define FFTPLAN_RANK        1
-#define FFTPLAN_ISTRIDE     (2 * g_iNumSubBands)
-#define FFTPLAN_OSTRIDE     (2 * g_iNumSubBands)
+// #define FFTPLAN_ISTRIDE     (2 * g_iNumSubBands)
+// #define FFTPLAN_OSTRIDE     (2 * g_iNumSubBands)
 #define FFTPLAN_IDIST       1
 #define FFTPLAN_ODIST       1
-#define FFTPLAN_BATCH       (2 * g_iNumSubBands)
+// #define FFTPLAN_BATCH       (2 * g_iNumSubBands)
 
 #if defined __cplusplus
 extern "C"
@@ -35,6 +35,7 @@ extern "C"
 void do_pfb(struct vegas_databuf *db_in,
             int curblock_in,
             struct vegas_databuf *db_out,
+            int *curblock_out,
             int first,
             struct vegas_status st,
             int acc_len);
