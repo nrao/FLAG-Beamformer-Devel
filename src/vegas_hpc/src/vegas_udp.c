@@ -24,6 +24,9 @@
 #include "spead_packet.h"
 #include "spead_heap.h"
 
+enum IDIndex { HEAP_COUNTER_IDX, HEAP_SIZE_IDX, HEAP_OFFSET_IDX,
+               PAYLOAD_OFFSET_IDX, TIME_STAMP_IDX, SPECTRUM_COUNTER_IDX,
+               SPECTRUM_PER_INTEGRATION_IDX, MODE_NUMBER_IDX, NSPEAD_IDXES }; 
 
 /// A (fake) SPEAD header template for low-bw mode non-SPEAD packets
 const unsigned char sphead[] = { 

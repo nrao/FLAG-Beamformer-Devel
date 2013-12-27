@@ -40,7 +40,18 @@
 #define BLANKING_MASK   (0x8)
 #define CAL_SR_MASK     (0x7)
 
-int g_debug_accumulator_thread = 0; // 
+int g_debug_accumulator_thread = 1; // flag optionally set by main() 
+
+/*
+ * Vegas cpu accumulator thread.
+ * Note: This thread requires the following status memory keywords:
+ *    - BW_MODE:  Values of: "high" or "low"
+ *    - MODENAME: Values of: "h1k, "h16k", "lbw8/l8" "lbw8/l1", "lbw1"
+ *    - EXPOCLKS: 64bit value specifying the number of FPGA clocks per exposure.
+ *                required in LBW modes, optional in HBW modes.
+ *    - _SWSGPLY: Optional bitmask which is xor'ed with incoming switching 
+ *                signal status. Used to change polarity/sense of signals.
+ */ 
 
 struct BlockStats
 {
@@ -54,6 +65,9 @@ struct Clock
 {
     uint64_t last_time_counter;
     uint64_t upper_bits;
+    uint64_t full_time_counter;
+    uint64_t fpga_clock_multiplier;
+    double   fpgafreq;
 };
 
 // Read a status buffer all of the key observation paramters
@@ -65,10 +79,11 @@ extern void vegas_read_obs_params(char *buf,
 extern void vegas_read_subint_params(char *buf, 
                                      struct vegas_params *g,
                                      struct sdfits *p);
-                                     
-int check_scan_length(struct Clock *clock, int64_t time_counter, double fpgafreq, double scanlen);
 
-uint64_t get_full_range_counter(struct Clock *clock, uint64_t raw_time_counter);
+void update_clock(struct Clock *clock, uint64_t raw_time_counter);                                                                          
+int check_scan_length(struct Clock *clock, double scanlen);
+
+uint64_t get_full_range_counter(struct Clock *clock);
 
 void write_full_integration(struct vegas_databuf *db_out, int *cur_block_out, 
                        struct vegas_databuf *db_in,  int  cur_block_in, 
@@ -159,7 +174,6 @@ void vegas_accum_thread(void *_args) {
     int payload_type = 0;
     int i, j, k, rv;
     int use_scanlen;
-    double fpgafreq;
     double scan_length_seconds;
     int accumid_xor_mask = 0;
     uint64_t end_exposure_spectrum_number;
@@ -196,7 +210,9 @@ void vegas_accum_thread(void *_args) {
     
     // Reset the 64bit emulation of a 40 bit counter
     clock.upper_bits = 0;
-    clock.last_time_counter = 0;    
+    clock.last_time_counter = 0; 
+    clock.fpga_clock_multiplier = 1;
+    clock.full_time_counter = 0;  
 
     /* Attach to status shared mem area */
     struct vegas_status st;
@@ -267,6 +283,12 @@ void vegas_accum_thread(void *_args) {
     if (!is_hbw)
     {
         char  expoclkstr[80] = {0};
+        if (hgets(st.buf, "MODENAME", sizeof(expoclkstr), expoclkstr))
+        {
+            if (strncasecmp(expoclkstr, "l8/lbw1", 7) == 0)
+                clock.fpga_clock_multiplier = 8;    
+        }
+        memset(expoclkstr, 0, sizeof(expoclkstr));        
         if (hgets(st.buf, "EXPOCLKS", sizeof(expoclkstr), expoclkstr))
         {
             sscanf(expoclkstr, "%lu", &clocks_per_exposure);
@@ -274,12 +296,13 @@ void vegas_accum_thread(void *_args) {
         }
         else
             vegas_error("vegas_accum_thread", "LBW specified and EXPOCLKS not set");
+            
     }
     vegas_status_unlock_safe(&st);
 
     /* Read nchan and nsubband from status shared memory */
     vegas_read_obs_params(st.buf, &gp, &sf);
-    use_scanlen = read_scan_length(st.buf, &fpgafreq, &scan_length_seconds);
+    use_scanlen = read_scan_length(st.buf, &clock.fpgafreq, &scan_length_seconds);
     
     vegas_status_lock_safe(&st);
     /* read switching signal inversion mask, if present */
@@ -410,8 +433,8 @@ void vegas_accum_thread(void *_args) {
             accumid = freq_heap->status_bits & CAL_SR_MASK;
                                  
             // calculate the 40 bit raw time counter
-            full_time_counter = get_full_range_counter(&clock, (((uint64_t)freq_heap->time_cntr_top8) << 32)
-                                                       + (uint64_t)freq_heap->time_cntr);
+            update_clock(&clock, (((uint64_t)freq_heap->time_cntr_top8) << 32) + (uint64_t)freq_heap->time_cntr);
+            full_time_counter = get_full_range_counter(&clock);
 
             if (do_once)
             {
@@ -492,7 +515,7 @@ void vegas_accum_thread(void *_args) {
 
                 if (use_scanlen)
                 {
-                    if (check_scan_length(&clock, full_time_counter, fpgafreq, scan_length_seconds))
+                    if (check_scan_length(&clock, scan_length_seconds))
                     {
                         // set the incomplete block as filled so that the next stage
                         // sees the partial block. num_datasets indicates the amount of 
@@ -517,8 +540,9 @@ void vegas_accum_thread(void *_args) {
                 {
                     /*Record SPEAD header fields*/
                     data_cols[accumid].time = index_in->cpu_gpu_buf[heap].heap_rcvd_mjd;
-                    data_cols[accumid].time_counter = (((uint64_t)freq_heap->time_cntr_top8) << 32)
-                                                        + (uint64_t)freq_heap->time_cntr;
+                    // data_cols[accumid].time_counter = (((uint64_t)freq_heap->time_cntr_top8) << 32)
+                    //                                    + (uint64_t)freq_heap->time_cntr;
+                    data_cols[accumid].time_counter = full_time_counter;
                     data_cols[accumid].integ_num = integ_num;
                     data_cols[accumid].sttspec = freq_heap->spectrum_cntr;
                     data_cols[accumid].accumid = accumid;
@@ -607,25 +631,31 @@ void vegas_accum_thread(void *_args) {
     pthread_cleanup_pop(0); /* Closes vegas_databuf_detach */
 }
 
-uint64_t get_full_range_counter(struct Clock *clock, uint64_t raw_time_counter)
+void update_clock(struct Clock *clock, uint64_t raw_time_counter)
 {
     if (clock->last_time_counter > raw_time_counter)
     {
         /* 40 bit time counter has rolled over */
         clock->upper_bits += 1LL<<40;   
     }
-    clock->last_time_counter = raw_time_counter;
-    return (clock->upper_bits + raw_time_counter);       
+    clock->last_time_counter  = raw_time_counter;
+    clock->full_time_counter  = ((clock->upper_bits + raw_time_counter) *
+                                  clock->fpga_clock_multiplier);       
 }
 
-int check_scan_length(struct Clock *clock, int64_t time_counter, double fpgafreq, double scanlen)
+uint64_t get_full_range_counter(struct Clock *clock)
+{
+    return clock->full_time_counter;
+}
+
+int check_scan_length(struct Clock *clock, double scanlen)
 {
     double scan_length_clock;
     uint64_t scanlen_time_counter;
     
-    scanlen_time_counter = get_full_range_counter(clock, time_counter);
+    scanlen_time_counter = get_full_range_counter(clock);
     /* check if scan length has been reached */
-    scan_length_clock = (double)(scanlen_time_counter) / fpgafreq;
+    scan_length_clock = (double)(scanlen_time_counter) / clock->fpgafreq;
 
     if (scan_length_clock > scanlen)
     {

@@ -53,6 +53,9 @@ int is_valid(int heap_start, int num_heaps);
 int is_blanked(int heap_start, int num_heaps);
 
 /* Free up any allocated memory */
+#if defined __cplusplus
+extern "C"
+#endif
 void cleanup_gpu();
 
 #endif

@@ -361,7 +361,7 @@ int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, in
         return EXIT_FAILURE;
     }
 
-    printf("#################### GPU INIT COMPLETE ####################\n");
+    printf("#################### GPU RE-INIT COMPLETE ####################\n");
     return EXIT_SUCCESS;
 }
 
@@ -889,6 +889,7 @@ void __CUDASafeCall(cudaError_t iCUDARet,
 /*
  * Frees up any allocated memory.
  */
+extern "C"
 void cleanup_gpu()
 {
     /* free memory */
@@ -920,7 +921,12 @@ void cleanup_gpu()
 
     /* destroy plan */
     /* TODO: check if plan exists */
-    (void) cufftDestroy(gpuCtx._stPlan);
-
+    if (gpuCtx._stPlan)
+    {
+        (void) cufftDestroy(gpuCtx._stPlan);
+        gpuCtx._stPlan = NULL;
+    }
+    printf("#################### GPU CONTEXT CLEANED UP ####################\n");
+ 
     return;
 }
