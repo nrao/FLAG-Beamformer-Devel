@@ -40,7 +40,7 @@
 #define BLANKING_MASK   (0x8)
 #define CAL_SR_MASK     (0x7)
 
-int g_debug_accumulator_thread = 1; // flag optionally set by main() 
+int g_debug_accumulator_thread = 0; // flag optionally set by main() 
 
 /*
  * Vegas cpu accumulator thread.

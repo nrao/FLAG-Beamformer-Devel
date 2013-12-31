@@ -22,12 +22,12 @@
 #if defined __cplusplus
 extern "C"
 #endif
-int init_cuda_context(void);
+int init_cuda_context(int, int, int, int);
 
 #if defined __cplusplus
 extern "C"
 #endif
-int init_gpu(size_t input_block_sz, size_t output_block_sz, int num_subbands, int num_chans);
+int reset_state(size_t input_block_sz, size_t output_block_sz, int num_subbands, int num_chans);
 
 #if defined __cplusplus
 extern "C"

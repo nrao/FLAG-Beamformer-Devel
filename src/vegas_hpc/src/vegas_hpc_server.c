@@ -378,7 +378,7 @@ int main(int argc, char *argv[]) {
     
     if (initialize_gpu_at_startup)
     {
-        init_cuda_context();
+        init_cuda_context(0, 0, 0, 0);
         vegas_status_lock(&stat);
         hputs(stat.buf, "GPUCTXIN", "TRUE");
         vegas_status_unlock(&stat);
@@ -561,8 +561,18 @@ int main(int argc, char *argv[]) {
             vegas_status_unlock(&stat);
             nthread_cur = 0;
         } 
-        else if (strncasecmp(cmd, "INIT_GPU", MAX_CMD_LEN)==0) {
-            init_cuda_context();
+        else if (strncasecmp(cmd, "INIT_GPU", MAX_CMD_LEN)==0) 
+        {
+            int nsubband, nchan;
+            vegas_status_lock(&stat);
+            if (hgeti4(stat.buf, "NCHAN", &nchan)==0) {
+                fprintf(stderr, "ERROR: %s not in status shm!\n", "NCHAN");
+            }
+            if (hgeti4(stat.buf, "NSUBBAND", &nsubband)==0) {
+                fprintf(stderr, "ERROR: %s not in status shm!\n", "NSUBBAND");
+            }
+            vegas_status_unlock(&stat);
+            init_cuda_context(nsubband, nchan, dbuf_net->block_size, dbuf_pfb->block_size);
             vegas_status_lock(&stat);
             hputs(stat.buf, "GPUCTXIN", "TRUE");
             vegas_status_unlock(&stat);            

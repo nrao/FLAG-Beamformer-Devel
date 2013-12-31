@@ -70,7 +70,6 @@ void vegas_pfb_thread(void *_args) {
     pthread_cleanup_push((void *)vegas_status_detach, &st);
     pthread_cleanup_push((void *)set_exit_status, &st);
     pthread_cleanup_push((void *)vegas_thread_set_finished, args);
-    pthread_cleanup_push((void *)cleanup_gpu, 0);
 
     /* Init status */
     vegas_status_lock_safe(&st);
@@ -125,10 +124,10 @@ void vegas_pfb_thread(void *_args) {
         fprintf(stderr, "ERROR: %s not in status shm!\n", "NSUBBAND");
     }
     vegas_status_unlock_safe(&st);
-    if (EXIT_SUCCESS != init_gpu(db_in->block_size,
-                                 db_out->block_size,
-                                 nsubband,
-                                 nchan))
+    if (EXIT_SUCCESS != reset_state(db_in->block_size,
+                                    db_out->block_size,
+                                    nsubband,
+                                    nchan))
     {
         (void) fprintf(stderr, "ERROR: GPU initialisation failed!\n");
         run = 0;
@@ -186,7 +185,6 @@ void vegas_pfb_thread(void *_args) {
     pthread_cleanup_pop(0); /* Closes vegas_databuf_detach(out) */
     pthread_cleanup_pop(0); /* Closes vegas_databuf_detach(in) */
     pthread_cleanup_pop(0); /* Closes vegas_free_sdfits */
-    pthread_cleanup_pop(0); /* Closes cleanup_gpu() */
     pthread_cleanup_pop(0); /* Closes vegas_thread_set_finished */
     pthread_cleanup_pop(0); /* Closes set_exit_status */
     pthread_cleanup_pop(0); /* Closes vegas_status_detach */
