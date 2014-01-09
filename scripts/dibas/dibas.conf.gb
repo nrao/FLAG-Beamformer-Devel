@@ -1,0 +1,1588 @@
+[DEFAULTS]
+# Subsystems in use.  This is a set of subsystems, with A=1, B=2, etc,
+# up to 8.  If it appears in this list, it is available.  The list may
+# consist of comma-separated values (1, 2, 3, etc.), or ranges (1-8,
+# 3-6, etc.), or a combination of both (1, 2, 5-8).  Too many values,
+# duplicate values, or values greater than 8 or less than 1 will
+# result in the coordinator calling exit(1), with the appropriate
+# message in the manager's log file.
+
+# Which telescope?
+telescope = GBT
+
+# Which bank is switching master?
+who_is_master = BANKA
+
+player_port = 6667
+
+[HPCMACS]
+vegas-hpc1 = 0x000F530CA600
+vegas-hpc2 = 0x000F530CC108
+vegas-hpc3 = 0x000F530CCA78
+vegas-hpc4 = 0x000F530CB664
+vegas-hpc5 = 0x000F530CCFB8
+vegas-hpc6 = 0x000F530CBF1C
+vegas-hpc7 = 0x000F530CCADC
+vegas-hpc8 = 0x000F530CC720
+
+[DEALER]
+players = BANKA, BANKB, BANKC, BANKD, BANKE, BANKF, BANKG, BANKH
+#players = BANKA BANKB BANKC
+
+# Bank configurations.
+#
+# datahost        : The 10Gbs IP address for the roach
+# dataport        : The 10Gbs port for the roach
+# dest_ip         : The 10Gbs HPC IP address
+# dest_port       : The 10Gbs HPC port
+# katcp_ip        : The KATCP host, on the 1Gbs network
+# katcp_port      : The KATCP port on the 1Gbs network
+# synth           : 'local' if Valon is attached to HPC, 'katcp' if onboard the roach PPC
+# synth_port      : The Valon synthesizer serial port
+# synth_ref       : Valon frequency reference, 'internal' or 'external'
+# synth_ref_freq  : Valon reference frequency
+# synth_vco_range : Valon VCO range
+# synth_rf_level  : The RF output level, in dBm. Legal values are -4, -1, 2, and 5
+# synth_options   : Valon options. With the exception of the reference frequency multiplier,
+#                   all of these are flags which either are clear (0) or set (1)
+#                   doubler, halver, multiplier, low-spur
+#
+# Optional:
+#
+#    shmkeys      : A key of keys. The comma-separated list will be interpreted as keys to
+#                   kv pairs in this section, which themselves will be read and placed in
+#                   the status shared memory. In the following example, 'FOO':'cat',
+#                   'BAR':'frog' and 'BAZ':'dog' will be placed in shared memory. If 'shmkeys'
+#                   is missing, or has an empty list, or if any of the keys listed by 'shmkeys'
+#                   is missing, no kv pairs will be loaded into shared status memory:
+#
+#                   shmkeys = foo,bar,baz
+#                   foo = cat
+#                   bar = frog
+#                   baz = dog
+
+[BANKA]
+# HPC / Player host & port The use of vegas-hpc6 is temporary until
+# 10GBs ethernet cables for 7 & 8 are put in place.
+hpchost = vegas-hpc1
+player_port = 6667
+# ROACH Control:
+has_roach = true
+katcp_ip = vegasr2-1
+katcp_port = 7147
+# Data flow
+data_source_host = vegasr2-1-10-0
+data_source_port = 60000
+data_destination_host = hpc1-10
+data_destination_port = 60000
+# Synthesizer:
+synth = katcp
+synth_port = /dev/ttyS1
+synth_ref = external
+synth_ref_freq = 10000000
+synth_vco_range = 2200, 4400
+synth_rf_level = 5
+synth_options = 0,0,1,0
+
+[BANKB]
+# HPC / Player host & port
+hpchost = vegas-hpc2
+player_port = 6667
+# ROACH Control:
+has_roach = true
+katcp_ip = vegasr2-2
+katcp_port = 7147
+# Data flow:
+data_source_host = vegasr2-2-10-0
+data_source_port = 60000
+data_destination_host = vegas-hpc2-10
+data_destination_port = 60000
+# Synthesizer:
+synth = katcp
+synth_port = /dev/ttyS1
+synth_ref = external
+synth_ref_freq = 10000000
+synth_vco_range = 2200, 4400
+synth_rf_level = 5
+synth_options = 0,0,1,0
+
+[BANKC]
+# HPC / Player host & port
+hpchost = vegas-hpc3
+player_port = 6667
+# ROACH Control:
+has_roach = true
+katcp_ip = vegasr2-3
+katcp_port = 7147
+# Data flow:
+data_source_host = vegasr2-3-10-0
+data_source_port = 60000
+data_destination_host = vegas-hpc3-10
+data_destination_port = 60000
+# Synthesizer:
+synth = katcp
+synth_port = /dev/ttyS1
+synth_ref = external
+synth_ref_freq = 10000000
+synth_vco_range = 2200, 4400
+synth_rf_level = 5
+synth_options = 0,0,1,0
+
+######################################################################
+# The remaining banks are only used for GUPPI CODD modes and thus do not
+# control a ROACH. CODD DATAHOST assignments are made in the CODD MODE
+# sections below. Only 'hpchost', 'player_port', 'data_source_port',
+# 'data_destination_host' and 'data_destination_port' keys are needed
+# for these banks. The other keys may either be given a value of 'N/A'
+# or may be omitted altogether. The values normally given in
+# 'data_source_host' will be determined by the CODD mode sections below,
+# in key 'codd_data_interfaces'. The reason for this is that only one
+# roach will be providing data to all 8 players, and for the players
+# that normally control a roach this is not necessarily the one they
+# usually control.
+
+[BANKD]
+# HPC / Player host & port
+hpchost = vegas-hpc4
+player_port = 6667
+# ROACH Control:
+has_roach = false
+katcp_ip = N/A
+katcp_port = N/A
+# Data flow:
+data_source_host = N/A
+data_source_port = 60000
+data_destination_host = vegas-hpc4-10
+data_destination_port = 60000
+# Synthesizer:
+synth = N/A
+synth_port = N/A
+synth_ref = N/A
+synth_ref_freq = N/A
+synth_vco_range = N/A
+synth_rf_level = N/A
+synth_options = N/A
+
+[BANKE]
+# HPC / Player host & port
+hpchost = vegas-hpc5
+player_port = 6667
+has_roach = false
+# Data flow:
+data_source_port = 60000
+data_destination_host = vegas-hpc5-10
+data_destination_port = 60000
+
+[BANKF]
+# HPC / Player host & port
+hpchost = vegas-hpc6
+player_port = 6667
+has_roach = false
+# Data flow:
+data_source_port = 60000
+data_destination_host = vegas-hpc6-10
+data_destination_port = 60000
+
+[BANKG]
+# HPC / Player host & port
+hpchost = vegas-hpc7
+player_port = 6667
+has_roach = false
+# Data flow:
+data_source_port = 60000
+data_destination_host = vegas-hpc7-10
+data_destination_port = 60000
+
+[BANKH]
+# HPC / Player host & port
+hpchost = vegas-hpc8
+player_port = 6667
+has_roach = false
+# Data flow:
+data_source_port = 60000
+data_destination_host = vegas-hpc8-10
+data_destination_port = 60000
+
+
+###################################  MODE 1  #############################################
+[MODE1]
+shmkeys = OBS_MODE,BW_MODE,BACKEND,_SWSGPLY,MODENAME,HWEXPOSR
+
+OBS_MODE = HBW
+BW_MODE=high
+BACKEND=VEGAS
+# Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
+_SWSGPLY=3
+MODENAME = h1k
+HWEXPOSR = 0.000524288
+
+
+
+roach_reg_keys=sg_period,acc_len,fftshift
+fftshift=0x5555
+
+gigabit_interface_name=gbe0
+dest_ip_register_name = dest_ip
+dest_port_register_name = dest_port
+
+needed_arm_delay = 4
+acc_len = 768
+hpc_program=vegas_hpc_server
+hpc_program_flags=--resize-obuf
+hpc_fifo_name=/tmp/vegas_daq_control
+
+#bof_file = h1k_ver102_2013_Jun_01_1729.bof
+bof_file = h1k_ver103_2013_Aug_24_1500.bof
+
+nchan = 1024
+filter_bw = 1450
+frequency = 1500
+#sg_period = 44040188 # acc_len * 32 * 256 * 7 - 4
+# changed as part of the start issue
+#sg_period = 704643068 # acc_len * 32 * 16 * 7 * 256 - 4
+
+# sg_period = acc_len * 32 * 16 * 7 * 256 - 2 latest (v135) bof file
+sg_period = 704643070
+
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x00,0x00,0x00,0x0E,0x00,0x00
+
+# These are the sequence of KATCP commands (and delays) needed to reset,
+# arm, and disarm the roach. They are interpreted and executed by the
+# manager.  The sequences consist of pairs of values: command,parameter;
+# i.e. sg_sync is the command, 0x12 is the parameter.  All commands
+# are on even indexes, all parameters on odd indexes.
+reset_phase = sg_sync,0x12,wait,0.1,arm,0,arm,1,wait,0.1,arm,0,arm,1,arm,0,wait,0.5,sg_sync,0x11,wait,0.1
+arm_phase = sg_sync,0x12,arm,0,arm,1,arm,0,wait,0.2,arm,1,arm,0,wait,0.05,sg_sync,0x14
+postarm_phase = sg_sync,0x10
+
+file_system = /lustre/gbtdata
+
+############################## MODE 2 ##############################
+
+[MODE2]
+shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,HWEXPOSR,_SWSGPLY
+OBS_MODE = HBW
+BW_MODE=high
+BACKEND=VEGAS
+MODENAME = h16k
+HWEXPOSR = 0.008388608
+# Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
+_SWSGPLY=12
+
+roach_reg_keys=sg_period,acc_len,fftshift
+fftshift=0x5555
+
+gigabit_interface_name=gbe0
+dest_ip_register_name = dest_ip
+dest_port_register_name = dest_port
+
+needed_arm_delay = 4
+acc_len = 768
+hpc_program=vegas_hpc_server
+hpc_program_flags=--resize-obuf
+hpc_fifo_name=/tmp/vegas_daq_control
+
+
+bof_file = h16k_ver103_2013_Aug_24_1630.bof
+
+nchan = 16384
+filter_bw = 1450
+frequency = 1500
+#sg_period = 44040188 # acc_len * 32 * 256 * 7 - 4
+# changed as part of the start issue
+#sg_period = 704643068 # acc_len * 32 * 16 * 7 * 256 - 4
+
+# sg_period = acc_len * 32 * 16 * 7 * 256 - 2 latest (v135) bof file
+sg_period = 704643070
+
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x00,0x00,0x00,0x0E,0x00,0x00
+
+# These are the sequence of KATCP commands (and delays) needed to reset,
+# arm, and disarm the roach. They are interpreted and executed by the
+# manager.  The sequences consist of pairs of values: command,parameter;
+# i.e. sg_sync is the command, 0x12 is the parameter.  All commands
+# are on even indexes, all parameters on odd indexes.
+reset_phase = sg_sync,0x12,wait,0.1,arm,0,arm,1,wait,0.1,arm,0,arm,1,arm,0,wait,0.5,sg_sync,0x11,wait,0.1
+arm_phase = sg_sync,0x12,arm,0,arm,1,arm,0,wait,0.2,arm,1,arm,0,wait,0.05,sg_sync,0x14
+postarm_phase = sg_sync,0x10
+
+file_system = /lustre/gbtdata
+
+############################## MODE 3 ##############################
+
+[MODE3]
+shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,HWEXPOSR,_SWSGPLY
+OBS_MODE = HBW
+BW_MODE=high
+BACKEND=VEGAS
+MODENAME = h16k
+HWEXPOSR = 0.012582912
+# Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
+_SWSGPLY=12
+
+roach_reg_keys=sg_period,acc_len,fftshift
+fftshift=0x5555
+
+gigabit_interface_name=gbe0
+dest_ip_register_name = dest_ip
+dest_port_register_name = dest_port
+
+needed_arm_delay = 4
+acc_len = 768
+hpc_program=vegas_hpc_server
+hpc_program_flags=--resize-obuf
+hpc_fifo_name=/tmp/vegas_daq_control
+
+
+bof_file = h16k_ver103_2013_Aug_24_1630.bof
+
+nchan = 16384
+filter_bw = 450
+frequency = 500
+#sg_period = 44040188 # acc_len * 32 * 256 * 7 - 4
+# changed as part of the start issue
+#sg_period = 704643068 # acc_len * 32 * 16 * 7 * 256 - 4
+
+# sg_period = acc_len * 32 * 16 * 7 * 256 - 2 latest (v135) bof file
+sg_period = 704643070
+
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x00,0x00,0x00,0x0E,0x00,0x00
+
+# These are the sequence of KATCP commands (and delays) needed to reset,
+# arm, and disarm the roach. They are interpreted and executed by the
+# manager.  The sequences consist of pairs of values: command,parameter;
+# i.e. sg_sync is the command, 0x12 is the parameter.  All commands
+# are on even indexes, all parameters on odd indexes.
+reset_phase = sg_sync,0x12,wait,0.1,arm,0,arm,1,wait,0.1,arm,0,arm,1,arm,0,wait,0.5,sg_sync,0x11,wait,0.1
+arm_phase = sg_sync,0x12,arm,0,arm,1,arm,0,wait,0.2,arm,1,arm,0,wait,0.05,sg_sync,0x14
+postarm_phase = sg_sync,0x10
+
+file_system = /lustre/gbtdata
+
+###################################  CODD_MODE_64  #############################################
+[CODD_MODE_64]
+shmkeys=CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+BACKEND=GUPPI
+
+# ROACH and HPC host to be used. The values refer to the sections
+# above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
+# one indicated by 'katcp_ip' of that section. The various 10Gb/s
+# interfaces on the roach would be those used by all the BANKX sections
+# above.
+#
+# Only one HPC player is responsible for setting up and controlling the
+# ROACH. The others merely set up their shared memory areas for the HPC
+# program, and start and stop the HPC program. The various keywords are:
+#
+#  cdd_roach: Refers to the BANK section above that identifies the
+#  desired ROACH, and any configurations for that roach (for example,
+#  the Valon).
+#
+#  cdd_roach_ips: The above ROACH must be programmed with 10Gb/s IP
+#  addresses. These are to be found in the sections listed by this key,
+#  in the order given.
+#
+#  cdd_hpcs: Indicates the HPC hosts that the data should be sent
+#  to. Again, it does this by specifying the 'BANK' sections above, in
+#  the order given.  For example, BANKE's 'dest_ip' would specify the
+#  destination IP to be used.
+#
+#  cdd_master_hpc: The HPC host whose Player is to control the
+#  ROACH. This Player must program the ROACH, issue the arm command,
+#  etc, in addition to doing the other things all the Players must do to
+#  make this measurement work (shared memory, start the HPC server
+#  processes, etc.)
+
+# The next two keys are mapped to each other. The software will load
+# both into a dictionary: 'cdd_hpcs' will provide the keys, and
+# 'cdd_data_interfaces' will be the basis for the IP addresses mapped to
+# each key. In other words, the first entry of 'cdd_hpcs' is the key to
+# the first entry of 'cdd_data_interfaces', etc.
+cdd_hpcs = BANKA,BANKB,BANKC,BANKD,BANKE,BANKF,BANKG,BANKH
+cdd_data_interfaces = vegasr2-1-10-0,
+                      vegasr2-1-10-1,
+                      vegasr2-1-10-2,
+                      vegasr2-1-10-3,
+                      vegasr2-1-10-4,
+                      vegasr2-1-10-5,
+                      vegasr2-1-10-6,
+                      vegasr2-1-10-7
+# This determines who is controlling the roach with the interfaces. This
+# value is the key to a BANK section above, and that BANK's roach must
+# be the same one specified in 'cdd_data_interfaces'. (TBF? specify only
+# in one place)
+cdd_master_hpc = BANKA
+
+gigabit_interface_name=tGX8_tGv2
+dest_ip_register_name = IP_
+dest_port_register_name = PT_
+
+needed_arm_delay = 5
+acc_len = 1
+#bof_file = dibas_codd_0064_t12_w095_x11_2013_Jun_06_1045.bof
+#bof_file = dibas_codd_0064_t12_w095_x12_2013_Jun_11_1743.bof
+#bof_file = dibas_codd_0064_t12_w095_x13_2013_Jun_12_1755.bof
+#bof_file = dibas_codd_0064_t12_w095_x15_2013_Jun_13_1801.bof
+#bof_file = dibas_codd_0064_t12_w095_x16_2013_Jun_18_1434.bof
+#bof_file = dibas_codd_0064_t12_w095_p00_2013_Aug_06_1228.bof
+bof_file = dibas_codd_0064_t12_w095_p01_2013_Oct_02_1458.bof
+
+filter_bw = 450
+frequency = 800
+# Number of channels for the all 8 HPC's in this mode:
+nchan = 64
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =tenGB_reset,1,tenGB_reset,0
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xaaaaaaaa
+DC_EN=1
+
+###################################  CODD_MODE_128  #############################################
+[CODD_MODE_128]
+shmkeys=CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+BACKEND=GUPPI
+
+# ROACH and HPC host to be used. The values refer to the sections
+# above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
+# one indicated by 'katcp_ip' of that section. The various 10Gb/s
+# interfaces on the roach would be those used by all the BANKX sections
+# above.
+#
+# Only one HPC player is responsible for setting up and controlling the
+# ROACH. The others merely set up their shared memory areas for the HPC
+# program, and start and stop the HPC program. The various keywords are:
+#
+#  cdd_roach: Refers to the BANK section above that identifies the
+#  desired ROACH, and any configurations for that roach (for example,
+#  the Valon).
+#
+#  cdd_roach_ips: The above ROACH must be programmed with 10Gb/s IP
+#  addresses. These are to be found in the sections listed by this key,
+#  in the order given.
+#
+#  cdd_hpcs: Indicates the HPC hosts that the data should be sent
+#  to. Again, it does this by specifying the 'BANK' sections above, in
+#  the order given.  For example, BANKE's 'dest_ip' would specify the
+#  destination IP to be used.
+#
+#  cdd_master_hpc: The HPC host whose Player is to control the
+#  ROACH. This Player must program the ROACH, issue the arm command,
+#  etc, in addition to doing the other things all the Players must do to
+#  make this measurement work (shared memory, start the HPC server
+#  processes, etc.)
+
+cdd_hpcs = BANKA,BANKB,BANKC,BANKD,BANKE,BANKF,BANKG,BANKH
+cdd_data_interfaces = vegasr2-1-10-0,
+                      vegasr2-1-10-1,
+                      vegasr2-1-10-2,
+                      vegasr2-1-10-3,
+                      vegasr2-1-10-4,
+                      vegasr2-1-10-5,
+                      vegasr2-1-10-6,
+                      vegasr2-1-10-7
+# This determines who is controlling the roach with the interfaces. This
+# value is the key to a BANK section above, and that BANK's roach must
+# be the same one specified in 'cdd_data_interfaces'. (TBF? specify only
+# in one place)
+cdd_master_hpc = BANKA
+
+gigabit_interface_name=tGX8_tGv2
+dest_ip_register_name = IP_
+dest_port_register_name = PT_
+
+needed_arm_delay = 5
+acc_len = 1
+
+#bof_file = dibas_codd_0128_t12_w095_p00_2013_Aug_05_1833.bof
+bof_file = dibas_codd_0128_t12_w095_p00_2013_Oct_04_1406.bof
+
+filter_bw = 450
+frequency = 1000
+# Number of channels for the all 8 HPC's in this mode:
+nchan = 128
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =tenGB_reset,1,tenGB_reset,0
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xaaaaaaaa
+DC_EN=1
+
+###################################  CODD_MODE_256  #############################################
+[CODD_MODE_256]
+shmkeys=CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+BACKEND=GUPPI
+
+# ROACH and HPC host to be used. The values refer to the sections
+# above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
+# one indicated by 'katcp_ip' of that section. The various 10Gb/s
+# interfaces on the roach would be those used by all the BANKX sections
+# above.
+#
+# Only one HPC player is responsible for setting up and controlling the
+# ROACH. The others merely set up their shared memory areas for the HPC
+# program, and start and stop the HPC program. The various keywords are:
+#
+#  cdd_roach: Refers to the BANK section above that identifies the
+#  desired ROACH, and any configurations for that roach (for example,
+#  the Valon).
+#
+#  cdd_roach_ips: The above ROACH must be programmed with 10Gb/s IP
+#  addresses. These are to be found in the sections listed by this key,
+#  in the order given.
+#
+#  cdd_hpcs: Indicates the HPC hosts that the data should be sent
+#  to. Again, it does this by specifying the 'BANK' sections above, in
+#  the order given.  For example, BANKE's 'dest_ip' would specify the
+#  destination IP to be used.
+#
+#  cdd_master_hpc: The HPC host whose Player is to control the
+#  ROACH. This Player must program the ROACH, issue the arm command,
+#  etc, in addition to doing the other things all the Players must do to
+#  make this measurement work (shared memory, start the HPC server
+#  processes, etc.)
+
+cdd_hpcs = BANKA,BANKB,BANKC,BANKD,BANKE,BANKF,BANKG,BANKH
+cdd_data_interfaces = vegasr2-1-10-0,
+                      vegasr2-1-10-1,
+                      vegasr2-1-10-2,
+                      vegasr2-1-10-3,
+                      vegasr2-1-10-4,
+                      vegasr2-1-10-5,
+                      vegasr2-1-10-6,
+                      vegasr2-1-10-7
+# This determines who is controlling the roach with the interfaces. This
+# value is the key to a BANK section above, and that BANK's roach must
+# be the same one specified in 'cdd_data_interfaces'. (TBF? specify only
+# in one place)
+cdd_master_hpc = BANKA
+
+gigabit_interface_name=tGX8_tGv2
+dest_ip_register_name = IP_
+dest_port_register_name = PT_
+
+needed_arm_delay = 5
+acc_len = 1
+
+# bof_file = dibas_codd_0256_t12_w095_p00_2013_Aug_05_1739.bof
+bof_file = dibas_codd_0256_t12_w095_p00_2013_Oct_07_1319.bof
+
+filter_bw = 450
+frequency = 1000
+# Number of channels for the all 8 HPC's in this mode:
+nchan = 256
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =tenGB_reset,1,tenGB_reset,0
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xaaaaaaaa
+DC_EN=1
+
+###################################  CODD_MODE_512  #############################################
+[CODD_MODE_512]
+shmkeys=CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+BACKEND=GUPPI
+
+# ROACH and HPC host to be used. The values refer to the sections
+# above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
+# one indicated by 'katcp_ip' of that section. The various 10Gb/s
+# interfaces on the roach would be those used by all the BANKX sections
+# above.
+#
+# Only one HPC player is responsible for setting up and controlling the
+# ROACH. The others merely set up their shared memory areas for the HPC
+# program, and start and stop the HPC program. The various keywords are:
+#
+#  cdd_roach: Refers to the BANK section above that identifies the
+#  desired ROACH, and any configurations for that roach (for example,
+#  the Valon).
+#
+#  cdd_roach_ips: The above ROACH must be programmed with 10Gb/s IP
+#  addresses. These are to be found in the sections listed by this key,
+#  in the order given.
+#
+#  cdd_hpcs: Indicates the HPC hosts that the data should be sent
+#  to. Again, it does this by specifying the 'BANK' sections above, in
+#  the order given.  For example, BANKE's 'dest_ip' would specify the
+#  destination IP to be used.
+#
+#  cdd_master_hpc: The HPC host whose Player is to control the
+#  ROACH. This Player must program the ROACH, issue the arm command,
+#  etc, in addition to doing the other things all the Players must do to
+#  make this measurement work (shared memory, start the HPC server
+#  processes, etc.)
+
+cdd_hpcs = BANKA,BANKB,BANKC,BANKD,BANKE,BANKF,BANKG,BANKH
+cdd_data_interfaces = vegasr2-1-10-0,
+                      vegasr2-1-10-1,
+                      vegasr2-1-10-2,
+                      vegasr2-1-10-3,
+                      vegasr2-1-10-4,
+                      vegasr2-1-10-5,
+                      vegasr2-1-10-6,
+                      vegasr2-1-10-7
+# This determines who is controlling the roach with the interfaces. This
+# value is the key to a BANK section above, and that BANK's roach must
+# be the same one specified in 'cdd_data_interfaces'. (TBF? specify only
+# in one place)
+cdd_master_hpc = BANKA
+
+gigabit_interface_name=tGX8_tGv2
+dest_ip_register_name = IP_
+dest_port_register_name = PT_
+
+needed_arm_delay = 5
+acc_len = 1
+
+# bof_file = dibas_codd_0512_t12_w095_p00_2013_Aug_05_1312.bof
+bof_file = dibas_codd_0512_t12_w095_p00_2013_Oct_07_1325.bof
+
+filter_bw = 450
+frequency = 1000
+# Number of channels for the all 8 HPC's in this mode:
+nchan = 512
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =tenGB_reset,1,tenGB_resetb,0
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xaaaaaaaa
+DC_EN=1
+
+###################################  CODD_MODE_1024  #############################################
+[CODD_MODE_1024]
+shmkeys=CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+BACKEND=GUPPI
+
+# ROACH and HPC host to be used. The values refer to the sections
+# above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
+# one indicated by 'katcp_ip' of that section. The various 10Gb/s
+# interfaces on the roach would be those used by all the BANKX sections
+# above.
+#
+# Only one HPC player is responsible for setting up and controlling the
+# ROACH. The others merely set up their shared memory areas for the HPC
+# program, and start and stop the HPC program. The various keywords are:
+#
+#  cdd_roach: Refers to the BANK section above that identifies the
+#  desired ROACH, and any configurations for that roach (for example,
+#  the Valon).
+#
+#  cdd_roach_ips: The above ROACH must be programmed with 10Gb/s IP
+#  addresses. These are to be found in the sections listed by this key,
+#  in the order given.
+#
+#  cdd_hpcs: Indicates the HPC hosts that the data should be sent
+#  to. Again, it does this by specifying the 'BANK' sections above, in
+#  the order given.  For example, BANKE's 'dest_ip' would specify the
+#  destination IP to be used.
+#
+#  cdd_master_hpc: The HPC host whose Player is to control the
+#  ROACH. This Player must program the ROACH, issue the arm command,
+#  etc, in addition to doing the other things all the Players must do to
+#  make this measurement work (shared memory, start the HPC server
+#  processes, etc.)
+
+cdd_hpcs = BANKA,BANKB,BANKC,BANKD,BANKE,BANKF,BANKG,BANKH
+cdd_data_interfaces = vegasr2-1-10-0,
+                      vegasr2-1-10-1,
+                      vegasr2-1-10-2,
+                      vegasr2-1-10-3,
+                      vegasr2-1-10-4,
+                      vegasr2-1-10-5,
+                      vegasr2-1-10-6,
+                      vegasr2-1-10-7
+# This determines who is controlling the roach with the interfaces. This
+# value is the key to a BANK section above, and that BANK's roach must
+# be the same one specified in 'cdd_data_interfaces'. (TBF? specify only
+# in one place)
+cdd_master_hpc = BANKA
+
+gigabit_interface_name=tGX8_tGv2
+dest_ip_register_name = IP_
+dest_port_register_name = PT_
+
+needed_arm_delay = 5
+acc_len = 1
+
+# bof_file = dibas_codd_1024_t12_w095_p00_2013_Aug_01_1809.bof
+bof_file = dibas_codd_1024_t12_w095_p00_2013_Oct_04_2241.bof
+
+filter_bw = 450
+frequency = 1000
+# Number of channels for the all 8 HPC's in this mode:
+nchan = 1024
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =tenGB_reset,1,tenGB_reset,0
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xaaaaaaaa
+DC_EN=1
+
+###################################  CODD_MODE_2048  #############################################
+[CODD_MODE_2048]
+shmkeys=CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+
+# ROACH and HPC host to be used. The values refer to the sections
+# above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
+# one indicated by 'katcp_ip' of that section. The various 10Gb/s
+# interfaces on the roach would be those used by all the BANKX sections
+# above.
+#
+# Only one HPC player is responsible for setting up and controlling the
+# ROACH. The others merely set up their shared memory areas for the HPC
+# program, and start and stop the HPC program. The various keywords are:
+#
+#  cdd_roach: Refers to the BANK section above that identifies the
+#  desired ROACH, and any configurations for that roach (for example,
+#  the Valon).
+#
+#  cdd_roach_ips: The above ROACH must be programmed with 10Gb/s IP
+#  addresses. These are to be found in the sections listed by this key,
+#  in the order given.
+#
+#  cdd_hpcs: Indicates the HPC hosts that the data should be sent
+#  to. Again, it does this by specifying the 'BANK' sections above, in
+#  the order given.  For example, BANKE's 'dest_ip' would specify the
+#  destination IP to be used.
+#
+#  cdd_master_hpc: The HPC host whose Player is to control the
+#  ROACH. This Player must program the ROACH, issue the arm command,
+#  etc, in addition to doing the other things all the Players must do to
+#  make this measurement work (shared memory, start the HPC server
+#  processes, etc.)
+
+cdd_hpcs = BANKA,BANKB,BANKC,BANKD,BANKE,BANKF,BANKG,BANKH
+cdd_data_interfaces = vegasr2-1-10-0,
+                      vegasr2-1-10-1,
+                      vegasr2-1-10-2,
+                      vegasr2-1-10-3,
+                      vegasr2-1-10-4,
+                      vegasr2-1-10-5,
+                      vegasr2-1-10-6,
+                      vegasr2-1-10-7
+# This determines who is controlling the roach with the interfaces. This
+# value is the key to a BANK section above, and that BANK's roach must
+# be the same one specified in 'cdd_data_interfaces'. (TBF? specify only
+# in one place)
+cdd_master_hpc = BANKA
+
+gigabit_interface_name=tGX8_tGv2
+dest_ip_register_name = IP_
+dest_port_register_name = PT_
+
+needed_arm_delay = 5
+#bof_file = dibas_codd_2048_t12_w095_p00_2013_Jul_17_2158.bof
+#bof_file = dibas_codd_2048_t12_w095_p00_2013_Jul_31_1409.bof
+bof_file = dibas_codd_2048_t12_w095_p00_2013_Oct_04_1902.bof
+
+filter_bw = 450
+frequency = 1000
+nchan = 2048
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =tenGB_reset,1,tenGB_reset,0
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,DC_EN
+FFT_SHIFT=0xAAAAAAAA
+DC_EN=1
+
+###################################  CODD_MODE_4096  #############################################
+[CODD_MODE_4096]
+shmkeys=CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+
+# ROACH and HPC host to be used. The values refer to the sections
+# above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
+# one indicated by 'katcp_ip' of that section. The various 10Gb/s
+# interfaces on the roach would be those used by all the BANKX sections
+# above.
+#
+# Only one HPC player is responsible for setting up and controlling the
+# ROACH. The others merely set up their shared memory areas for the HPC
+# program, and start and stop the HPC program. The various keywords are:
+#
+#  cdd_roach: Refers to the BANK section above that identifies the
+#  desired ROACH, and any configurations for that roach (for example,
+#  the Valon).
+#
+#  cdd_roach_ips: The above ROACH must be programmed with 10Gb/s IP
+#  addresses. These are to be found in the sections listed by this key,
+#  in the order given.
+#
+#  cdd_hpcs: Indicates the HPC hosts that the data should be sent
+#  to. Again, it does this by specifying the 'BANK' sections above, in
+#  the order given.  For example, BANKE's 'dest_ip' would specify the
+#  destination IP to be used.
+#
+#  cdd_master_hpc: The HPC host whose Player is to control the
+#  ROACH. This Player must program the ROACH, issue the arm command,
+#  etc, in addition to doing the other things all the Players must do to
+#  make this measurement work (shared memory, start the HPC server
+#  processes, etc.)
+
+cdd_hpcs = BANKA,BANKB,BANKC,BANKD,BANKE,BANKF,BANKG,BANKH
+cdd_data_interfaces = vegasr2-1-10-0,
+                      vegasr2-1-10-1,
+                      vegasr2-1-10-2,
+                      vegasr2-1-10-3,
+                      vegasr2-1-10-4,
+                      vegasr2-1-10-5,
+                      vegasr2-1-10-6,
+                      vegasr2-1-10-7
+# This determines who is controlling the roach with the interfaces. This
+# value is the key to a BANK section above, and that BANK's roach must
+# be the same one specified in 'cdd_data_interfaces'. (TBF? specify only
+# in one place)
+cdd_master_hpc = BANKA
+
+gigabit_interface_name=tGX8_tGv2
+dest_ip_register_name = IP_
+dest_port_register_name = PT_
+
+needed_arm_delay = 5
+#bof_file = dibas_codd_4096_t12_w095_p00_2013_Aug_01_1029.bof
+bof_file = dibas_codd_4096_t12_w095_p00_2013_Oct_03_2152.bof
+
+filter_bw = 450
+frequency = 1000
+nchan = 4096
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =tenGB_reset,1,tenGB_reset,0
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,DC_EN
+FFT_SHIFT=0xAAAAAAAA
+DC_EN=1
+
+###################################  CODD_MODE_8192  #############################################
+[CODD_MODE_8192]
+shmkeys=CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+
+# ROACH and HPC host to be used. The values refer to the sections
+# above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
+# one indicated by 'katcp_ip' of that section. The various 10Gb/s
+# interfaces on the roach would be those used by all the BANKX sections
+# above.
+#
+# Only one HPC player is responsible for setting up and controlling the
+# ROACH. The others merely set up their shared memory areas for the HPC
+# program, and start and stop the HPC program. The various keywords are:
+#
+#  cdd_roach: Refers to the BANK section above that identifies the
+#  desired ROACH, and any configurations for that roach (for example,
+#  the Valon).
+#
+#  cdd_roach_ips: The above ROACH must be programmed with 10Gb/s IP
+#  addresses. These are to be found in the sections listed by this key,
+#  in the order given.
+#
+#  cdd_hpcs: Indicates the HPC hosts that the data should be sent
+#  to. Again, it does this by specifying the 'BANK' sections above, in
+#  the order given.  For example, BANKE's 'dest_ip' would specify the
+#  destination IP to be used.
+#
+#  cdd_master_hpc: The HPC host whose Player is to control the
+#  ROACH. This Player must program the ROACH, issue the arm command,
+#  etc, in addition to doing the other things all the Players must do to
+#  make this measurement work (shared memory, start the HPC server
+#  processes, etc.)
+
+cdd_hpcs = BANKA,BANKB,BANKC,BANKD,BANKE,BANKF,BANKG,BANKH
+cdd_data_interfaces = vegasr2-1-10-0,
+                      vegasr2-1-10-1,
+                      vegasr2-1-10-2,
+                      vegasr2-1-10-3,
+                      vegasr2-1-10-4,
+                      vegasr2-1-10-5,
+                      vegasr2-1-10-6,
+                      vegasr2-1-10-7
+# This determines who is controlling the roach with the interfaces. This
+# value is the key to a BANK section above, and that BANK's roach must
+# be the same one specified in 'cdd_data_interfaces'. (TBF: specify only
+# in one place?)
+cdd_master_hpc = BANKA
+
+gigabit_interface_name=tGX8_tGv2
+dest_ip_register_name = IP_
+dest_port_register_name = PT_
+
+needed_arm_delay = 5
+#bof_file = dibas_codd_8192_t12_w095_p00_2013_Aug_05_1127.bof
+bof_file = dibas_codd_8192_t12_w095_p00_2013_Oct_03_2217.bof
+
+filter_bw = 450
+frequency = 1000
+nchan = 8192
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =tenGB_reset,1,tenGB_reset,0
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,DC_EN
+FFT_SHIFT=0xAAAAAAAA
+DC_EN=1
+
+###################################  INCO_MODE_64  #############################################
+[INCO_MODE_64]
+shmkeys=BACKEND,
+        CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+#
+
+gigabit_interface_name=tGv20
+dest_ip_register_name = DEST_IP
+dest_port_register_name = DEST_PORT
+
+needed_arm_delay = 5
+#bof_file = dibas_inco_0064_t12_w095_x01_2013_Jun_17_1856.bof
+#bof_file = dibas_inco_0064_t12_w095_x02_2013_Jun_18_1020.bof
+#bof_file = dibas_inco_0064_t12_w095_x04_2013_Jun_20_2127.bof
+#bof_file = dibas_inco_0064_t12_w095_x06_2013_Jun_24_1527.bof
+#bof_file = dibas_inco_0064_t12_w095_x07_2013_Jun_27_1707.bof
+#bof_file = dibas_inco_0064_t12_w095_x07_2013_Jul_02_1759.bof
+#bof_file = dibas_inco_0064_t12_w095_x08_2013_Jul_03_1327.bof
+#bof_file = dibas_inco_0064_t12_w095_x09_2013_Jul_05_1143.bof
+#bof_file = dibas_inco_0064_t12_w095_x10_2013_Jul_08_1840.bof
+bof_file = dibas_inco_0064_t12_w095_p00_2013_Aug_06_1328.bof
+filter_bw = 1450
+frequency = 1500
+nchan = 64
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xAAAAAAAA
+DC_EN=1
+
+###################################  INCO_MODE_128  #############################################
+[INCO_MODE_128]
+shmkeys=BACKEND,
+        CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+#
+
+gigabit_interface_name=tGv20
+dest_ip_register_name = DEST_IP
+dest_port_register_name = DEST_PORT
+
+needed_arm_delay = 5
+bof_file = dibas_inco_0128_t12_w095_p00_2013_Aug_06_1703.bof
+filter_bw = 1450
+frequency = 1500
+nchan = 128
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xAAAAAAAA
+DC_EN=1
+
+###################################  INCO_MODE_256  #############################################
+[INCO_MODE_256]
+shmkeys=BACKEND,
+        CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+#
+
+gigabit_interface_name=tGv20
+dest_ip_register_name = DEST_IP
+dest_port_register_name = DEST_PORT
+
+needed_arm_delay = 5
+bof_file = dibas_inco_0256_t12_w095_p00_2013_Aug_06_2036.bof
+filter_bw = 1450
+frequency = 1500
+nchan = 256
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xAAAAAAAA
+DC_EN=1
+
+###################################  INCO_MODE_512  #############################################
+[INCO_MODE_512]
+shmkeys=BACKEND,
+        CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+#
+
+gigabit_interface_name=tGv20
+dest_ip_register_name = DEST_IP
+dest_port_register_name = DEST_PORT
+
+needed_arm_delay = 5
+bof_file = dibas_inco_0512_t12_w095_p00_2013_Aug_06_2153.bof
+filter_bw = 1450
+frequency = 1500
+nchan = 512
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xAAAAAAAA
+DC_EN=1
+
+###################################  INCO_MODE_1024  #############################################
+[INCO_MODE_1024]
+shmkeys=BACKEND,
+        CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+#
+
+gigabit_interface_name=tGv20
+dest_ip_register_name = DEST_IP
+dest_port_register_name = DEST_PORT
+
+needed_arm_delay = 5
+bof_file = dibas_inco_1024_t12_w095_p00_2013_Aug_07_1354.bof
+filter_bw = 1450
+frequency = 1500
+nchan = 1024
+
+hpc_program = guppi_daq_server
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xAAAAAAAA
+DC_EN=1
+
+###################################  INCO_MODE-2048  #############################################
+[INCO_MODE_2048]
+shmkeys=BACKEND,
+        CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+
+# Firmware designs often have different names for the network interface and IP/port registers.
+# The network interface name, destination IP register name and port register name are defined below:
+gigabit_interface_name=tGv20
+dest_ip_register_name = DEST_IP
+dest_port_register_name = DEST_PORT
+
+needed_arm_delay = 5
+
+#bof_file = dibas_inco_2048_t12_w095_x00_2013_Jun_25_2115.bof
+#bof_file = dibas_inco_2048_t12_w095_x01_2013_Jun_27_1727.bof
+#bof_file = dibas_inco_2048_t12_w095_x01_2013_Jul_02_1902.bof
+#bof_file = dibas_inco_2048_t12_w095_x03_2013_Jul_05_1237.bof
+bof_file = dibas_inco_2048_t12_w095_p00_2013_Aug_05_1926.bof
+
+nchan = 2048
+filter_bw = 1450
+frequency = 1500
+
+hpc_program = guppi_daq_server
+
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xaaaaaaaa
+DC_EN=1
+
+###################################  INCO_MODE-4096  #############################################
+[INCO_MODE_4096]
+shmkeys=BACKEND,
+        CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+
+# Firmware designs often have different names for the network interface and IP/port registers.
+# The network interface name, destination IP register name and port register name are defined below:
+gigabit_interface_name=tGv20
+dest_ip_register_name = DEST_IP
+dest_port_register_name = DEST_PORT
+
+needed_arm_delay = 5
+
+bof_file = dibas_inco_4096_t12_w095_p00_2013_Aug_19_1310.bof
+
+nchan = 4096
+filter_bw = 1450
+frequency = 1500
+
+hpc_program = guppi_daq_server
+
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xaaaaaaaa
+DC_EN=1
+
+###################################  INCO_MODE-8192  #############################################
+[INCO_MODE_8192]
+shmkeys=BACKEND,
+        CAL_DCYC,
+        CAL_FREQ,
+        CAL_MODE,
+        DS_FREQ,
+        TELESCOP
+
+hpc_program=guppi_daq_server
+hpc_fifo_name=/tmp/guppi_daq_control
+
+BACKEND=GUPPI
+CAL_DCYC=0.5
+CAL_FREQ=25.0
+CAL_MODE=OFF
+DS_FREQ=1
+TELESCOP=GBT
+
+# Firmware designs often have different names for the network interface and IP/port registers.
+# The network interface name, destination IP register name and port register name are defined below:
+gigabit_interface_name=tGv20
+dest_ip_register_name = DEST_IP
+dest_port_register_name = DEST_PORT
+
+needed_arm_delay = 5
+
+bof_file = dibas_inco_8192_t12_w095_p00_2013_Aug_14_1143.bof
+
+nchan = 8192
+filter_bw = 1450
+frequency = 1500
+
+hpc_program = guppi_daq_server
+
+# This array sets up the master_slave_sel values based on whether the
+# manager is master, what the switching signal source is
+# (internal/external), and what the blanking source is
+# (internal/external).  The order of the elements is as follows:
+#   m/int/int, m/int/ext, m/ext/ext,
+#   s/int/int, s/int/ext, s/ext/ext
+master_slave_sel = 0x40,0x00,0x00,0x02,0x00,0x00
+
+# These are the sequence of KATCP commands needed to reset, arm, and
+# disarm the roach. They are interpreted and executed by the manager.
+reset_phase =
+arm_phase =ARM,0x0,ARM,0x1,ARM,0x0
+postarm_phase =
+
+roach_reg_keys=FFT_SHIFT,
+               DC_EN
+
+FFT_SHIFT=0xaaaaaaaa
+DC_EN=1
