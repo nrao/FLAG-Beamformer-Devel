@@ -620,25 +620,30 @@ void do_pfb(struct vegas_databuf *db_in,
     /* Copy data block to GPU */
     if (first)
     {
+        // bloksz replaces a calculated value which caused the check below to fail
+        // in the presence of dropped packets. We used the blocksize from the data buffer
+        // instead here to get things going. Not sure how dropped data at start of
+        // scan should be treated.
+        int bloksz = db_in->block_size;
         /* Sanity check for the first iteration */
-        if ((iBlockInDataSize % (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4))) != 0)
+        if ((bloksz % (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4))) != 0)
         {
             (void) fprintf(stderr, "ERROR: Data size mismatch! BlockInDataSize=%d NumSubBands=%d nchan=%d\n",
-                                    iBlockInDataSize, gpuCtx->_nsubband, gpuCtx->_nchan);
+                                    bloksz, gpuCtx->_nsubband, gpuCtx->_nchan);
             run = 0;
             return;
         }
         CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d,
                                 payload_addr_in,
-                                iBlockInDataSize,
+                                bloksz,
                                 cudaMemcpyHostToDevice));
         /* duplicate the last (VEGAS_NUM_TAPS - 1) segm                payload_addr_out = (char*)(vegas_databuf_data(db_out, g_iPFBCurBlockOut) +
                                 sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK +
                                 (index_out->heap_size - sizeof(struct freq_spead_heap)) * g_iHeapOut);
 ents at the end for
            the next iteration */
-        CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + (iBlockInDataSize / sizeof(char4)),
-                                gpuCtx->_pc4Data_d + (iBlockInDataSize / sizeof(char4)) - ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan),
+        CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + (bloksz / sizeof(char4)),
+                                gpuCtx->_pc4Data_d + (bloksz / sizeof(char4)) - ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan),
                                 ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4)),
                                 cudaMemcpyDeviceToDevice));
 
