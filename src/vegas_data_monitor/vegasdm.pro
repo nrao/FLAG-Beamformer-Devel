@@ -10,11 +10,11 @@ unix {
     HARDWARE_PLATFORM = $$system(uname -i)
     contains( HARDWARE_PLATFORM, x86_64 ) {
         ARCH = x86_64-linux
-        QWTHOME = /opt/dibas/dibaslibs/qwt-6.0.1
+        QWTHOME = $(DIBAS)/dibaslibs/qwt-6.0.1
     }
 }
 
-DIBASHOME = /opt/dibas
+DIBASHOME = $(DIBAS)
 
 TEMPLATE = app
 
