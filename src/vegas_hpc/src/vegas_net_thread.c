@@ -59,6 +59,25 @@ struct datablock_stats {
     unsigned int last_heap;         // Last heap counter written to block
 };
 
+/** Touch all memory pages in a databuffer (non-destructive) */
+void touch_all_pages(struct vegas_databuf *db)
+{
+    size_t pagesize = 4096;
+    volatile char *ptr;
+    int i, page;
+    for (i=0; i<db->n_block; ++i)
+    {
+        ptr = vegas_databuf_data(db, i);
+        for (page=0; page<db->block_size/pagesize; ++page)
+        {
+            volatile char dummy;
+            dummy = *ptr;
+            *ptr = dummy;
+            ptr += pagesize;
+        }
+    }
+}
+
 /** Reset all packet loss counters */
 void reset_stats(struct datablock_stats *d) {
     d->nheaps=0;
@@ -264,6 +283,12 @@ void *vegas_net_thread(void *_args) {
         pthread_exit(NULL);
     }
     pthread_cleanup_push((void *)vegas_databuf_detach, db);
+    
+    // Only the net thread seems to need this. This
+    // call causes the data portion of net buffer to be
+    // paged in by 'touching' each 4k memory page. This fixes dropped packets
+    // at the beginning of scan issue.
+    touch_all_pages(db);
 
     /* Time parameters */
     double meas_stt_mjd=0.0;
