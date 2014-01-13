@@ -37,7 +37,7 @@ static char rcs_id[] =  "$Id$";
 
 DiskBufferChunk::DiskBufferChunk(const char *fits_header,
                                  const sdfits_data_columns *data_header,
-                                 float *in_data)
+                                 float *in_data) : data(0)
 {
     if((data_header == 0) || (in_data == 0))
     {
@@ -58,6 +58,11 @@ DiskBufferChunk::DiskBufferChunk(const char *fits_header,
     sttspec         = data_header->sttspec;
     stpspec         = data_header->stpspec;
     center_freq_idx = data_header->centre_freq_idx;
+
+    // special condition when data is flushed at the end of a scan    
+    if (integration == -1)
+        return;    
+        
     // Center frequencies
     for(int i = 0; i < MAX_SUBBANDS; ++i)
     {

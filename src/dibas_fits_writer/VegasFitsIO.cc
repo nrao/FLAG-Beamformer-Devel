@@ -1341,10 +1341,7 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     // If this a new integration, handle the integration start time counter
     if (new_integration)
     {
-        time_ctr_40bits = chunk->getIntegrationOffset();
         integration_start_time = chunk->getIntegrationStart();
-        _time_counter.add_lsw(time_ctr_40bits);
-        utcfrac = (double)_time_counter.get_offset() / (double)fpgaClock;
         integ_num = chunk->getIntegrationNumber();
     }
 
@@ -1396,6 +1393,15 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
         }
         return 0;
     }
+    // If this is the first phase (sometimes out of order in the buffer)
+    // then record the integrations start time.
+    if (state_offset == 0)
+    {
+        time_ctr_40bits = chunk->getIntegrationOffset();
+        _time_counter.add_lsw(time_ctr_40bits);
+        utcfrac = (double)_time_counter.get_offset() / (double)fpgaClock; 
+        // printf("new record t=%f %d\n", utcfrac, chunk->getIntegrationNumber());       
+    }    
 
     // We found the state, now calculate the offset into the data for this accum
     int num_ints = numberSubBands * numberStokes;

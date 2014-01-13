@@ -25,10 +25,6 @@
 #ifndef TRANSPOSE_H
 #define TRANSPOSE_H
 
-/**
- * Transpose float data from GPU. All alignment cases are handled (16 bytes aligned vs.
- * 8 or 4 bytes alignment.)
- */
-void transpose(float *in, float *out, int nsubbands, int nchannels, int nstokes=4);
+void transpose(float *in, float *out, int nsubbands, int nchannels);
 
 #endif//TRANSPOSE_H
