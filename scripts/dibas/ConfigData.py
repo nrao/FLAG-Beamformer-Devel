@@ -560,6 +560,7 @@ class ModeData(ConfigData):
         self.nchan                   = self._get_int(mode,    'nchan')
         self.bof                     = self._get_string(mode, 'bof_file')
         self.backend_type            = self._get_string(mode, 'BACKEND')
+        self.obs_mode                = self._get_string(mode, 'OBS_MODE')
         self.hpc_program             = self._get_string(mode, 'hpc_program')
         self.hpc_fifo_name           = self._get_string(mode, 'hpc_fifo_name')
         arm_delay                    = self._get_int(mode,    'needed_arm_delay')

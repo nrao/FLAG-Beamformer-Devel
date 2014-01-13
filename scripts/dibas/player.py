@@ -382,6 +382,7 @@ class Bank(object):
                         self.backend = None
 
                     backend_type = self.mode_data[mode].backend_type.upper()
+                    obs_mode = self.mode_data[mode].obs_mode.upper()
 
                     # If 'frequency' is provided record in mode data
                     # for use and reuse if not subsequently
@@ -391,17 +392,28 @@ class Bank(object):
                         self.mode_data[mode].frequency = frequency
 
                     if backend_type in ["VEGAS"]:
-                        print "set_mode(%s): Creating new VegasBackend" % mode
-                        self.backend = VegasBackend.VegasBackend(self.bank_data,
-                                                                 self.mode_data[mode],
-                                                                 self.roach,
-                                                                 self.valon,
-                                                                 self.hpc_macs,
-                                                                 self.simulate)
-                        print "set_mode(%s): beginning wait for DAQ program" % mode
-                        self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
-                        print "set_mode(%s): wait for DAQ program ended." % mode
-
+                        if obs_mode in ["HBW"]:
+                            print "set_mode(%s): Creating new VegasBackend" % mode
+                            self.backend = VegasBackend.VegasBackend(self.bank_data,
+                                                                     self.mode_data[mode],
+                                                                     self.roach,
+                                                                     self.valon,
+                                                                     self.hpc_macs,
+                                                                     self.simulate)
+                            print "set_mode(%s): beginning wait for DAQ program" % mode
+                            self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
+                            print "set_mode(%s): wait for DAQ program ended." % mode
+                        if obs_mode in ["LBW"]:
+                            print "set_mode(%s): Creating new VegasLBWBackend" % mode
+                            self.backend = VegasLBWBackend.VegasLBWBackend(self.bank_data,
+                                                                           self.mode_data[mode],
+                                                                           self.roach,
+                                                                           self.valon,
+                                                                           self.hpc_macs,
+                                                                           self.simulate)
+                            print "set_mode(%s): beginning wait for DAQ program" % mode
+                            self.backend._wait_for_status('GPUCTXIN', 'TRUE', timedelta(seconds=75))
+                            print "set_mode(%s): wait for DAQ program ended." % mode
                     elif backend_type in ["GUPPI"]:
                         if self.mode_data[mode].cdd_mode:
                             print "set_mode(%s): Creating new GuppiCODDBackend" % mode
