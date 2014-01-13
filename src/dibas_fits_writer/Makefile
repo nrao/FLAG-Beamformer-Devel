@@ -1,4 +1,3 @@
-
 OPT_FLAGS=
 
 USER_INCLUDES += -I$(CUDA)/include
@@ -7,11 +6,11 @@ USER_INCLUDES += -I$(PYSLALIB)
 # Relative path include to vegas_hpc/src
 HPC_PATH=../vegas_hpc/src/
 USER_INCLUDES += -I$(HPC_PATH)
-USER_INCLUDES += -I/opt/dibas/dibaslibs/include
+USER_INCLUDES += -I$(DIBAS)/dibaslibs/include
 
 SHAREDLIBRARYTARGET=libVegasFitsIO.so
 LIBRARYTARGET=libVegasFitsIO.a
-C__COMPILE=gcc 
+C__COMPILE=gcc
 CXXCOMPILE=g++ -pthread
 AR_CMD=ar
 CUDA_COMPILE=nvcc
@@ -19,7 +18,7 @@ CUDA_COMPILE=nvcc
 
 C__FLAGS=-O3 -g -Wall -D_GNU_SOURCE -I. $(USER_INCLUDES) $(OPT_FLAGS)
 CXXFLAGS=-O3 -g -pthread  -Wall -I. $(USER_INCLUDES) -msse2
-CUDA_FLAGS= -I. $(USER_INCLUDES) -arch=sm_35 -I$(CUDA)/include 
+CUDA_FLAGS= -I. $(USER_INCLUDES) -arch=sm_35 -I$(CUDA)/include
 
 EXECUTABLE=vegasFitsWriter
 
@@ -52,7 +51,7 @@ C__SOURCES  += $(wildcard *.c )
 C__SOURCES  += $(EXTRA_SOURCES)
 CXXSOURCES  += $(wildcard *.cc )
 CUDA_SOURCES += $(wildcard *.cu)
-C__OBJECTS = ${C__SOURCES:.c=.o} 
+C__OBJECTS = ${C__SOURCES:.c=.o}
 CXXOBJECTS = ${CXXSOURCES:.cc=.o}
 CUDA_OBJECTS= ${CUDA_SOURCES:.cu=.o}
 
@@ -69,7 +68,7 @@ LIBS = -L$(VEGAS_LIB) -L$(PRESTO)/lib -lcfitsio -lsla -lcap
 	$(CXXCOMPILE) $(CXXFLAGS) -c $<
 #
 # CUDA compilation rule
-#.cu.o: 
+#.cu.o:
 %.o: %.cu
 	@echo Compiling $<
 	$(CUDA_COMPILE) -c $(CUDA_FLAGS) $<

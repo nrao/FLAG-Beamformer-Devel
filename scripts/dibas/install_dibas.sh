@@ -17,6 +17,7 @@
 
 main()
 {
+    echo `pwd`
     check_pwd
     create_directories $1 $2 $3 $4
     install_vegas_python_files $1 $2 $3 $4
@@ -123,6 +124,18 @@ install_vegas_python_files()
     cd $savedir
 }
 
+create_dibas_conf()
+{
+    case $1 in
+        "/opt/dibas")
+            cp -v dibas.conf.shao dibas.conf
+            ;;
+        "/home/dibas")
+            cp -v dibas.conf.gb dibas.conf
+            ;;
+    esac
+}
+
 install_dibas_python()
 {
     savedir=`pwd`
@@ -130,6 +143,8 @@ install_dibas_python()
     for i in *.py; do
         install -o $2 -g $3 -m 664 $i $1/lib/python
     done
+
+    create_dibas_conf $1
     install -m 664 -o $2 -g $3 dibas.conf $1/etc/config
     cd $savedir
     cd scripts/dibas/bin_scripts

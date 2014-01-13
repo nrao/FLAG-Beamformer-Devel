@@ -19,12 +19,12 @@ ifdef EXT_DISK
 	OPT_FLAGS += -DEXT_DISK
 endif
 
-CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL) \
-		-I$(PYSLALIB) -I$(VEGAS_DIR)/src -I/opt/local/include $(OPT_FLAGS)
+CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL)\
+		-I$(PYSLALIB) -I$(VEGAS_DIR)/src $(OPT_FLAGS)
 
 NVCCFLAGS  = -gencode arch=compute_35,code=sm_35
 #NVCCFLAGS  = -arch=compute_35 -code=compute_35
-NVCCFLAGS += -I$(CUDA)/include -I/opt/local/include -I$(VEGAS_INCL)
+NVCCFLAGS += -I$(CUDA)/include -I$(VEGAS_INCL)
 
 LIBS = -L. -L$(PYSLALIB) -L/home/gbt7/newt/lib -L$(VEGAS_LIB) -lcfitsio -lsla -lm -lpthread -lcap
 CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread

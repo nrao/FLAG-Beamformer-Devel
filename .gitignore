@@ -1,5 +1,6 @@
 src/guppi_daq/python/possem.py
 src/guppi_daq/python/possem_wrap.c
+*.png
 *.mat
 *.swp
 *.old
@@ -7,5 +8,8 @@ src/guppi_daq/python/possem_wrap.c
 *.autosave
 *.txt
 *.htm
-*.o
-*.pyc
+*.nfs*
+*.original
+/newmdls/
+/snaptest/
+/test16/
