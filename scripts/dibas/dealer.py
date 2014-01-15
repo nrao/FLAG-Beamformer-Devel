@@ -148,7 +148,7 @@ class Dealer(object):
                 if expected_delay:
                     old_time_out = self.players[p].get_request_reply_timeout()
                     self.players[p].set_request_reply_timeout(expected_delay)
-                
+
                 method = self.players[p].__dict__[function]
                 ex = Executor(p, method, args, kwargs)
                 threads.append(ex)
@@ -567,7 +567,7 @@ class Dealer(object):
           d.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False) # |  |   |
 
         """
-        return self_execute("add_switching_state", [duration, blank, cal, sig_ref_1])
+        return self._execute("add_switching_state", [duration, blank, cal, sig_ref_1])
 
     def set_gbt_ss(self, period, ss_list):
         """

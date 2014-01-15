@@ -1,3 +1,31 @@
+######################################################################
+#
+#  Backend.py -- Base class for all backend classes.
+#
+#  Copyright (C) 2013 Associated Universities, Inc. Washington DC, USA.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+#  General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#  Correspondence concerning GBT software should be addressed as follows:
+#  GBT Operations
+#  National Radio Astronomy Observatory
+#  P. O. Box 2
+#  Green Bank, WV 24944-0002 USA
+#
+######################################################################
+
 import ctypes
 import binascii
 
@@ -108,8 +136,6 @@ class Backend:
             self.status = vegas_status()
 
         self.hpc_macs = hpc_macs
-        # Bits used to set I2C for proper filter
-        self.filter_bw_bits = {450: 0x00, 1450: 0x08, 1900: 0x18}
 
         # This is already checked by player.py, we won't get here if not set
         self.dibas_dir = os.getenv("DIBAS_DIR")
@@ -134,6 +160,7 @@ class Backend:
         self.scan_running = False
         self.monitor_mode = False
         print "Backend(): Setting self.frequency to", self.mode.frequency
+        self.filter_bw_bits = self.bank.filter_bw_bits
         self.frequency = self.mode.frequency
         self.setFilterBandwidth(self.mode.filter_bw)
         self.setNoiseSource(NoiseSource.OFF)
@@ -143,12 +170,12 @@ class Backend:
 
         self.params = {}
         # TBF: Rething "frequency" & "bandwidth" parameters. If one or
-#        both are parameters, then changing them must deprogram roach
-#        first, set frequency, then reprogram roach. For now, these
-#        are removed from the parameter list here and in derived
-#        classes, and frequency is set when programming
-#        roach. Frequency changes may be made via the Bank.set_mode()
-#        function.  self.params["frequency" ] = self.setValonFrequency
+        # both are parameters, then changing them must deprogram roach
+        # first, set frequency, then reprogram roach. For now, these are
+        # removed from the parameter list here and in derived classes,
+        # and frequency is set when programming roach. Frequency changes
+        # may be made via the Bank.set_mode() function.
+        # self.params["frequency" ] = self.setValonFrequency
         self.params["filter_bw"    ] = self.setFilterBandwidth
         self.params["observer"     ] = self.setObserver
         self.params["project_id"   ] = self.setProjectId

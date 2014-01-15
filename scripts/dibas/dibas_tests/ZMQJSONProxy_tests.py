@@ -2,6 +2,25 @@
 #
 #  ZMQJSONProxy_tests.py -- Unit tests for the ZMQJSONProxy classes.
 #
+#  Preparing for test:
+#
+#    1 - cd to the dibas project home, vegas_devel/scripts/dibas
+#
+#    2 - copy the appropriate 'dibas.conf', either 'dibas.conf.gb' or
+#        'dibas.conf.shao', to ./etc/config/dibas.conf
+#
+#    3 - source the dibas.bash of the installation to test against. For
+#        example, 'source /home/dibas/dibas.bash', or 'source
+#        /opt/dibas/dibas.bash', etc. This loads the correct python
+#        environment for these tests.
+#
+#    4 - from the project home run nosetests
+#
+#  Though these tests use the sourced dibas environment, they are
+#  hard-coded to use the 'dibas.conf' file installed in step 2
+#  above. This is because code development may require the updated
+#  'dibas.conf' that hasn't yet been installed.
+#
 #  Copyright (C) 2013 Associated Universities, Inc. Washington DC, USA.
 #
 #  This program is free software; you can redistribute it and/or modify
@@ -182,7 +201,7 @@ def test_ZMQ_Proxy_Interface():
     assert 'Dog process' in list_ret[2][1]
     assert 'frog' in list_ret[3]
     assert 'Frog process' in list_ret[3][1]
-    assert "KeyError" in except_ret
+    assert "KeyError" in except_ret['EXCEPTION']
     # test for use of params. Result '4' is from two positional args,
     # '5' from two keyword args, and '6' from a positional and a keyword
     # arg used together.

@@ -355,6 +355,16 @@ class BankData(ConfigData):
                str(self.roach_kvpairs),
                str(self.i_am_master))
 
+    def _parse_filter_bw_bits(self, fbw_string):
+        """Given a comma delimited string of filter bandwidh kv pairs, creates
+        a dictionary with the filter_bw as a key and the I2C bits for
+        that filter_bw as a value.
+
+        """
+        l = fbw_string.split(',')
+        k = [int(i) for i in l[::2]]
+        v = [int(i, 16) for i in l[1::2]]
+        return dict(zip(k, v))
 
 
     def load_config(self, config, bank):
@@ -376,6 +386,7 @@ class BankData(ConfigData):
         data_destination_host = self._get_string(bank, 'data_destination_host')
         self.dest_port = self._get_int(bank, 'data_destination_port')
         self.dataport = self._get_int(bank, 'data_source_port')
+        self.filter_bw_bits = self._parse_filter_bw_bits(self._get_string(bank, 'filter_bandwidth_bits'))
 
         # the following are mandatory only if 'self.has_roach' is True
         if not self.has_roach:
@@ -560,7 +571,6 @@ class ModeData(ConfigData):
         self.nchan                   = self._get_int(mode,    'nchan')
         self.bof                     = self._get_string(mode, 'bof_file')
         self.backend_type            = self._get_string(mode, 'BACKEND')
-        self.obs_mode                = self._get_string(mode, 'OBS_MODE')
         self.hpc_program             = self._get_string(mode, 'hpc_program')
         self.hpc_fifo_name           = self._get_string(mode, 'hpc_fifo_name')
         arm_delay                    = self._get_int(mode,    'needed_arm_delay')
@@ -578,6 +588,8 @@ class ModeData(ConfigData):
         self.roach_kvpairs     = self.read_kv_pairs(config, mode, 'roach_reg_keys')
         self.acc_len           = self._get_int(mode,              'acc_len')
         self.sg_period         = self._get_int(mode,              'sg_period')
+        self.obs_mode          = self._get_string(mode,           'OBS_MODE')
+        self.hwexposr          = self._get_float(mode,            'hwexposr')
         mssel_string           = self._get_string(mode,           'master_slave_sel')
         cdd_data_interfaces    = self._get_string(mode,           'cdd_data_interfaces')
         cdd_hpcs               = self._get_string(mode,           'cdd_hpcs')

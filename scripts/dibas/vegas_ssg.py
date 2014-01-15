@@ -162,7 +162,7 @@ class SwitchingSignals(object):
     def __repr__(self):
         return "%s" % self.phases
 
-    def set_spec_tick(spec_tick):
+    def set_spec_tick(self, spec_tick):
         self._sec_per_granule = spec_tick
 
     def clear_phases(self):

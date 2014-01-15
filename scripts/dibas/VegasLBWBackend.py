@@ -61,9 +61,6 @@ class VegasLBWBackend(Backend):
         Creates an instance of the vegas internals.
         """
 
-        # mode_number may be treated as a constant; the Player will
-        # delete this backend object and create a new one on mode
-        # change.
         Backend.__init__(self, theBank, theMode, theRoach , theValon, hpc_macs, unit_test)
         # Important to do this as soon as possible, so that status application
         # can change its data buffer format
@@ -78,7 +75,7 @@ class VegasLBWBackend(Backend):
         self.setPolarization('SELF')
         self.setNumberChannels(self.mode.nchan)
         self.requested_integration_time = 1.0
-        self.setSpeckTick(1024.0 / (self.frequency * 1e6))
+        self.setSpecTick(1024.0 / (self.frequency * 1e6))
         self.setHwExposr(self.mode.hwexposr)
 
         # dependent values, computed from Parameters:
@@ -129,6 +126,9 @@ class VegasLBWBackend(Backend):
 
     ### Methods to set user or mode specified parameters
     ###
+
+    def setLBWGain(self, gain):
+        pass
 
     def setSpecTick(self, spec_tick):
         """Sets the spec_tick value. This is the time it takes the system to
@@ -269,6 +269,7 @@ class VegasLBWBackend(Backend):
     def _chan_bw_dep(self):
         self.chan_bw = self.sampler_frequency / (self.nchan * 2.0)
         self.frequency_resolution = abs(self.chan_bw)
+        print "_chan_bw_dep(): efsampfr = %d; nchan = %i; chan_bw = %d" % (self.sampler_frequency, self.nchan, self.chan_bw)
 
     def _sampler_frequency_dep(self):
         """
@@ -589,7 +590,7 @@ class VegasLBWBackend(Backend):
             statusdata["DEC_STR"] = apw.degreesToString(dec.degrees)
 
         statusdata["TELESCOP" ] = self.telescope
-        statusdata["BW_MODE"  ] = "high" # mode 1
+        statusdata["BW_MODE"  ] = "low"
         statusdata["BOFFILE"  ] = str(self.bof_file)
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
         statusdata["HWEXPOSR" ] = str(self._hwexposr)
@@ -598,7 +599,7 @@ class VegasLBWBackend(Backend):
         statusdata["EXPOCLKS" ] = str(self._expoclks)
         statusdata["FPGACLK"  ] = str(self.fpga_clock)
         statusdata["OBSNCHAN" ] = str(self.nchan)
-        statusdata["OBS_MODE" ] = "HBW" # mode 1
+        statusdata["OBS_MODE" ] = "LBW"
         statusdata["OBSBW"    ] = self.obs_bw
         statusdata["PKTFMT"   ] = "SPEAD"
         statusdata["NCHAN"    ] = str(self.nchan)
