@@ -1,8 +1,37 @@
+######################################################################
+#
+#  VegasBackend.py -- The standard HBW Vegas backend; also serves as a
+#  base class for the LBW backends.
+#
+#  Copyright (C) 2013 Associated Universities, Inc. Washington DC, USA.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+#  General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#  Correspondence concerning GBT software should be addressed as follows:
+#  GBT Operations
+#  National Radio Astronomy Observatory
+#  P. O. Box 2
+#  Green Bank, WV 24944-0002 USA
+#
+######################################################################
+
 import struct
 import ctypes
 import binascii
 import player
-from Backend import Backend
+from Backend import Backend, convertToMHz
 from vegas_ssg import SwitchingSignals
 import subprocess
 import time
@@ -55,7 +84,6 @@ class VegasBackend(Backend):
         self.fpga_clock = None
         self.fits_writer_process = None
         self.scan_length = 30.0
-        self.nchan = 4
 
         # setup the parameter dictionary/methods
         self.params["polarization" ] = self.setPolarization
@@ -191,18 +219,9 @@ class VegasBackend(Backend):
         Computes the effective frequency of the A/D sampler based on mode
         """
 
-        # extract mode number from mode name, which is expected to be
-        # 'MODEx' where 'x' is the number we want:
-        mode = int(self.mode.name[4:])
-
-        if mode < 4:
-            self.sampler_frequency = self.frequency * 1e6 * 2
-            self.nsubband = 1
-        else:
-            self.sampler_frequency = self.frequency * 1e6 / 64
-            self.nsubband = 8
-        # calculate the fpga frequency
+        self.sampler_frequency = self.frequency * 1e6 * 2
         self.fpga_clock = self.frequency * 1e6 / 8
+        self.nsubband = 1
 
 
     def clear_switching_states(self):
@@ -428,6 +447,7 @@ class VegasBackend(Backend):
         Gather status sets here
         Not yet sure what to place here...
         """
+        print "_set_state_table_keywords() called."
         statusdata = {}
         DEFAULT_VALUE = "unspecified"
 
@@ -512,14 +532,16 @@ class VegasBackend(Backend):
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
         statusdata["NSUBBAND" ] = self.nsubband
-        statusdata["SUB0FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
-        statusdata["SUB1FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
-        statusdata["SUB2FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
-        statusdata["SUB3FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
-        statusdata["SUB4FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
-        statusdata["SUB5FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
-        statusdata["SUB6FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
-        statusdata["SUB7FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
+        # convertToMHz() normalizes the frequency to MHz, just in case
+        # it is provided as Hz. So this will work in either case.
+        statusdata["SUB0FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
+        statusdata["SUB1FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
+        statusdata["SUB2FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
+        statusdata["SUB3FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
+        statusdata["SUB4FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
+        statusdata["SUB5FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
+        statusdata["SUB6FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
+        statusdata["SUB7FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
 
         statusdata["BASE_BW"  ] = self.filter_bw # From MODE
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'
@@ -545,12 +567,19 @@ class VegasBackend(Backend):
             statusdata["_MCDL_%02d" % (i+1)] = str(self.chan_bw)
             statusdata["_MFQR_%02d" % (i+1)] = str(self.frequency_resolution)
 
-        if self.bank is not None:
-            self.set_status(**statusdata)
-        else:
-            for i in statusdata.keys():
-                print "%s = %s" % (i, statusdata[i])
+        # If self == VegasBackend then this is the instantiated object,
+        # so write to status memory. If not, then this is a base class
+        # and the writing should be done by the derived class, which
+        # presumably will add to/overwrite this dictionary.
+        if isinstance(self, VegasBackend):
+            if self.bank is not None:
+                self.set_status(**statusdata)
+            else:
+                for i in statusdata.keys():
+                    print "%s = %s" % (i, statusdata[i])
 
+        # for derived class
+        return statusdata
 
     def earliest_start(self):
         """
@@ -775,4 +804,3 @@ class VegasBackend(Backend):
         fh=self.fits_writer_process.stdin.fileno()
         os.write(fh, cmd + '\n')
         return True
-

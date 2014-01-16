@@ -95,7 +95,7 @@ def convertToMHz(f):
 #
 ######################################################################
 
-class Backend:
+class Backend(object):
     """A base class which implements some of the common backend
     calculations (e.g switching).
 
@@ -527,6 +527,9 @@ class Backend:
         Example::
 
           self.set_status(PROJID='JUNK', OBS_MODE='HBW')
+          # or, equivalent
+          d = {'PROJID':'JUNK', 'OBS_MODE'='HBW'}
+          self.set_status(**d)
 
         """
 
