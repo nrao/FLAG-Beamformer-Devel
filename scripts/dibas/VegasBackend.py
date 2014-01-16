@@ -55,6 +55,7 @@ class VegasBackend(Backend):
         self.fpga_clock = None
         self.fits_writer_process = None
         self.scan_length = 30.0
+        self.nchan = 4
 
         # setup the parameter dictionary/methods
         self.params["polarization" ] = self.setPolarization
@@ -69,7 +70,7 @@ class VegasBackend(Backend):
         self.ss = SwitchingSignals(self.frequency * 1e6, self.nchan)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
-        self.prepare()
+        # self.prepare()
         self.start_hpc()
         self.start_fits_writer()
 
@@ -511,14 +512,14 @@ class VegasBackend(Backend):
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
         statusdata["NSUBBAND" ] = self.nsubband
-        statusdata["SUB0FREQ" ] = self.frequency * 1e6 / 2
-        statusdata["SUB1FREQ" ] = self.frequency * 1e6 / 2
-        statusdata["SUB2FREQ" ] = self.frequency * 1e6 / 2
-        statusdata["SUB3FREQ" ] = self.frequency * 1e6 / 2
-        statusdata["SUB4FREQ" ] = self.frequency * 1e6 / 2
-        statusdata["SUB5FREQ" ] = self.frequency * 1e6 / 2
-        statusdata["SUB6FREQ" ] = self.frequency * 1e6 / 2
-        statusdata["SUB7FREQ" ] = self.frequency * 1e6 / 2
+        statusdata["SUB0FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
+        statusdata["SUB1FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
+        statusdata["SUB2FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
+        statusdata["SUB3FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
+        statusdata["SUB4FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
+        statusdata["SUB5FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
+        statusdata["SUB6FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
+        statusdata["SUB7FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 2
 
         statusdata["BASE_BW"  ] = self.filter_bw # From MODE
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'

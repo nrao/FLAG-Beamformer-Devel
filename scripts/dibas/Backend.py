@@ -562,16 +562,25 @@ class Backend:
         """
 
         for k,v in kwargs.items():
+            # see if this is a integer value, or a string representation of an integer
+            try:
+                val = int(str(v), 0)
+            except:
+                # Its not, its likely a binary string -- just store it.
+                val = v
             if self.test_mode:
-                self.mock_roach_registers[str(k)] = int(str(v),0)
+                self.mock_roach_registers[str(k)] = val
             else:
                 # print str(k), '<-', str(v), int(str(v),0)
                 if self.roach:
-                    old = self.roach.read_int(str(k))
-                    new = int(str(v),0)
+                    if isinstance(val, str):
+                        self.roach.write(str(k), val)
+                    else:
+                        old = self.roach.read_int(str(k))
+                        new = int(str(v),0)
 
-                    if new != old:
-                        self.roach.write_int(str(k), new)
+                        if new != old:
+                            self.roach.write_int(str(k), new)
 
     def progdev(self, bof = None):
         """progdev(self, bof, frequency):
