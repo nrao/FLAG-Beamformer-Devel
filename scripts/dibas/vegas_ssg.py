@@ -28,6 +28,7 @@
 
 
 import struct
+import math
 
 class SwitchingSignals(object):
     """
@@ -147,23 +148,20 @@ class SwitchingSignals(object):
                         self._cal,
                         self._blanking)) ^ self.polarity_mask
 
-    def __init__(self, frequency, nchan):
+    def __init__(self):
 
-        print "frequency", frequency
-        print "nchan", nchan
-        fpga_clock = frequency / 8
-        print "fpga_clock", fpga_clock
-        clocks_per_granule = nchan / 8
-        print "clocks_per_granule", clocks_per_granule
-        self._sec_per_granule = clocks_per_granule / fpga_clock
-        print "self._sec_per_granule", self._sec_per_granule
+        self._spec_tick = 0.0
+        self._hwexposr = 0.0
         self.phases = [SwitchingSignals.SwitchingPhase()]
 
     def __repr__(self):
         return "%s" % self.phases
 
     def set_spec_tick(self, spec_tick):
-        self._sec_per_granule = spec_tick
+        self._spec_tick = spec_tick
+
+    def set_hwexposr(self, hwexposr):
+        self._hwexposr = hwexposr
 
     def clear_phases(self):
         """
@@ -192,7 +190,7 @@ class SwitchingSignals(object):
         # if no phases are specified or if there is only a single phase,
         # don't return a zero sum. In these cases the duration doesn't mean anything.
         if len(self.phases) > 1:
-            return granules * self._sec_per_granule
+            return granules * self._spec_tick
         else:
             return 1
 
@@ -238,8 +236,12 @@ class SwitchingSignals(object):
         ss.add_phase(0.09)
         """
         ph = SwitchingSignals.SwitchingPhase()
-        print "dur =", dur, "self._sec_per_granule =", self._sec_per_granule
-        ph.set_duration(dur / self._sec_per_granule)
+        print "dur =", dur, "self._spec_tick =", self._spec_tick
+
+        # int(ceil(d / hwexposr) * hwexposr / spec_tick);
+
+        d = int(math.ceil(dur / self._hwexposr) * self._hwexposr / self._spec_tick)
+        ph.set_duration(d)
 
         if bl: ph.set_blanking()
         if cal: ph.set_cal()
@@ -268,10 +270,10 @@ class SwitchingSignals(object):
         """
         times = [0.0]
         last = self.phases[0]
-        total_time = last.duration() * self._sec_per_granule
+        total_time = last.duration() * self._spec_tick
         cal = [last.cal()]
         sr1 = [last.sig_ref_1()]
-        blanking = [last.duration() * self._sec_per_granule if last.blanking() else 0.0]
+        blanking = [last.duration() * self._spec_tick if last.blanking() else 0.0]
 
         for i in self.phases[1:]:
 
@@ -279,10 +281,10 @@ class SwitchingSignals(object):
                 times.append(total_time)
                 cal.append(i.cal())
                 sr1.append(i.sig_ref_1())
-                blanking.append(i.duration() * self._sec_per_granule if i.blanking() else 0.0)
+                blanking.append(i.duration() * self._spec_tick if i.blanking() else 0.0)
                 last = i
 
-            total_time += i.duration() * self._sec_per_granule
+            total_time += i.duration() * self._spec_tick
 
         return {"period": self.total_duration(),
                 "phase-starts": [t / self.total_duration() for t in times],

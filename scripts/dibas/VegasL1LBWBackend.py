@@ -34,6 +34,7 @@ import binascii
 import player
 from VegasBackend import VegasBackend
 from vegas_ssg import SwitchingSignals
+from Backend import convertToMHz
 import subprocess
 import time
 from datetime import datetime, timedelta
@@ -41,11 +42,11 @@ import os
 import apwlib.convert as apw
 import math
 
-class VegasLBWBackend(VegasBackend):
+class VegasL1LBWBackend(VegasBackend):
     """
     A class which implements the VEGAS LBW-specific parameter calculations.
 
-    VegasLBWBackend(theBank, theMode, theRoach = None, theValon = None)
+    VegasL1LBWBackend(theBank, theMode, theRoach = None, theValon = None)
 
     Where:
 
@@ -65,18 +66,15 @@ class VegasLBWBackend(VegasBackend):
         # set up a trip wire to see if the GPU thread gets going
         self.set_status(GPUCTXIN='FALSE')
 
-        # Parameters:
-        self.setSpecTick(1024.0 / (self.frequency * 1e6))
-        self.setHwExposr(self.mode.hwexposr)
-
         # setup the parameter dictionary/methods
-        self.params["spec_tick"    ] = self.setSpecTick
-        self.params["hwexposr"     ] = self.setHwExposr
         self.params["gain"         ] = self.setLBWGain
 
         # In LBW mode the spec_tick is computed differently than in HBW
         # mode. Inform the switching signal builder of the change.
-        self.ss.set_spec_tick(self._spec_tick)
+        self.spec_tick = self.computeSpecTick()
+        print "VegasL1LBWBackend: self.spec_tick =", self.spec_tick
+        self.ss.set_spec_tick(self.spec_tick)
+        self.ss.set_hwexposr(self.hwexposr)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
         self.prepare()
@@ -86,34 +84,21 @@ class VegasLBWBackend(VegasBackend):
         """
         Perform some cleanup tasks.
         """
-        super(VegasLBWBackend, self).__del__()
+        super(VegasL1LBWBackend, self).__del__()
+
+
+    def computeSpecTick(self):
+        """Returns the spec_tick value for this backend (the LBW value)
+
+        """
+        print "VegasL1LBWBackend::computeSpecTick: self.frequency =", self.frequency
+        return 1024.0 / (convertToMHz(self.frequency) * 1e6)
 
     ### Methods to set user or mode specified parameters
     ###
 
     def setLBWGain(self, gain):
         pass
-
-    def setSpecTick(self, spec_tick):
-        """Sets the spec_tick value. This is the time it takes the system to
-        compute one spetrum.
-
-        """
-        self._spec_tick = spec_tick
-
-    def setHwExposr(self, hwexposr):
-        """Sets the hwexposr value, usually the value is set from the
-        dibas.conf configuration file. Also sets the acc_len, which
-        falls out of the computation to ensure hwexposure is an even
-        multiple of spec_ticks (that multiple is acc_len).
-
-        """
-        spticks = hwexposr / self._spec_tick
-
-        if hwexposr % self._spec_tick:
-            spticks = int(spticks) + 1
-
-        self._hwexposr = self._spec_tick * spticks
 
     def prepare(self):
         """
@@ -160,37 +145,8 @@ class VegasLBWBackend(VegasBackend):
 
     # Algorithmic dependency methods, not normally called by a users
 
-    def _exposure_dep(self):
-        """Computes the actual exposure, based on the requested integration
-           time. If the number of switching phases is > 1, then the
-           actual exposure will be an integer multiple of the switching
-           period. If the number of switching phases is == 1, then the
-           exposure will be an integer multiple of hwexposr.
-
-        """
-        init_exp = self.requested_integration_time
-        fpga_clocks_per_spec_tick = 128
-
-        if self.ss.number_phases() > 1:
-            sw_period = self.ss.total_duration()
-            sw_granules = self.ss.total_duration_granules()
-            r = init_exp / sw_period
-            fpart, ipart = math.modf(r)
-
-            if fpart > (sw_period / 100.0):
-                ipart = ipart + 1.0
-
-            self._expoclks = int(ipart * sw_granules * fpga_clocks_per_spec_tick)
-        else: # number of phases = 1
-            r = init_exp / self._hwexposr
-            fpart, ipart = math.modf(r)
-
-            if fpart > (init_exp / 100.0):
-                ipart = ipart + 1.0
-
-            self._expoclks = int(ipart * self._hwexposr * self.fpga_clock)
-
-        self._exposure = float(self._expoclks) / self.fpga_clock
+    def _fpga_clocks_per_spec_tick(self):
+        return 128
 
     def _chan_bw_dep(self):
         self.chan_bw = self.sampler_frequency / (self.nchan * 2.0)
@@ -216,11 +172,11 @@ class VegasLBWBackend(VegasBackend):
         Gather status sets here
         Not yet sure what to place here...
         """
-        statusdata = super(VegasLBWBackend, self)._set_state_table_keywords()
+        statusdata = super(VegasL1LBWBackend, self)._set_state_table_keywords()
         statusdata["BW_MODE"  ] = "low"
-        statusdata["HWEXPOSR" ] = str(self._hwexposr)
-        statusdata["EXPOSURE" ] = str(self._exposure)
-        statusdata["EXPOCLKS" ] = str(self._expoclks)
+        statusdata["HWEXPOSR" ] = str(self.hwexposr)
+        statusdata["EXPOSURE" ] = str(self.exposure)
+        statusdata["EXPOCLKS" ] = str(self.expoclks)
         statusdata["OBS_MODE" ] = "LBW"
 
         if self.bank is not None:

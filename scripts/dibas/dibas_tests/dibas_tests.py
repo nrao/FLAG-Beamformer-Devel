@@ -49,10 +49,8 @@ import ConfigParser
 import os
 
 from VegasBackend import VegasBackend
-from VegasLBWBackend import VegasLBWBackend
-from nose.tools import assert_equals,assert_almost_equals
 from VegasL8LBWBackend import VegasL8LBWBackend
-#import VegasL8LBWBackend as l8lbw
+from VegasL1LBWBackend import VegasL1LBWBackend
 from Backend import SWbits
 from GuppiBackend import GuppiBackend
 from GuppiCODDBackend import GuppiCODDBackend
@@ -198,8 +196,8 @@ def test_VegasBackend():
     assert_equal(be.get_status("SWVER")   , DEFAULT_VALUE)
 
 
-def test_VegasLBWBackend():
-    """A VegasLBWBackend setup test case.
+def test_VegasL1LBWBackend():
+    """A VegasL1LBWBackend setup test case.
 
     """
 
@@ -210,7 +208,7 @@ def test_VegasLBWBackend():
     m = ModeData()
     m.load_config(config, "MODE4")
 
-    be = VegasLBWBackend(b, m, None, None, None, unit_test = True)
+    be = VegasL1LBWBackend(b, m, None, None, None, unit_test = True)
     frequency = m.frequency * 1e6
     fpga_clock = frequency / 8
     sampler_frequency = frequency  / 4
@@ -331,7 +329,7 @@ def test_VegasL8LBWBackend_lbw1_mode():
     Single L8LBW1 subband test (Mode 10).
     """
     assert(True)
-    
+
     config = ConfigParser.ConfigParser()
     config.readfp(open("etc/config/dibas.conf"))
     b = BankData()
@@ -366,18 +364,18 @@ def test_VegasL8LBWBackend_lbw1_mode():
     print "Status memory:"
     for i in shmkeys:
         print "%s = %s" % (i, shm[i])
-    
+
     assert_equals(int(shm['NCHAN']), 32768)
     assert_equals(int(shm['NSUBBAND']), 1)
     assert_equals(float(shm['SUB0FREQ']), 300001144.409)
     #print be.actual_subband_freq
-    
+
     for k in regs.keys():
         if isinstance(regs[k], str) and len(regs[k]) > 70:
             print "reg[%s]=" % (k), regs[k][0]
         else:
             print "reg[%s]=%i" % (k, regs[k])
-            
+
     for i in range(16):
         assert("s0_lo_%i_lo_ram" % (i) in regs.keys())
         assert("s1_lo_%i_lo_ram" % (i) not in regs.keys())
@@ -387,7 +385,7 @@ def test_VegasL8LBWBackend_lbw1_mode():
         assert("s5_lo_%i_lo_ram" % (i) not in regs.keys())
         assert("s6_lo_%i_lo_ram" % (i) not in regs.keys())
         assert("s7_lo_%i_lo_ram" % (i) not in regs.keys())
-        
+
     be.set_param("gain1", [1024])
     be.set_param("gain2", [2048])
     be.prepare()
@@ -405,7 +403,7 @@ def test_VegasL8LBWBackend_lbw8_mode():
     Single L8LBW8 subband test (Mode 20).
     """
     assert(True)
-    
+
     config = ConfigParser.ConfigParser()
     config.readfp(open("etc/config/dibas.conf"))
     b = BankData()
@@ -440,7 +438,7 @@ def test_VegasL8LBWBackend_lbw8_mode():
     print "Status memory:"
     for i in shmkeys:
         print "%s = %s" % (i, shm[i])
-    
+
     assert_equals(int(shm['NCHAN']), 4096)
     assert_equals(int(shm['NSUBBAND']), 8)
 
@@ -453,13 +451,13 @@ def test_VegasL8LBWBackend_lbw8_mode():
     assert_equals(float(shm['SUB6FREQ']), 439999580.383)
     assert_equals(float(shm['SUB7FREQ']), 460000991.821)
     #print be.actual_subband_freq
-    
+
     for k in regs.keys():
         if isinstance(regs[k], str) and len(regs[k]) > 70:
             print "reg[%s]=" % (k), regs[k][0]
         else:
             print "reg[%s]=%i" % (k, regs[k])
-            
+
     for i in range(16):
         assert("s0_lo_%i_lo_ram" % (i) in regs.keys())
         assert("s1_lo_%i_lo_ram" % (i) in regs.keys())
@@ -469,7 +467,7 @@ def test_VegasL8LBWBackend_lbw8_mode():
         assert("s5_lo_%i_lo_ram" % (i) in regs.keys())
         assert("s6_lo_%i_lo_ram" % (i) in regs.keys())
         assert("s7_lo_%i_lo_ram" % (i) in regs.keys())
-        
+
     be.set_param("gain1", [1024] * 8)
     be.set_param("gain2", [2048] * 8)
     be.prepare()

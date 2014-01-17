@@ -37,6 +37,7 @@ import subprocess
 import time
 from datetime import datetime, timedelta
 import os
+import math
 import apwlib.convert as apw
 
 class VegasBackend(Backend):
@@ -71,6 +72,9 @@ class VegasBackend(Backend):
         # controls the switching signals. (self.bank is from base class.)
         self.i_am_master = self.bank.i_am_master
 
+        # the switching signals builder
+        self.ss = SwitchingSignals()
+
         # Parameters:
         self.setPolarization('SELF')
         self.setNumberChannels(self.mode.nchan)
@@ -84,18 +88,22 @@ class VegasBackend(Backend):
         self.fpga_clock = None
         self.fits_writer_process = None
         self.scan_length = 30.0
+        self.spec_tick = self.computeSpecTick()
+        print "VegasBackend: self.spec_tick =", self.spec_tick
+        self.setHwExposr(self.mode.hwexposr)
 
         # setup the parameter dictionary/methods
         self.params["polarization" ] = self.setPolarization
         self.params["nchan"        ] = self.setNumberChannels
         self.params["exposure"     ] = self.setIntegrationTime
+        self.params["hwexposr"     ] = self.setHwExposr
         self.params["num_spectra"  ] = self.setNumberSpectra
         self.params["acc_len"      ] = self.setAccLen
 
         # the status memory key/value pair dictionary
         self.sskeys = {}
-        # the switching signals builder
-        self.ss = SwitchingSignals(self.frequency * 1e6, self.nchan)
+        self.ss.set_spec_tick(self.spec_tick)
+        self.ss.set_hwexposr(self.hwexposr)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
         # self.prepare()
@@ -119,6 +127,17 @@ class VegasBackend(Backend):
         print "VegasBackend: cleaning up hpc and fits writer."
         self.stop_hpc()
         self.stop_fits_writer()
+
+
+    def computeSpecTick(self):
+        """Returns the spec_tick value for this backend (the HBW value)
+
+        """
+        print "VegasBackend::computeSpecTick: self.frequency =", convertToMHz(self.frequency) * 1e6
+        print "self.nchan =", self.nchan
+        st = float(self.nchan) / (convertToMHz(self.frequency) * 1e6)
+        print "st =", st
+        return st
 
     ### Methods to set user or mode specified parameters
     ###
@@ -168,6 +187,20 @@ class VegasBackend(Backend):
         """
         self.requested_integration_time = int_time
 
+    def setHwExposr(self, hwexposr):
+        """Sets the hwexposr value, usually the value is set from the
+        dibas.conf configuration file. Also sets the acc_len, which
+        falls out of the computation to ensure hwexposure is an even
+        multiple of spec_ticks (that multiple is acc_len).
+
+        """
+        fpart, ipart = math.modf(hwexposr / self.spec_tick)
+
+        if fpart > 0.0:
+            ipart = int(ipart) + 1
+
+        self.hwexposr = self.spec_tick * ipart
+
     def prepare(self):
         """
         This command writes calculated values to the hardware and status memory.
@@ -186,6 +219,8 @@ class VegasBackend(Backend):
         self._sampler_frequency_dep()
         self._chan_bw_dep()
         self._obs_bw_dep()
+
+        self._exposure_dep()
 
         # Switching Signals info. Switching signals should have been
         # specified prior to prepare():
@@ -209,6 +244,46 @@ class VegasBackend(Backend):
 
 
     # Algorithmic dependency methods, not normally called by a users
+
+    def _fpga_clocks_per_spec_tick(self):
+        return self.nchan / 8
+
+    def _exposure_dep(self):
+        """Computes the actual exposure, based on the requested integration
+           time. If the number of switching phases is > 1, then the
+           actual exposure will be an integer multiple of the switching
+           period. If the number of switching phases is == 1, then the
+           exposure will be an integer multiple of hwexposr.
+
+        """
+        init_exp = self.requested_integration_time
+        fpga_clocks_per_spec_tick = self._fpga_clocks_per_spec_tick()
+
+        if self.ss.number_phases() > 1:
+            sw_period = self.ss.total_duration()
+            sw_granules = self.ss.total_duration_granules()
+
+            print "sw_period =", sw_period, "sw_granules =", sw_granules
+            print "init_exp =", init_exp
+
+            r = init_exp / sw_period
+            fpart, ipart = math.modf(r)
+
+            if fpart > (sw_period / 100.0):
+                ipart = ipart + 1.0
+
+            self.expoclks = int(ipart * sw_granules * fpga_clocks_per_spec_tick)
+        else: # number of phases = 1
+            r = init_exp / self.hwexposr
+            fpart, ipart = math.modf(r)
+
+            if fpart > (init_exp / 100.0):
+                ipart = ipart + 1.0
+
+            self.expoclks = int(ipart * self.hwexposr * self.fpga_clock)
+
+        self.exposure = float(self.expoclks) / self.fpga_clock
+
 
     def _chan_bw_dep(self):
         self.chan_bw = self.sampler_frequency / (self.nchan * 2)
@@ -523,7 +598,7 @@ class VegasBackend(Backend):
         statusdata["BOFFILE"  ] = str(self.bof_file)
         statusdata["CHAN_BW"  ] = str(self.chan_bw)
         statusdata["EFSAMPFR" ] = str(self.sampler_frequency)
-        statusdata["EXPOSURE" ] = str(self.requested_integration_time)
+        statusdata["EXPOSURE" ] = str(self.exposure)
         statusdata["FPGACLK"  ] = str(self.fpga_clock)
         statusdata["OBSNCHAN" ] = str(self.nchan)
         statusdata["OBS_MODE" ] = "HBW" # mode 1
