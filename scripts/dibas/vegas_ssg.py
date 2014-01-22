@@ -207,10 +207,12 @@ class SwitchingSignals(object):
             return 1
 
     def add_phase(self, dur, bl = False, cal = False, sr1 = False, sr2 = False, asr = False):
-        """
-        Adds one switching phase to the cycle.
+        """Adds one switching phase to the cycle.
 
-        dur: Duration in seconds.
+        dur: Duration in spec_ticks. The different modes compute
+        blanking times in spec_tick units differently from one-another,
+        so this module accepts durations in spec_ticks to avoid having
+        to know about these differences.
 
         What follows are the different switching signals. For each of
         them, if it is true, it is high for this phase. All default to
@@ -234,14 +236,11 @@ class SwitchingSignals(object):
         ss.add_phase(0.09, sr1 = True)
         ss.add_phase(0.01, bl = True)
         ss.add_phase(0.09)
+
         """
         ph = SwitchingSignals.SwitchingPhase()
-        print "dur =", dur, "self._spec_tick =", self._spec_tick
 
-        # int(ceil(d / hwexposr) * hwexposr / spec_tick);
-
-        d = int(math.ceil(dur / self._hwexposr) * self._hwexposr / self._spec_tick)
-        ph.set_duration(d)
+        ph.set_duration(dur)
 
         if bl: ph.set_blanking()
         if cal: ph.set_cal()

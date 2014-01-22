@@ -442,8 +442,8 @@ class ModeData(ConfigData):
         ConfigData.__init__(self)
         self.name = None
         """Mode name"""
-        self.acc_len = None
-        """BOF file specific value"""
+        self.hwexposr = None
+        """Shortest possible integration, in seconds"""
         self.filter_bw = None
         """Filter bandwidth"""
         self.frequency = None
@@ -535,12 +535,12 @@ class ModeData(ConfigData):
 
 
     def __repr__(self):
-        return "ModeData (name=%s, acc_len=%s, filter_bw=%s, frequency=%s, nchan=%s, bof=%s, " \
+        return "ModeData (name=%s, hwexposr=%s, filter_bw=%s, frequency=%s, nchan=%s, bof=%s, " \
             "sg_period=%s, reset_phase=%s, arm_phase=%s, " \
             "postarm_phase=%s, needed_arm_delay=%s, master_slave_sels=%s, " \
             "shmkvpairs=%s, roach_kvpairs=%s)" % \
             (str(self.name),
-             str(self.acc_len),
+             str(self.hwexposr),
              str(self.filter_bw),
              str(self.frequency),
              str(self.nchan),
@@ -578,6 +578,7 @@ class ModeData(ConfigData):
         self.dest_ip_register_name   = self._get_string(mode, 'dest_ip_register_name')
         self.dest_port_register_name = self._get_string(mode, 'dest_port_register_name')
         arm_phase                    = self._get_string(mode, 'arm_phase')
+        self.hwexposr                = self._get_float(mode,  'hwexposr')
 
         self._optional()
 
@@ -586,10 +587,8 @@ class ModeData(ConfigData):
         postarm_phase          = self._get_string(mode,           'postarm_phase')
         self.shmkvpairs        = self.read_kv_pairs(config, mode, 'shmkeys')
         self.roach_kvpairs     = self.read_kv_pairs(config, mode, 'roach_reg_keys')
-        self.acc_len           = self._get_int(mode,              'acc_len')
         self.sg_period         = self._get_int(mode,              'sg_period')
         self.obs_mode          = self._get_string(mode,           'OBS_MODE')
-        self.hwexposr          = self._get_float(mode,            'hwexposr')
         mssel_string           = self._get_string(mode,           'master_slave_sel')
         cdd_data_interfaces    = self._get_string(mode,           'cdd_data_interfaces')
         cdd_hpcs               = self._get_string(mode,           'cdd_hpcs')

@@ -79,7 +79,7 @@ class VegasBackend(Backend):
         self.setPolarization('SELF')
         self.setNumberChannels(self.mode.nchan)
         self.requested_integration_time = 1.0
-        self.setAccLen(self.mode.acc_len)
+
         # self.setValonFrequency(self.mode.frequency)
 
         # dependent values, computed from Parameters:
@@ -98,7 +98,6 @@ class VegasBackend(Backend):
         self.params["exposure"     ] = self.setIntegrationTime
         self.params["hwexposr"     ] = self.setHwExposr
         self.params["num_spectra"  ] = self.setNumberSpectra
-        self.params["acc_len"      ] = self.setAccLen
 
         # the status memory key/value pair dictionary
         self.sskeys = {}
@@ -141,13 +140,6 @@ class VegasBackend(Backend):
 
     ### Methods to set user or mode specified parameters
     ###
-
-    def setAccLen(self, acclen):
-        """
-        Not used on the VEGAS backend, usually the value is set from
-        the dibas.conf configuration file.
-        """
-        self.acc_len = acclen
 
     def setPolarization(self, polar):
         """
@@ -196,10 +188,11 @@ class VegasBackend(Backend):
         """
         fpart, ipart = math.modf(hwexposr / self.spec_tick)
 
-        if fpart > 0.0:
+        if fpart >= 0.5:
             ipart = int(ipart) + 1
 
         self.hwexposr = self.spec_tick * ipart
+        self.acc_len = ipart
 
     def prepare(self):
         """
@@ -332,7 +325,9 @@ class VegasBackend(Backend):
           be.add_switching_state(0.01, blank = True,  cal = False, sig_ref_1 = False)
           be.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False)
         """
-        self.ss.add_phase(dur = duration, bl = blank, cal = cal, sr1 = sig_ref_1)
+        dur = int(math.ceil(duration / self.hwexposr) * self.hwexposr / self.spec_tick)
+        self.ss.add_phase(dur = dur, bl = blank, cal = cal, sr1 = sig_ref_1)
+        print "added switching phase", dur, blank, cal, sig_ref_1
         return (True, self.ss.number_phases())
 
     def set_gbt_ss(self, period, ss_list):
@@ -366,8 +361,10 @@ class VegasBackend(Backend):
                 duration = next_start * period - this_start * period
                 blt = ss_list[i][3]
                 nblt = duration - blt
-                self.add_switching_state(blt, sig_ref_1 = ss_list[i][1], cal = ss_list[i][2], blank = True)
-                self.add_switching_state(nblt, sig_ref_1 = ss_list[i][1], cal = ss_list[i][2], blank = False)
+                self.add_switching_state(blt, sig_ref_1 = ss_list[i][1], \
+                                         cal = ss_list[i][2], blank = True)
+                self.add_switching_state(nblt, sig_ref_1 = ss_list[i][1], \
+                                         cal = ss_list[i][2], blank = False)
         except TypeError:
             # input error, leave it in a sane state.
             self.clear_switching_states()
@@ -627,7 +624,8 @@ class VegasBackend(Backend):
         statusdata["SWMASTER" ] = "VEGAS" # TBD
         statusdata["POLARIZE" ] = self.polarization
         statusdata["CRPIX1"   ] = str(self.nchan/2 + 1)
-        statusdata["SWPERINT" ] = str(int(self.requested_integration_time / self.ss.total_duration()))
+        statusdata["SWPERINT" ] = str(int(self.requested_integration_time \
+                                          / self.ss.total_duration() + 0.5))
         statusdata["NMSTOKES" ] = str(self.num_stokes)
         # should this get set by Backend?
         statusdata["DATAHOST" ] = self.datahost;

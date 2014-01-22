@@ -72,7 +72,6 @@ class VegasL1LBWBackend(VegasBackend):
         # In LBW mode the spec_tick is computed differently than in HBW
         # mode. Inform the switching signal builder of the change.
         self.spec_tick = self.computeSpecTick()
-        print "VegasL1LBWBackend: self.spec_tick =", self.spec_tick
         self.ss.set_spec_tick(self.spec_tick)
         self.ss.set_hwexposr(self.hwexposr)
         self.clear_switching_states()
@@ -93,6 +92,42 @@ class VegasL1LBWBackend(VegasBackend):
         """
         print "VegasL1LBWBackend::computeSpecTick: self.frequency =", self.frequency
         return 1024.0 / (convertToMHz(self.frequency) * 1e6)
+
+
+    def add_switching_state(self, duration, blank = False, cal = False, sig_ref_1 = False):
+        """add_switching_state(duration, blank, cal, sig_ref_1):
+
+        Add a description of one switching phase. The LBW modes require
+        computing the length in spec_ticks for blanking phases
+        differntly from other phases. This function takes care of this.
+
+        * *duration* is the length of this phase in seconds,
+        * *blank* is the state of the blanking signal (True = blank, False = no blank)
+        * *cal* is the state of the cal signal (True = cal, False = no cal)
+        * *sig_ref_1* is the state of the sig_ref signal (True = ref, false = sig)
+
+        Example to set up a 8 phase signal (4-phase if blanking is not
+        considered) with blanking, cal, and sig/ref, total of 400 mS::
+
+          be = Backend(None) # no real backend needed for example
+          be.clear_switching_states()
+          be.add_switching_state(0.01, blank = True,  cal = True,  sig_ref_1 = True)
+          be.add_switching_state(0.09, blank = False, cal = True,  sig_ref_1 = True)
+          be.add_switching_state(0.01, blank = True,  cal = True,  sig_ref_1 = False)
+          be.add_switching_state(0.09, blank = False, cal = True,  sig_ref_1 = False)
+          be.add_switching_state(0.01, blank = True,  cal = False, sig_ref_1 = True)
+          be.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = True)
+          be.add_switching_state(0.01, blank = True,  cal = False, sig_ref_1 = False)
+          be.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False)
+
+        """
+
+        if blank:
+            dur = int(math.ceil(duration * self.chan_bw) * 1 / (self.spec_tick * self.chan_bw))
+        else:
+            dur = int(math.ceil(duration / self.hwexposr) * self.hwexposr / self.spec_tick)
+        self.ss.add_phase(dur = dur, bl = blank, cal = cal, sr1 = sig_ref_1)
+        return (True, self.ss.number_phases())
 
     ### Methods to set user or mode specified parameters
     ###
