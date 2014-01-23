@@ -42,11 +42,11 @@ import os
 import apwlib.convert as apw
 import math
 
-class VegasL1LBWBackend(VegasBackend):
+class VegasLBWBackend(VegasBackend):
     """
     A class which implements the VEGAS LBW-specific parameter calculations.
 
-    VegasL1LBWBackend(theBank, theMode, theRoach = None, theValon = None)
+    VegasLBWBackend(theBank, theMode, theRoach = None, theValon = None)
 
     Where:
 
@@ -83,14 +83,14 @@ class VegasL1LBWBackend(VegasBackend):
         """
         Perform some cleanup tasks.
         """
-        super(VegasL1LBWBackend, self).__del__()
+        super(VegasLBWBackend, self).__del__()
 
 
     def computeSpecTick(self):
         """Returns the spec_tick value for this backend (the LBW value)
 
         """
-        print "VegasL1LBWBackend::computeSpecTick: self.frequency =", self.frequency
+        print "VegasLBWBackend::computeSpecTick: self.frequency =", self.frequency
         return 1024.0 / (convertToMHz(self.frequency) * 1e6)
 
 
@@ -207,7 +207,7 @@ class VegasL1LBWBackend(VegasBackend):
         Gather status sets here
         Not yet sure what to place here...
         """
-        statusdata = super(VegasL1LBWBackend, self)._set_state_table_keywords()
+        statusdata = super(VegasLBWBackend, self)._set_state_table_keywords()
         statusdata["BW_MODE"  ] = "low"
         statusdata["HWEXPOSR" ] = str(self.hwexposr)
         statusdata["EXPOSURE" ] = str(self.exposure)
