@@ -51,12 +51,12 @@ import math
 
 from VegasBackend import VegasBackend
 from VegasLBWBackend import VegasLBWBackend
-# from VegasL8LBWBackend import VegasL8LBWBackend
+from VegasL8LBWBackend import VegasL8LBWBackend
 from Backend import SWbits
 from GuppiBackend import GuppiBackend
 from GuppiCODDBackend import GuppiCODDBackend
 from ConfigData import BankData, ModeData
-from nose.tools import assert_equal, assert_almost_equal
+from nose.tools import assert_equal, assert_almost_equal, assert_true
 from nose.tools import assert_equals,assert_almost_equals
 
 def skipped(func):
@@ -127,10 +127,11 @@ def dibas_vals(mode, expo):
 
     A tuple:
 
-    (frequency, efsampfr, chan_bw, bw_mode, fpga_clk, exposure, expoclks)
+    (b, m, freq, exposure, expoclks, ssg_bl_times[0], spec_tick, efsampfr, \
+     hwexposr, chan_bw, bw_mode, obs_mode, fpga_clk)
 
     """
-    modenum = int(mode[4])
+    modenum = int(mode[4:])
     config = ConfigParser.ConfigParser()
     config.readfp(open(dibas_dir + "/etc/config/dibas.conf"))
     b = BankData()
@@ -152,7 +153,7 @@ def dibas_vals(mode, expo):
         bw_mode = "low"
         obs_mode = "LBW"
         spec_tick = 1024.0 / freq
-    elif modenum > 9 and modenum < 29:
+    elif modenum > 9 and modenum < 30:
         efsampfr = freq / 32
         bw_mode = "low"
         obs_mode = "LBW"
@@ -414,156 +415,251 @@ def check_l8lbw1_mode(mode, expo):
     """
     Single L8LBW1 subband test (Mode 10).
     """
-    pass
-    # params = dibas_vals(mode, expo)
-    # b, m, frequency, exposure, expoclks, blanktm, spec_tick, efsampfr, \
-    #     hwexposr, chan_bw, bw_mode, obs_mode, fpga_clk = params
+    params = dibas_vals(mode, expo)
+    b, m, frequency, exposure, expoclks, blanktm, spec_tick, efsampfr, \
+        hwexposr, chan_bw, bw_mode, obs_mode, fpga_clk = params
+    print "frequency", frequency
+    print "exposure", exposure
+    print "expoclks", expoclks
+    print "blanktm", blanktm
+    print "spec_tick", spec_tick
+    print "efsampfr", efsampfr
+    print "hwexposr", hwexposr
+    print "chan_bw", chan_bw
+    print "bw_mode", bw_mode
+    print "obs_mode", obs_mode
+    print "fpga_clk", fpga_clk
 
-    # be = VegasL8LBWBackend(b, m, None, None, None, unit_test = True)
+    be = VegasL8LBWBackend(b, m, None, None, None, unit_test = True)
 
-    # be.setPolarization('CROSS')
-    # be.setScanLength(60.0)
-    # be.setIntegrationTime(expo)
-    # be.set_param("subband_freq", [ 300000000.0000 ])
+    be.setPolarization('CROSS')
+    be.setScanLength(60.0)
+    be.setIntegrationTime(expo)
+    be.set_param("subband_freq", [ 300000000.0000 ])
 
-    # be.clear_switching_states()
-    # ssg_duration = expo
-    # be.set_gbt_ss(ssg_duration,
-    #               ((0.0, SWbits.SIG, SWbits.CALON, 0.002),
-    #                (0.25, SWbits.SIG, SWbits.CALOFF, 0.002),
-    #                (0.5, SWbits.REF, SWbits.CALON, 0.002),
-    #                (0.75, SWbits.REF, SWbits.CALOFF, 0.002))
-    #               )
+    be.clear_switching_states()
+    ssg_duration = expo
+    be.set_gbt_ss(ssg_duration,
+                  ((0.0, SWbits.SIG, SWbits.CALON, 0.002),
+                   (0.25, SWbits.SIG, SWbits.CALOFF, 0.002),
+                   (0.5, SWbits.REF, SWbits.CALON, 0.002),
+                   (0.75, SWbits.REF, SWbits.CALOFF, 0.002))
+                  )
 
-    # # call dependency methods and update shared memory
-    # be.prepare()
-    # regs = be.mock_roach_registers
-    # shm  = be.mock_status_mem
-    # shmkeys = shm.keys()
-    # shmkeys.sort()
+    # call dependency methods and update shared memory
+    be.prepare()
+    regs = be.mock_roach_registers
+    shm  = be.mock_status_mem
+    shmkeys = shm.keys()
+    shmkeys.sort()
 
-    # print "Status memory:"
-    # for i in shmkeys:
-    #     print "%s = %s" % (i, shm[i])
+    print "Status memory:"
+    for i in shmkeys:
+        print "%s = %s" % (i, shm[i])
 
-    # assert_equals(int(shm['NCHAN']), m.nchan)
-    # assert_equals(int(shm['NSUBBAND']), 1)
-    # assert_equals(float(shm['SUB0FREQ']), 300001144.409)
-    # #print be.actual_subband_freq
+    assert_equals(int(shm['NCHAN']), m.nchan)
+    assert_equals(int(shm['NSUBBAND']), 1)
+    #print be.actual_subband_freq
 
-    # for k in regs.keys():
-    #     if isinstance(regs[k], str) and len(regs[k]) > 70:
-    #         print "reg[%s]=" % (k), regs[k][0]
-    #     else:
-    #         print "reg[%s]=%i" % (k, regs[k])
+    for k in regs.keys():
+        if isinstance(regs[k], str) and len(regs[k]) > 70:
+            print "reg[%s]=" % (k), regs[k][0]
+        else:
+            print "reg[%s]=%i" % (k, regs[k])
 
-    # for i in range(16):
-    #     assert("s0_lo_%i_lo_ram" % (i) in regs.keys())
-    #     assert("s1_lo_%i_lo_ram" % (i) not in regs.keys())
-    #     assert("s2_lo_%i_lo_ram" % (i) not in regs.keys())
-    #     assert("s3_lo_%i_lo_ram" % (i) not in regs.keys())
-    #     assert("s4_lo_%i_lo_ram" % (i) not in regs.keys())
-    #     assert("s5_lo_%i_lo_ram" % (i) not in regs.keys())
-    #     assert("s6_lo_%i_lo_ram" % (i) not in regs.keys())
-    #     assert("s7_lo_%i_lo_ram" % (i) not in regs.keys())
+    for i in range(16):
+        assert_true("s0_lo_%i_lo_ram" % (i) in regs.keys())
+        assert_true("s1_lo_%i_lo_ram" % (i) not in regs.keys())
+        assert_true("s2_lo_%i_lo_ram" % (i) not in regs.keys())
+        assert_true("s3_lo_%i_lo_ram" % (i) not in regs.keys())
+        assert_true("s4_lo_%i_lo_ram" % (i) not in regs.keys())
+        assert_true("s5_lo_%i_lo_ram" % (i) not in regs.keys())
+        assert_true("s6_lo_%i_lo_ram" % (i) not in regs.keys())
+        assert_true("s7_lo_%i_lo_ram" % (i) not in regs.keys())
 
-    # be.set_param("gain1", [1024])
-    # be.set_param("gain2", [2048])
-    # be.prepare()
-    # regs = be.mock_roach_registers
-    # assert('mode_sel' in regs.keys())
-    # assert('s0_quant_gain1' in regs.keys())
-    # assert('s0_quant_gain2' in regs.keys())
-    # assert_equals(int(regs['s0_quant_gain1']), 1024)
-    # assert_equals(int(regs['s0_quant_gain2']), 2048)
-    # assert_equals(int(regs['mode_sel']), 1)
+    be.set_param("gain", [1024])
+    be.prepare()
+    regs = be.mock_roach_registers
+    assert_true('mode_sel' in regs.keys())
+    assert_true('s0_quant_gain' in regs.keys())
+    assert_equals(int(regs['s0_quant_gain']), 1024)
+    assert_equals(int(regs['mode_sel']), 1)
 
-    # be.show_switching_setup()
-    # DEFAULT_VALUE = "unspecified"
+    be.show_switching_setup()
+    DEFAULT_VALUE = "unspecified"
 
-    # assert_equal(be.get_status('PROJID'), 'JUNK')
-    # assert_equal(be.get_status('SCANLEN'), '60.0')
-    # assert_almost_equal(float(be.get_status("_SBLK_01")), blanktm, 6)
-    # assert_almost_equal(float(be.get_status("_SBLK_02")), blanktm, 6)
-    # assert_almost_equal(float(be.get_status("_SBLK_03")), blanktm, 6)
-    # assert_almost_equal(float(be.get_status("_SBLK_04")), blanktm, 6)
+    assert_equal(be.get_status('PROJID'), 'JUNK')
+    assert_equal(be.get_status('SCANLEN'), '60.0')
+    assert_almost_equal(float(be.get_status("_SBLK_01")), blanktm, 6)
+    assert_almost_equal(float(be.get_status("_SBLK_02")), blanktm, 6)
+    assert_almost_equal(float(be.get_status("_SBLK_03")), blanktm, 6)
+    assert_almost_equal(float(be.get_status("_SBLK_04")), blanktm, 6)
 
-    # assert_equal(be.get_status("_SCAL_01"), '1')
-    # assert_equal(be.get_status("_SCAL_02"), '0')
-    # assert_equal(be.get_status("_SCAL_03"), '1')
-    # assert_equal(be.get_status("_SCAL_04"), '0')
+    assert_equal(be.get_status("_SCAL_01"), '1')
+    assert_equal(be.get_status("_SCAL_02"), '0')
+    assert_equal(be.get_status("_SCAL_03"), '1')
+    assert_equal(be.get_status("_SCAL_04"), '0')
 
-    # assert_almost_equal(float(be.get_status("_SPHS_01")), 0,)
-    # assert_almost_equal(float(be.get_status("_SPHS_02")), 0.25)
-    # assert_almost_equal(float(be.get_status("_SPHS_03")), 0.5)
-    # assert_almost_equal(float(be.get_status("_SPHS_04")), 0.75)
+    assert_almost_equal(float(be.get_status("_SPHS_01")), 0,)
+    assert_almost_equal(float(be.get_status("_SPHS_02")), 0.25)
+    assert_almost_equal(float(be.get_status("_SPHS_03")), 0.5)
+    assert_almost_equal(float(be.get_status("_SPHS_04")), 0.75)
 
-    # assert_equal(be.get_status("_SSRF_01"), '0')
-    # assert_equal(be.get_status("_SSRF_02"), '0')
-    # assert_equal(be.get_status("_SSRF_03"), '1')
-    # assert_equal(be.get_status("_SSRF_04"), '1')
+    assert_equal(be.get_status("_SSRF_01"), '0')
+    assert_equal(be.get_status("_SSRF_02"), '0')
+    assert_equal(be.get_status("_SSRF_03"), '1')
+    assert_equal(be.get_status("_SSRF_04"), '1')
 
-    # assert_equal(be.get_status('BANKNAM') , 'BANKA')
-    # assert_equal(be.get_status('MODENUM') , mode)
-    # assert_equal(be.get_status("BW_MODE") , "low")
+    assert_equal(be.get_status('BANKNAM') , 'BANKA')
+    assert_equal(be.get_status('MODENUM') , mode)
+    assert_equal(be.get_status("BW_MODE") , bw_mode)
 
-    # assert_almost_equal(float(be.get_status("CHAN_BW")), chan_bw)
-    # assert_almost_equal(float(be.get_status("EFSAMPFR")), efsampfr)
-    # assert_almost_equal(float(be.get_status("EXPOSURE")), exposure, 7)
-    # assert_equal(int(be.get_status('EXPOCLKS')), expoclks)
-    # assert_almost_equal(float(be.get_status("FPGACLK")), fpga_clk)
+    assert_almost_equal(float(be.get_status("CHAN_BW")), chan_bw)
+    assert_almost_equal(float(be.get_status("EFSAMPFR")), efsampfr)
+    assert_almost_equal(float(be.get_status("EXPOSURE")), exposure, 7)
+    assert_equal(int(be.get_status('EXPOCLKS')), expoclks)
+    assert_almost_equal(float(be.get_status("FPGACLK")), fpga_clk)
 
-    # assert_equal(be.get_status("OBSNCHAN"), str(nchan))
-    # assert_equal(be.get_status("OBS_MODE"), "LBW")
-    # assert_equal(be.get_status("PKTFMT")  , "SPEAD")
-    # assert_equal(be.get_status("NCHAN")   , str(nchan))
-    # assert_equal(be.get_status("NPOL")    , '2')
-    # assert_equal(be.get_status("NSUBBAND"), '1')
-    # assert_equal(be.get_status("SUB0FREQ"), str(efsampfr / 4))
-    # assert_equal(be.get_status("SUB1FREQ"), str(efsampfr / 4))
-    # assert_equal(be.get_status("SUB2FREQ"), str(efsampfr / 4))
-    # assert_equal(be.get_status("SUB3FREQ"), str(efsampfr / 4))
-    # assert_equal(be.get_status("SUB4FREQ"), str(efsampfr / 4))
-    # assert_equal(be.get_status("SUB5FREQ"), str(efsampfr / 4))
-    # assert_equal(be.get_status("SUB6FREQ"), str(efsampfr / 4))
-    # assert_equal(be.get_status("SUB7FREQ"), str(efsampfr / 4))
+    assert_equal(be.get_status("OBSNCHAN"), str(m.nchan))
+    assert_equal(be.get_status("OBS_MODE"), obs_mode)
+    assert_equal(be.get_status("PKTFMT")  , "SPEAD")
+    assert_equal(be.get_status("NCHAN")   , str(m.nchan))
+    assert_equal(be.get_status("NPOL")    , '2')
+    assert_equal(be.get_status("NSUBBAND"), '1')
 
-    # assert_equal(be.get_status("BASE_BW"), str(m.filter_bw)) # from config file
-    # assert_equal(be.get_status("NOISESRC"), 'OFF')
-    # assert_equal(be.get_status("NUMPHASE"), '4')
-    # assert_almost_equal(float(be.get_status("SWPERIOD")), exposure, 5)
-    # assert_equal(be.get_status("SWMASTER"), "VEGAS")
-    # assert_equal(be.get_status("POLARIZE"), "SELF")
-    # assert_equal(be.get_status("CRPIX1"), str(nchan / 2 + 1))
-    # assert_almost_equal(float(be.get_status("SWPERINT")), 0.1 / ssg_duration)
-    # assert_equal(be.get_status("NMSTOKES"), "2")
+    # 8 subbands checked. L8LBW1 modes only use first value but set all
+    # 8 to same value. 'assert_almost_equal' checks values to their
+    # difference rounded to the value given (5 here), not significant
+    # digits. So first obtain real subfreq, divide it by desired
+    # subfreq, and that should give a number very close to 1.0, within 5
+    # decimal places.
+    for i in range(0, 8):
+        asb = float(be.get_status("SUB%iFREQ" % i))
+        assert_almost_equal(asb / 300e6, 1.0, 5)
 
-    # assert_equal(be.get_status("CAL_DCYC"), DEFAULT_VALUE)
-    # assert_equal(be.get_status("CAL_FREQ"), DEFAULT_VALUE)
-    # assert_equal(be.get_status("CAL_MODE"), DEFAULT_VALUE)
-    # assert_equal(be.get_status("CAL_PHS") , DEFAULT_VALUE)
+    assert_equal(be.get_status("BASE_BW"), str(m.filter_bw)) # from config file
+    assert_equal(be.get_status("NOISESRC"), 'OFF')
+    assert_equal(be.get_status("NUMPHASE"), '4')
+    assert_almost_equal(float(be.get_status("SWPERIOD")), exposure, 5)
+    assert_equal(be.get_status("SWMASTER"), "VEGAS")
+    assert_equal(be.get_status("POLARIZE"), "CROSS")
+    assert_equal(be.get_status("CRPIX1"), str(m.nchan / 2 + 1))
+    assert_almost_equal(float(be.get_status("SWPERINT")), expo / ssg_duration)
+    assert_equal(be.get_status("NMSTOKES"), "4")
 
-    # assert_equal(be.get_status("DATADIR") , dibas_data)
-    # assert_equal(be.get_status("DATAPORT"), '60000')
+    assert_equal(be.get_status("CAL_DCYC"), DEFAULT_VALUE)
+    assert_equal(be.get_status("CAL_FREQ"), DEFAULT_VALUE)
+    assert_equal(be.get_status("CAL_MODE"), DEFAULT_VALUE)
+    assert_equal(be.get_status("CAL_PHS") , DEFAULT_VALUE)
 
-    # assert_equal(be.get_status("EFSAMPFR"), str(efsampfr))
-    # assert_equal(be.get_status("FILENUM") , DEFAULT_VALUE)
-    # assert_almost_equal(float(be.get_status("FPGACLK")), frequency / 8)
-    # assert_almost_equal(float(be.get_status("HWEXPOSR")), hwexposr, 5)
-    # assert_equal(be.get_status("M_STTMJD"), '0')
-    # assert_equal(be.get_status("M_STTOFF"), '0')
-    # assert_equal(be.get_status("NBITS")   , '8')
-    # assert_equal(be.get_status("NBITSADC"), '8')
+    assert_equal(be.get_status("DATADIR") , dibas_data)
+    assert_equal(be.get_status("DATAPORT"), '60000')
 
-    # assert_equal(be.get_status("NPKT")    , DEFAULT_VALUE)
-    # assert_equal(be.get_status("OBSBW")   , str(m.nchan * chan_bw))
+    assert_equal(be.get_status("EFSAMPFR"), str(efsampfr))
+    assert_equal(be.get_status("FILENUM") , DEFAULT_VALUE)
+    assert_almost_equal(float(be.get_status("FPGACLK")), frequency / 8)
+    assert_almost_equal(float(be.get_status("HWEXPOSR")), hwexposr, 5)
+    assert_equal(be.get_status("M_STTMJD"), '0')
+    assert_equal(be.get_status("M_STTOFF"), '0')
+    assert_equal(be.get_status("NBITS")   , '8')
+    assert_equal(be.get_status("NBITSADC"), '8')
 
-    # assert_equal(be.get_status("OBSFREQ") , DEFAULT_VALUE)
-    # assert_equal(be.get_status("OBSERVER"), DEFAULT_VALUE)
-    # assert_equal(be.get_status("OBSID")   , DEFAULT_VALUE)
+    assert_equal(be.get_status("NPKT")    , DEFAULT_VALUE)
+    assert_equal(be.get_status("OBSBW")   , str(m.nchan * chan_bw))
 
-    # assert_equal(be.get_status("SWVER")   , DEFAULT_VALUE)
+    assert_equal(be.get_status("OBSFREQ") , DEFAULT_VALUE)
+    assert_equal(be.get_status("OBSERVER"), DEFAULT_VALUE)
+    assert_equal(be.get_status("OBSID")   , DEFAULT_VALUE)
 
+    assert_equal(be.get_status("SWVER")   , DEFAULT_VALUE)
+
+def check_l8lbw8_mode(mode, expo):
+    """L8LBW8 8-subbands test. This test is not as comprehensive as the
+    L8_LBW1 tests, since it uses the same code--already tested by L8LBW1
+    tests--and focuses instead on the 8-subbands.
+
+    """
+    params = dibas_vals(mode, expo)
+    b, m, frequency, exposure, expoclks, blanktm, spec_tick, efsampfr, \
+        hwexposr, chan_bw, bw_mode, obs_mode, fpga_clk = params
+    print "frequency", frequency
+    print "exposure", exposure
+    print "expoclks", expoclks
+    print "blanktm", blanktm
+    print "spec_tick", spec_tick
+    print "efsampfr", efsampfr
+    print "hwexposr", hwexposr
+    print "chan_bw", chan_bw
+    print "bw_mode", bw_mode
+    print "obs_mode", obs_mode
+    print "fpga_clk", fpga_clk
+
+    be = VegasL8LBWBackend(b, m, None, None, None, unit_test = True)
+
+    be.setPolarization('CROSS')
+    be.setIntegrationTime(expo)
+    sbfreqs = [ 300e6, 320e6, 340e6, 360e6, 400e6, 420e6, 440e6, 460e6 ]
+    be.set_param("subband_freq", sbfreqs)
+
+    be.clear_switching_states()
+    ssg_duration = 0.1
+    be.set_gbt_ss(ssg_duration,
+                  ((0.0, SWbits.SIG, SWbits.CALON, 0.002),
+                   (0.25, SWbits.SIG, SWbits.CALOFF, 0.002),
+                   (0.5, SWbits.REF, SWbits.CALON, 0.002),
+                   (0.75, SWbits.REF, SWbits.CALOFF, 0.002))
+                  )
+
+    # call dependency methods and update shared memory
+    be.prepare()
+    regs = be.mock_roach_registers
+    shm  = be.mock_status_mem
+    shmkeys = shm.keys()
+    shmkeys.sort()
+
+    print "Status memory:"
+    for i in shmkeys:
+        print "%s = %s" % (i, shm[i])
+
+    assert_equals(int(shm['NCHAN']), m.nchan)
+    assert_equals(int(shm['NSUBBAND']), 8)
+
+    # 8 subbands checked. L8LBW8 modes use all 8 values.
+    # 'assert_almost_equal' checks values to their
+    # difference rounded to the value given (5 here), not significant
+    # digits. So first obtain real subfreq, divide it by desired
+    # subfreq, and that should give a number very close to 1.0, within 5
+    # decimal places.
+    for i in range(0, 8):
+        asb = float(be.get_status("SUB%iFREQ" % i))
+        assert_almost_equal(asb / sbfreqs[i], 1.0, 5)
+
+    for k in regs.keys():
+        if isinstance(regs[k], str) and len(regs[k]) > 70:
+            print "reg[%s]=" % (k), regs[k][0]
+        else:
+            print "reg[%s]=%i" % (k, regs[k])
+
+    for i in range(16):
+        assert_true("s0_lo_%i_lo_ram" % (i) in regs.keys())
+        assert_true("s1_lo_%i_lo_ram" % (i) in regs.keys())
+        assert_true("s2_lo_%i_lo_ram" % (i) in regs.keys())
+        assert_true("s3_lo_%i_lo_ram" % (i) in regs.keys())
+        assert_true("s4_lo_%i_lo_ram" % (i) in regs.keys())
+        assert_true("s5_lo_%i_lo_ram" % (i) in regs.keys())
+        assert_true("s6_lo_%i_lo_ram" % (i) in regs.keys())
+        assert_true("s7_lo_%i_lo_ram" % (i) in regs.keys())
+
+    be.set_param("gain", [1024] * 8)
+    be.prepare()
+    regs = be.mock_roach_registers
+    assert_true('mode_sel' in regs.keys())
+    assert_equals(int(regs['mode_sel']), 0)
+
+    for i in range(0, 8):
+        quant_gain_reg = 's%i_quant_gain' % (i)
+        assert_true(quant_gain_reg in regs.keys())
+        assert_equals(int(regs[quant_gain_reg]), 1024)
 
 # @with_setup(setup_dibas_tests, None)
 def test_MODE1():
@@ -626,166 +722,120 @@ def test_MODE10():
     """
     check_l8lbw1_mode("MODE10", 0.1)
 
+def test_MODE11():
+    """
+    MODE11 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE11", 0.1)
 
+def test_MODE12():
+    """
+    MODE12 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE12", 0.1)
 
+def test_MODE13():
+    """
+    MODE13 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE13", 0.1)
 
+def test_MODE14():
+    """
+    MODE14 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE14", 0.1)
 
+def test_MODE15():
+    """
+    MODE15 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE15", 0.1)
 
-# def test_VegasL8LBWBackend_lbw1_mode():
-#     """
-#     Single L8LBW1 subband test (Mode 10).
-#     """
-#     assert(True)
+def test_MODE16():
+    """
+    MODE16 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE16", 0.1)
 
-#     config = ConfigParser.ConfigParser()
-#     config.readfp(open("etc/config/dibas.conf"))
-#     b = BankData()
-#     b.load_config(config, "BANKA")
-#     m = ModeData()
-#     m.load_config(config, "MODE10")
-#     m.frequency = 1500
+def test_MODE17():
+    """
+    MODE17 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE17", 0.1)
 
-#     be = VegasL8LBWBackend(b, m, None, None, None, unit_test = True)
+def test_MODE18():
+    """
+    MODE18 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE18", 0.1)
 
-#     be.setPolarization('CROSS')
-#     be.setNumberChannels(32768)   # mode 10
-#     be.setIntegrationTime(0.1)
-#     be.set_param("subband_freq", [ 300000000.0000 ])
+def test_MODE19():
+    """
+    MODE19 L8LBW1 case
+    """
+    check_l8lbw1_mode("MODE19", 0.1)
 
-#     be.clear_switching_states()
-#     ssg_duration = 0.1
-#     be.set_gbt_ss(ssg_duration,
-#                   ((0.0, SWbits.SIG, SWbits.CALON, 0.002),
-#                    (0.25, SWbits.SIG, SWbits.CALOFF, 0.002),
-#                    (0.5, SWbits.REF, SWbits.CALON, 0.002),
-#                    (0.75, SWbits.REF, SWbits.CALOFF, 0.002))
-#                   )
+def test_MODE20():
+    """
+    MODE20 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE20", 0.1)
 
-#     # call dependency methods and update shared memory
-#     be.prepare()
-#     regs = be.mock_roach_registers
-#     shm  = be.mock_status_mem
-#     shmkeys = shm.keys()
-#     shmkeys.sort()
+def test_MODE21():
+    """
+    MODE21 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE21", 0.1)
 
-#     print "Status memory:"
-#     for i in shmkeys:
-#         print "%s = %s" % (i, shm[i])
+def test_MODE22():
+    """
+    MODE22 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE22", 0.1)
 
-#     assert_equals(int(shm['NCHAN']), 32768)
-#     assert_equals(int(shm['NSUBBAND']), 1)
-#     assert_equals(float(shm['SUB0FREQ']), 300001144.409)
-#     #print be.actual_subband_freq
+def test_MODE23():
+    """
+    MODE23 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE23", 0.1)
 
-#     for k in regs.keys():
-#         if isinstance(regs[k], str) and len(regs[k]) > 70:
-#             print "reg[%s]=" % (k), regs[k][0]
-#         else:
-#             print "reg[%s]=%i" % (k, regs[k])
+def test_MODE24():
+    """
+    MODE24 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE24", 0.1)
 
-#     for i in range(16):
-#         assert("s0_lo_%i_lo_ram" % (i) in regs.keys())
-#         assert("s1_lo_%i_lo_ram" % (i) not in regs.keys())
-#         assert("s2_lo_%i_lo_ram" % (i) not in regs.keys())
-#         assert("s3_lo_%i_lo_ram" % (i) not in regs.keys())
-#         assert("s4_lo_%i_lo_ram" % (i) not in regs.keys())
-#         assert("s5_lo_%i_lo_ram" % (i) not in regs.keys())
-#         assert("s6_lo_%i_lo_ram" % (i) not in regs.keys())
-#         assert("s7_lo_%i_lo_ram" % (i) not in regs.keys())
+def test_MODE25():
+    """
+    MODE25 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE25", 0.1)
 
-#     be.set_param("gain1", [1024])
-#     be.set_param("gain2", [2048])
-#     be.prepare()
-#     regs = be.mock_roach_registers
-#     assert('mode_sel' in regs.keys())
-#     assert('s0_quant_gain1' in regs.keys())
-#     assert('s0_quant_gain2' in regs.keys())
-#     assert_equals(int(regs['s0_quant_gain1']), 1024)
-#     assert_equals(int(regs['s0_quant_gain2']), 2048)
-#     assert_equals(int(regs['mode_sel']), 1)
-#     #assert(False)
+def test_MODE26():
+    """
+    MODE26 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE26", 0.1)
 
-# def test_VegasL8LBWBackend_lbw8_mode():
-#     """
-#     Single L8LBW8 subband test (Mode 20).
-#     """
-#     assert(True)
+def test_MODE27():
+    """
+    MODE27 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE27", 0.1)
 
-#     config = ConfigParser.ConfigParser()
-#     config.readfp(open("etc/config/dibas.conf"))
-#     b = BankData()
-#     b.load_config(config, "BANKA")
-#     m = ModeData()
-#     m.load_config(config, "MODE20")
-#     m.frequency = 1500
+def test_MODE28():
+    """
+    MODE28 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE28", 0.1)
 
-#     be = VegasL8LBWBackend(b, m, None, None, None, unit_test = True)
+def test_MODE29():
+    """
+    MODE29 L8LBW8 case
+    """
+    check_l8lbw8_mode("MODE29", 0.1)
 
-#     be.setPolarization('CROSS')
-#     be.setNumberChannels(4096)   # mode 20
-#     be.setIntegrationTime(0.1)
-#     be.set_param("subband_freq", [ 300e6, 320e6, 340e6, 360e6, 400e6, 420e6, 440e6, 460e6 ])
-
-#     be.clear_switching_states()
-#     ssg_duration = 0.1
-#     be.set_gbt_ss(ssg_duration,
-#                   ((0.0, SWbits.SIG, SWbits.CALON, 0.002),
-#                    (0.25, SWbits.SIG, SWbits.CALOFF, 0.002),
-#                    (0.5, SWbits.REF, SWbits.CALON, 0.002),
-#                    (0.75, SWbits.REF, SWbits.CALOFF, 0.002))
-#                   )
-
-#     # call dependency methods and update shared memory
-#     be.prepare()
-#     regs = be.mock_roach_registers
-#     shm  = be.mock_status_mem
-#     shmkeys = shm.keys()
-#     shmkeys.sort()
-
-#     print "Status memory:"
-#     for i in shmkeys:
-#         print "%s = %s" % (i, shm[i])
-
-#     assert_equals(int(shm['NCHAN']), 4096)
-#     assert_equals(int(shm['NSUBBAND']), 8)
-
-#     assert_equals(float(shm['SUB0FREQ']), 300001144.409)
-#     assert_equals(float(shm['SUB1FREQ']), 319999694.824)
-#     assert_equals(float(shm['SUB2FREQ']), 340001106.262)
-#     assert_equals(float(shm['SUB3FREQ']), 359999656.677)
-#     assert_equals(float(shm['SUB4FREQ']), 399999618.53)
-#     assert_equals(float(shm['SUB5FREQ']), 420001029.968)
-#     assert_equals(float(shm['SUB6FREQ']), 439999580.383)
-#     assert_equals(float(shm['SUB7FREQ']), 460000991.821)
-#     #print be.actual_subband_freq
-
-#     for k in regs.keys():
-#         if isinstance(regs[k], str) and len(regs[k]) > 70:
-#             print "reg[%s]=" % (k), regs[k][0]
-#         else:
-#             print "reg[%s]=%i" % (k, regs[k])
-
-#     for i in range(16):
-#         assert("s0_lo_%i_lo_ram" % (i) in regs.keys())
-#         assert("s1_lo_%i_lo_ram" % (i) in regs.keys())
-#         assert("s2_lo_%i_lo_ram" % (i) in regs.keys())
-#         assert("s3_lo_%i_lo_ram" % (i) in regs.keys())
-#         assert("s4_lo_%i_lo_ram" % (i) in regs.keys())
-#         assert("s5_lo_%i_lo_ram" % (i) in regs.keys())
-#         assert("s6_lo_%i_lo_ram" % (i) in regs.keys())
-#         assert("s7_lo_%i_lo_ram" % (i) in regs.keys())
-
-#     be.set_param("gain1", [1024] * 8)
-#     be.set_param("gain2", [2048] * 8)
-#     be.prepare()
-#     regs = be.mock_roach_registers
-#     assert('mode_sel' in regs.keys())
-#     assert('s0_quant_gain1' in regs.keys())
-#     assert('s0_quant_gain2' in regs.keys())
-#     assert_equals(int(regs['s0_quant_gain1']), 1024)
-#     assert_equals(int(regs['s0_quant_gain2']), 2048)
-#     assert_equals(int(regs['mode_sel']), 0)
-#     #assert(False)
 
 @skipped # Not sure how the parfile check should work JJB
 def test_GUPPI_INCO_64_backend():

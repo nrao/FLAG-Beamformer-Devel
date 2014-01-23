@@ -29,7 +29,7 @@ import ctypes
 import binascii
 import player
 from Backend import Backend,convertToMHz
-from VegasBackend import VegasBackend
+from VegasLBWBackend import VegasLBWBackend
 from vegas_ssg import SwitchingSignals
 import subprocess
 import time
@@ -38,7 +38,7 @@ import os
 import apwlib.convert as apw
 from lbw_mixer_funcs import LBWMixerCalcs
 
-class VegasL8LBWBackend(VegasBackend):
+class VegasL8LBWBackend(VegasLBWBackend):
     """
     A class which implements some of the VEGAS specific parameter calculations
     for the L8LBW1 and L8LBW8 modes.
@@ -58,32 +58,30 @@ class VegasL8LBWBackend(VegasBackend):
         """
         Creates an instance of the vegas internals for the L8LBW firmware.
         """
+
         #print str(theMode)
         # mode_number may be treated as a constant; the Player will
         # delete this backend object and create a new one on mode
         # change.
-        VegasBackend.__init__(self, theBank, theMode, theRoach , theValon, hpc_macs, unit_test)
+        VegasLBWBackend.__init__(self, theBank, theMode, \
+                                 theRoach , theValon, hpc_macs, unit_test)
 
         if 'lbw8' in theMode.shmkvpairs['MODENAME']:
             nsubbands = 8
         else:
             nsubbands = 1
 
-        self.nchan = theMode.nchan
-        self.gain1 = [ 1024 ] * nsubbands
-        self.gain2 = [ 1024 ] * nsubbands
+        self.nsubbands = nsubbands
 
+        if not self.gain:
+            self.gain = [ 1024 ] * nsubbands
 
         # default dependent values, computed from Parameters:
         # a resonable default:
         self.subbandfreq = [ convertToMHz(self.frequency/2) ] * nsubbands
         self.actual_subband_freq = self.subbandfreq
-        self.nsubbands = nsubbands
         # L8 specific parameters
         self.params["subband_freq" ] = self._setSubbandFreq
-        self.params["gain1"        ] = self._setGain1
-        self.params["gain2"        ] = self._setGain2
-
         self.lbwmixer = LBWMixerCalcs(self.frequency)
 
         self.prepare()
@@ -114,26 +112,6 @@ class VegasL8LBWBackend(VegasBackend):
         else:
             self.nsubband = 8
 
-
-    def _setGain1(self, gain1):
-        """
-        Sets the quantization gain1 for the subbands
-        Parameter must be a list of length 1 or 8 (matching the number of subbands in use)
-        """
-        if not isinstance(gain1, list) or len(gain1) != self.nsubbands:
-            raise "gain1 is not a list or the number of entries does not match the number of subbands"
-        else:
-            self.gain1 = gain1
-
-    def _setGain2(self, gain2):
-        """
-        Sets the gain2 for the subbands (definition?)
-        Parameter must be a list of length 1 or 8 (matching the number of subbands in use)
-        """
-        if not isinstance(gain2, list) or len(gain2) != self.nsubbands:
-            raise "gain2 is not a list or the number of entries does not match the number of subbands"
-        else:
-            self.gain2 = gain2
 
     def _mixer_cnt_dep(self):
         """
@@ -183,6 +161,8 @@ class VegasL8LBWBackend(VegasBackend):
         if nsubbands not in [1,8]:
             raise Exception("number of sub-bands must be 1 or 8.")
         self.nsubbands = nsubbands
+
+
     def _subfreq_dep(self):
         """
         Compute the baseband frequencies for each sub-band.
@@ -221,9 +201,7 @@ class VegasL8LBWBackend(VegasBackend):
         Do the quantization gain calculation and append the result to the register dictionary
         """
         for subband in range(self.nsubbands):
-            kwval = { 's'+str(subband)+'_quant_gain1' : self.gain1[subband] }
-            self.set_register(**kwval)
-            kwval = { 's'+str(subband)+'_quant_gain2' : self.gain2[subband] }
+            kwval = { 's'+str(subband)+'_quant_gain' : self.gain[subband] }
             self.set_register(**kwval)
 
 
@@ -242,27 +220,22 @@ class VegasL8LBWBackend(VegasBackend):
           be.prepare()
         """
         super(VegasL8LBWBackend, self).prepare()
-        self._subfreq_dep(self.frequency)
+        self._subfreq_dep()
         self._gain_dep()
         self._mode_select_dep()
 
         # now update all the status keywords needed for this mode:
         self._set_state_table_keywords()
-        self._init_gpu_resources()
 
-
-
-    def _init_gpu_resources(self):
-        """
-        When resources change (e.g. number of channels, subbands, etc.) We
-        clear the initialize indicator and tell the HPC to reallocate resources.
-        """
-        self.set_status(GPUCTXIN="FALSE")
-        self.hpc_cmd("INIT_GPU")
-        status,wait = self._wait_for_status('GPUCTXIN', 'TRUE', timedelta(seconds=75))
-
-        if not status:
-            raise Exception("init_gpu_resources(): timed out waiting for 'GPUCTXIN=TRUE'")
+        if self.roach:
+            # write the switching signal specification to the roach:
+            self.roach.write_int('ssg_length', self.ss.total_duration_granules())
+            self.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
+            master = 1 if self.bank.i_am_master else 0
+            sssource = 0 # internal
+            bsource = 0 # internal
+            ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
+            self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
 
 
     def _set_state_table_keywords(self):
@@ -273,7 +246,8 @@ class VegasL8LBWBackend(VegasBackend):
 
         """
         # Add some additional keyword value pairs
-        self._set_status_str("NSUBBAND", self.nsubbands)
+        statusdata = super(VegasL8LBWBackend, self)._set_state_table_keywords()
+        statusdata["NSUBBAND"] = str(self.nsubbands)
 
         # In the case of LBW1, we replicate the one subband frequency into all 8 keywords
         if len(self.actual_subband_freq) == 1:
@@ -282,7 +256,7 @@ class VegasL8LBWBackend(VegasBackend):
             sub_band_frequencies = self.actual_subband_freq
 
         for i in range(len(sub_band_frequencies)):
-            self._set_status_str("SUB%iFREQ" % (i), sub_band_frequencies[i])
+            statusdata["SUB%iFREQ" % (i)] = str(sub_band_frequencies[i])
 
         for i in range(self.nsubbands):
             statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
