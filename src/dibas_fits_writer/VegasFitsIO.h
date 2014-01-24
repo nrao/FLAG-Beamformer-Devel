@@ -153,6 +153,7 @@ public:
     int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
     int write();
     bool is_scan_complete();
+    void set_scan_complete();
 
 protected:
     int openFlag;
@@ -223,6 +224,7 @@ protected:
     float *fits_data;
     double utcfrac;
     int current_row;
+    bool scan_is_complete;
     Mutex lock_mutex;
 
     /// A class to track the fpga time_counter.

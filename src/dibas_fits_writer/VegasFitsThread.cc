@@ -204,7 +204,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     }
 
     int block = 0;
-    int last_int = -1;
+    int last_int = -2;
     bool data_waiting = false;
     bool new_integration = true;
     int num_accum_timeouts = 0;
@@ -267,11 +267,14 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             float *data = reinterpret_cast<float*>
                 (vegas_databuf_data(gdb, block) + index->disk_buf[dataset].array_offset);
             // Create a DiskBufferChunk to process the dataset (organizes and transposes dataset)
-            DiskBufferChunk *chunk = new DiskBufferChunk(
-                fits_header, data_header, data);
+            DiskBufferChunk *chunk = new DiskBufferChunk(fits_header, data_header, data);
 
             // Handle chunk
             int integration = chunk->getIntegrationNumber();
+            if (integration < 0)
+            {
+                fitsio->set_scan_complete();
+            }
 
             // Is the dataset is part of a new integration?
             if(integration != last_int)
@@ -280,10 +283,23 @@ VegasFitsThread::run(struct vegas_thread_args *args)
                 if(data_waiting)
                 {
                     // If so, write the entire integration to the file
-                    fitsio->write();
+                    if (fitsio->write() != 0)
+                    {
+                        perror("error writing to FITS file");
+                        delete chunk;
+                        chunk = 0;
+                        break;
+                    }
                     dbprintf("fitsio->write\n");
                     data_waiting = false;
                 }
+                if (fitsio->is_scan_complete())
+                {
+                    // The scan has ended so cleanup chunk and prepare to exit
+                    delete chunk;
+                    chunk=0;
+                    break;
+                }                
                 new_integration = true;
                 last_int = integration;
             }

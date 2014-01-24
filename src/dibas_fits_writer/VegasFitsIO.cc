@@ -224,16 +224,7 @@ VegasFitsIO::readPrimaryHeaderKeywords()
     }
     setScanLength(scanlen);
 
-#ifdef notdef
-    /* Moved this to vegas_hpc_server */    
-    if (hgeti4(status_buffer, "_SWSGPLY", &accumid_xor_mask) == 0)
-    {
-        // Treat sig and as inverted (SIG=0, CAL=1)
-        accumid_xor_mask = 0x0;
-    }
-#else
-    accumid_xor_mask = 0x0; // No polarity inversion
-#endif
+    accumid_xor_mask = 0x0; // No polarity inversion (done in hpc code)
     
     return true;
 }
@@ -601,6 +592,7 @@ int VegasFitsIO::open()//const TimeStamp &ts)
         close();
         
     scan_time_clock = 0.0;
+    scan_is_complete = false;
 
     readPrimaryHeaderKeywords();
     
@@ -1519,10 +1511,16 @@ VegasFitsIO::write()
 bool
 VegasFitsIO::is_scan_complete()
 {
-    bool has_ended = scan_time_clock > scanLength;
+    bool has_ended = scan_time_clock > scanLength || scan_is_complete;
     if (has_ended)
     {
         printf("Scan ended clock=%f, scanlen=%f\n", scan_time_clock, scanLength);
     }
     return has_ended; 
 }
+
+void VegasFitsIO::set_scan_complete()
+{
+    scan_is_complete = true;
+}
+
