@@ -193,6 +193,17 @@ class VegasBackend(Backend):
 
         self.hwexposr = self.spec_tick * ipart
         self.acc_len = ipart
+        
+    def needs_reset(self):
+        """
+        For some BOF's there is a status register which can flag an error state.
+        """
+        val = self.roach.read_int('status')
+        if val & 0x01:
+            return True
+        else:
+            return False
+
 
     def prepare(self):
         """
@@ -732,10 +743,8 @@ class VegasBackend(Backend):
             self.start_fits_writer()
 
         # The CODD bof's don't have a status register
-        if not self.mode.cdd_mode:
-            val = self.roach.read_int('status')
-            if val & 0x01:
-                self.reset_roach()
+        if self.needs_reset():
+            self.reset_roach()
 
         self.hpc_cmd('START')
         self.fits_writer_cmd('START')

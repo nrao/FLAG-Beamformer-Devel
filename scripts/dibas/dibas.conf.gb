@@ -80,7 +80,7 @@ katcp_port = 7147
 # Data flow
 data_source_host = vegasr2-1-10-0
 data_source_port = 60000
-data_destination_host = hpc1-10
+data_destination_host = vegas-hpc1-10
 data_destination_port = 60000
 # Synthesizer:
 synth = katcp
@@ -175,6 +175,8 @@ synth_ref_freq = N/A
 synth_vco_range = N/A
 synth_rf_level = N/A
 synth_options = N/A
+# I2C
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKE]
 # HPC / Player host & port
@@ -185,6 +187,8 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = vegas-hpc5-10
 data_destination_port = 60000
+# I2C
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKF]
 # HPC / Player host & port
@@ -195,6 +199,8 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = vegas-hpc6-10
 data_destination_port = 60000
+# I2C
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKG]
 # HPC / Player host & port
@@ -205,6 +211,8 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = vegas-hpc7-10
 data_destination_port = 60000
+# I2C
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKH]
 # HPC / Player host & port
@@ -215,6 +223,8 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = vegas-hpc8-10
 data_destination_port = 60000
+# I2C
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 
 ###################################  MODE 1  #############################################

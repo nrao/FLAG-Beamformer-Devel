@@ -563,6 +563,7 @@ class ModeData(ConfigData):
         self.config = config
         self.errors = []
         self.name          = mode
+        self.is_cdd_mode   = False
 
         self._mandatory()
 
@@ -578,10 +579,10 @@ class ModeData(ConfigData):
         self.dest_ip_register_name   = self._get_string(mode, 'dest_ip_register_name')
         self.dest_port_register_name = self._get_string(mode, 'dest_port_register_name')
         arm_phase                    = self._get_string(mode, 'arm_phase')
-        self.hwexposr                = self._get_float(mode,  'hwexposr')
 
         self._optional()
-
+        
+        self.hwexposr                = self._get_float(mode,  'hwexposr')
         self.hpc_program_flags = self._get_string(mode,           'hpc_program_flags')
         reset_phase            = self._get_string(mode,           'reset_phase')
         postarm_phase          = self._get_string(mode,           'postarm_phase')
@@ -593,6 +594,7 @@ class ModeData(ConfigData):
         cdd_data_interfaces    = self._get_string(mode,           'cdd_data_interfaces')
         cdd_hpcs               = self._get_string(mode,           'cdd_hpcs')
         self.cdd_master_hpc    = self._get_string(mode,           'cdd_master_hpc')
+        self.is_cdd_mode       = self._get_string(mode,           'is_cdd_mode')
 
         # this will throw if any key listed under 'self._mandatory()' did not load.
         self._throw_on_error()
@@ -649,10 +651,12 @@ class ModeData(ConfigData):
         # the values in 'codd_mode_keys' are all not None:
         codd_mode_keys = (cdd_data_interfaces,
                           cdd_hpcs,
-                          self.cdd_master_hpc)
+                          self.cdd_master_hpc,
+                          self.is_cdd_mode)
 
         if all(codd_mode_keys):   # All are True
             self.cdd_mode = True
+            print "CODD mode:",mode,cdd_data_interfaces, cdd_hpcs,self.cdd_master_hpc, self.is_cdd_mode
         elif any(codd_mode_keys): # Some are, some are not. What was intended?
             msg = \
             """WARNING: Some but not all CODD mode keys detected in section

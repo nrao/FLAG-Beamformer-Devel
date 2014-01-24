@@ -41,6 +41,7 @@ from corr import katcp_wrapper
 from datetime import datetime, timedelta
 from ConfigData import ModeData, BankData, AutoVivification, _ip_string_to_int, _hostname_to_ip
 import VegasBackend
+import VegasLBWBackend
 import GuppiBackend
 import GuppiCODDBackend
 from ZMQJSONProxy import ZMQJSONProxyServer
@@ -412,6 +413,7 @@ class Bank(object):
                                                                            self.hpc_macs,
                                                                            self.simulate)
                             print "set_mode(%s): beginning wait for DAQ program" % mode
+                            self.backend.hpc_cmd("INIT_GPU")
                             self.backend._wait_for_status('GPUCTXIN', 'TRUE', timedelta(seconds=75))
                             print "set_mode(%s): wait for DAQ program ended." % mode
                     elif backend_type in ["GUPPI"]:

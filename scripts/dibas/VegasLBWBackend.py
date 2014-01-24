@@ -134,6 +134,10 @@ class VegasLBWBackend(VegasBackend):
 
     def setLBWGain(self, gain):
         pass
+        
+    def needs_reset(self):
+        return False
+
 
     def prepare(self):
         """
@@ -175,7 +179,7 @@ class VegasLBWBackend(VegasBackend):
             bsource = 0 # internal
             ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
             self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
-            self.roach.write_int('gain', self._gain)
+            # skip for now self.roach.write_int('gain', self._gain)
 
 
     # Algorithmic dependency methods, not normally called by a users
