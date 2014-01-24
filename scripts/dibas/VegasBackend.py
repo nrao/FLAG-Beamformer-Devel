@@ -30,7 +30,7 @@
 import struct
 import ctypes
 import binascii
-import player
+#import player
 from Backend import Backend, convertToMHz
 from vegas_ssg import SwitchingSignals
 import subprocess
