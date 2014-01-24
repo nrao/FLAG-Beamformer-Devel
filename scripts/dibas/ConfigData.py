@@ -255,6 +255,25 @@ class ConfigData(object):
         """
         return self._get_value(section, key, bool)
 
+    def _get_ints(self, section, key):
+        """_get_ints(section, key)
+
+        Returns a vector of ints from 'key'.
+
+        *section:*
+          the name of a section in the config file
+        *key:*
+          the key
+
+        """
+        s = self._get_string(section, key)
+
+        if s:
+            return [int(p) for p in s.split(',')]
+
+        return None
+
+
     def _throw_on_error(self):
         if self.errors:
             raise Exception("Bad keys found in section %s: %s" % (self.name, self.errors))
@@ -532,12 +551,16 @@ class ModeData(ConfigData):
         """
         Optional command-line parameters to pass into the hpc program specified.
         """
+        self.gain = None
+        """Optional gain values for LBW modes. L1LBW1 and L8LBW1 only require
+        on value. L8LBW8 require 8, as a vector.
 
+        """
 
     def __repr__(self):
         return "ModeData (name=%s, hwexposr=%s, filter_bw=%s, frequency=%s, nchan=%s, bof=%s, " \
             "sg_period=%s, reset_phase=%s, arm_phase=%s, " \
-            "postarm_phase=%s, needed_arm_delay=%s, master_slave_sels=%s, " \
+            "postarm_phase=%s, needed_arm_delay=%s, master_slave_sels=%s, gain=%s, " \
             "shmkvpairs=%s, roach_kvpairs=%s)" % \
             (str(self.name),
              str(self.hwexposr),
@@ -551,6 +574,7 @@ class ModeData(ConfigData):
              str(self.postarm_phase),
              str(self.needed_arm_delay),
              str(self.master_slave_sels),
+             str(self.gain),
              str(self.shmkvpairs),
              str(self.roach_kvpairs))
 
@@ -581,8 +605,8 @@ class ModeData(ConfigData):
         arm_phase                    = self._get_string(mode, 'arm_phase')
 
         self._optional()
-        
-        self.hwexposr                = self._get_float(mode,  'hwexposr')
+
+        self.hwexposr          = self._get_float(mode,            'hwexposr')
         self.hpc_program_flags = self._get_string(mode,           'hpc_program_flags')
         reset_phase            = self._get_string(mode,           'reset_phase')
         postarm_phase          = self._get_string(mode,           'postarm_phase')
@@ -595,6 +619,7 @@ class ModeData(ConfigData):
         cdd_hpcs               = self._get_string(mode,           'cdd_hpcs')
         self.cdd_master_hpc    = self._get_string(mode,           'cdd_master_hpc')
         self.is_cdd_mode       = self._get_string(mode,           'is_cdd_mode')
+        self.gain              = self._get_ints(mode,             'gain')
 
         # this will throw if any key listed under 'self._mandatory()' did not load.
         self._throw_on_error()

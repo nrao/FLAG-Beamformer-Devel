@@ -84,6 +84,7 @@ class VegasBackend(Backend):
 
         # dependent values, computed from Parameters:
         self.nspectra = 1
+        self.nsubbands = 1
         self.frequency_resolution = 0.0
         self.fpga_clock = None
         self.fits_writer_process = None
@@ -105,7 +106,10 @@ class VegasBackend(Backend):
         self.ss.set_hwexposr(self.hwexposr)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
-        # self.prepare()
+
+        if type(self) == VegasBackend:
+            self.prepare()
+
         self.start_hpc()
         self.start_fits_writer()
 
@@ -300,7 +304,7 @@ class VegasBackend(Backend):
 
         self.sampler_frequency = self.frequency * 1e6 * 2
         self.fpga_clock = self.frequency * 1e6 / 8
-        self.nsubband = 1
+        self.nsubbands = 1
 
 
     def clear_switching_states(self):
@@ -614,7 +618,7 @@ class VegasBackend(Backend):
         statusdata["PKTFMT"   ] = "SPEAD"
         statusdata["NCHAN"    ] = str(self.nchan)
         statusdata["NPOL"     ] = str(2)
-        statusdata["NSUBBAND" ] = self.nsubband
+        statusdata["NSUBBAND" ] = self.nsubbands
         # convertToMHz() normalizes the frequency to MHz, just in case
         # it is provided as Hz. So this will work in either case.
         statusdata["SUB0FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
@@ -635,7 +639,7 @@ class VegasBackend(Backend):
         statusdata["SWMASTER" ] = "VEGAS" # TBD
         statusdata["POLARIZE" ] = self.polarization
         statusdata["CRPIX1"   ] = str(self.nchan/2 + 1)
-        statusdata["SWPERINT" ] = str(int(self.requested_integration_time \
+        statusdata["SWPERINT" ] = str(int(self.exposure \
                                           / self.ss.total_duration() + 0.5))
         statusdata["NMSTOKES" ] = str(self.num_stokes)
         # should this get set by Backend?
@@ -655,7 +659,7 @@ class VegasBackend(Backend):
         # so write to status memory. If not, then this is a base class
         # and the writing should be done by the derived class, which
         # presumably will add to/overwrite this dictionary.
-        if isinstance(self, VegasBackend):
+        if type(self) == VegasBackend:
             if self.bank is not None:
                 self.set_status(**statusdata)
             else:

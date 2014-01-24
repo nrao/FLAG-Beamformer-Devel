@@ -63,8 +63,13 @@ class VegasLBWBackend(VegasBackend):
         """
 
         VegasBackend.__init__(self, theBank, theMode, theRoach , theValon, hpc_macs, unit_test)
-        # set up a trip wire to see if the GPU thread gets going
-        self.set_status(GPUCTXIN='FALSE')
+
+        # gain array. May be 1 or 8 in length, depending on mode.
+        self.gain = theMode.gain
+
+        if type(self) == VegasLBWBackend: # Allow subclass to handle if parent.
+            if not self.gain:
+                self.gain = [1024] # give it a default if config file is mising gain.
 
         # setup the parameter dictionary/methods
         self.params["gain"         ] = self.setLBWGain
@@ -76,7 +81,10 @@ class VegasLBWBackend(VegasBackend):
         self.ss.set_hwexposr(self.hwexposr)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
-        self.prepare()
+
+        # if derived class is calling, it will handle the prepare
+        if type(self) == VegasLBWBackend:
+            self.prepare()
 
 
     def __del__(self):
@@ -126,17 +134,44 @@ class VegasLBWBackend(VegasBackend):
             dur = int(math.ceil(duration * self.chan_bw) * 1 / (self.spec_tick * self.chan_bw))
         else:
             dur = int(math.ceil(duration / self.hwexposr) * self.hwexposr / self.spec_tick)
+
         self.ss.add_phase(dur = dur, bl = blank, cal = cal, sr1 = sig_ref_1)
         return (True, self.ss.number_phases())
 
     ### Methods to set user or mode specified parameters
     ###
 
-    def setLBWGain(self, gain):
-        pass
-        
     def needs_reset(self):
         return False
+
+    def setLBWGain(self, gain):
+        """Sets the gain to a new value.
+
+        * *gain*: the new value. May be a scalar, in which case it is
+                  assumed to be the first element of the 'gain'
+                  property. This works for all modes, but you should be
+                  aware that for modes 20-29 you need 8 gain
+                  elements. In that case 'gain' should be a list with 8
+                  gain values.
+
+        """
+        if isinstance(gain, list):
+            self.gain = gain
+        else:
+            self.gain = [gain]
+
+
+    def _init_gpu_resources(self):
+        """
+        When resources change (e.g. number of channels, subbands, etc.) We
+        clear the initialize indicator and tell the HPC to reallocate resources.
+        """
+        self.set_status(GPUCTXIN="FALSE")
+        self.hpc_cmd("INIT_GPU")
+        status,wait = self._wait_for_status('GPUCTXIN', 'TRUE', timedelta(seconds=75))
+
+        if not status:
+            raise Exception("init_gpu_resources(): timed out waiting for 'GPUCTXIN=TRUE'")
 
 
     def prepare(self):
@@ -168,18 +203,20 @@ class VegasLBWBackend(VegasBackend):
         self.set_if_bits()
         # now update all the status keywords needed for this mode:
         self._set_state_table_keywords()
+        self._init_gpu_resources()
 
-        # set the roach registers:
-        if self.roach:
-            # write the switching signal specification to the roach:
-            self.roach.write_int('ssg_length', self.ss.total_duration_granules())
-            self.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
-            master = 1 if self.bank.i_am_master else 0
-            sssource = 0 # internal
-            bsource = 0 # internal
-            ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
-            self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
-            # skip for now self.roach.write_int('gain', self._gain)
+        # set the roach registers, if this is not a base class
+        if type(self) == VegasLBWBackend:
+            if self.roach:
+                # write the switching signal specification to the roach:
+                self.roach.write_int('ssg_length', self.ss.total_duration_granules())
+                self.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
+                master = 1 if self.bank.i_am_master else 0
+                sssource = 0 # internal
+                bsource = 0 # internal
+                ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
+                self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
+                self.roach.write_int('gain', self.gain[0])
 
 
     # Algorithmic dependency methods, not normally called by a users
@@ -201,7 +238,6 @@ class VegasLBWBackend(VegasBackend):
         # extract mode number from mode name, which is expected to be
         # 'MODEx' where 'x' is the number we want:
         self.sampler_frequency = convertToMHz(self.frequency) * 1e6 / 4
-        self.nsubband = 1
         # calculate the fpga frequency
         self.fpga_clock = convertToMHz(self.frequency) * 1e6 / 8
 
@@ -218,10 +254,15 @@ class VegasLBWBackend(VegasBackend):
         statusdata["EXPOCLKS" ] = str(self.expoclks)
         statusdata["OBS_MODE" ] = "LBW"
 
-        if self.bank is not None:
-            self.set_status(**statusdata)
-        else:
-            for i in statusdata.keys():
-                print "%s = %s" % (i, statusdata[i])
+        # If self == VegasBackend then this is the instantiated object,
+        # so write to status memory. If not, then this is a base class
+        # and the writing should be done by the derived class, which
+        # presumably will add to/overwrite this dictionary.
+        if type(self) == VegasLBWBackend:
+            if self.bank is not None:
+                self.set_status(**statusdata)
+            else:
+                for i in statusdata.keys():
+                    print "%s = %s" % (i, statusdata[i])
 
         return statusdata
