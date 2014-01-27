@@ -559,12 +559,12 @@ class GuppiCODDBackend(Backend):
           is the calculated number from the node_bandwidth and
           number of node channels
         """
-        print "_node_rf_frequency_dep()"
-        print "self.rf_frequency", self.rf_frequency
-        print "self.bandwidth", self.bandwidth
-        print "self.node_number", self.node_number
-        print "self.node_bandwidth", self.node_bandwidth
-        print "self.chan_bw", self.chan_bw
+        #print "_node_rf_frequency_dep()"
+        #print "self.rf_frequency", self.rf_frequency
+        #print "self.bandwidth", self.bandwidth
+        #print "self.node_number", self.node_number
+        #print "self.node_bandwidth", self.node_bandwidth
+        #print "self.chan_bw", self.chan_bw
 
         self.node_rf_frequency = self.rf_frequency - self.bandwidth/2.0 + \
                                  self.node_number * self.node_bandwidth + \
@@ -715,7 +715,7 @@ class GuppiCODDBackend(Backend):
         if (round_fac<512):
             round_fac=512
         rf_ghz = (rf - abs(bw)/2.0)/1.0e3
-        print "DEBUG:", rf, bw, rf_ghz
+        #print "DEBUG:", rf, bw, rf_ghz
         chan_bw = bw / nchan
         overlap_samp = 8.3 * dm * chan_bw**2 / rf_ghz**3
         overlap_r = round_fac * (int(overlap_samp)/round_fac + 1)

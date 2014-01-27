@@ -69,6 +69,8 @@ def skipped(func):
 # use the dibas.conf in this project directory. The one in the local
 # dibas installation may not be compatible with development.
 dibas_dir = "."
+os.putenv("DIBAS_DIR",dibas_dir) #need to do this given line above
+
 # whatever is in use by local dibas installation
 dibas_data = os.getenv('DIBAS_DATA')
 
@@ -837,7 +839,6 @@ def test_MODE29():
     check_l8lbw8_mode("MODE29", 0.1)
 
 
-@skipped # Not sure how the parfile check should work JJB
 def test_GUPPI_INCO_64_backend():
     """
     A GUPPI INCO backend (GuppyBackend) test setup.
@@ -884,7 +885,7 @@ def test_GUPPI_INCO_64_backend():
 
     assert_equal(be.get_status('POL_TYPE'), 'IQUV')
     assert_equal(be.get_status('PFB_OVER'), '12')
-    assert_equal(be.get_status('PARFILE'), dibas_dir + '/etc/config/example.par')
+    assert_equal(be.get_status('PARFILE'), os.getenv('DIBAS_DIR') + '/etc/config/example.par')
     assert_equal(be.get_status('PKTFMT'), '1SFA')
 
     assert_almost_equal(float(be.get_status('SCALE0')), 1.0)
@@ -894,7 +895,7 @@ def test_GUPPI_INCO_64_backend():
     assert_almost_equal(float(be.get_status('TBIN')), 4.096e-05)
     assert_almost_equal(float(be.get_status('TFOLD')), 1.0)
 
-@skipped # difficult if no host information for CODD computers.
+
 def test_GUPPI_CODD_64_backend():
     """
     A GUPPI CODD backend (GuppyCODDBackend) test setup.
@@ -906,7 +907,7 @@ def test_GUPPI_CODD_64_backend():
     m = ModeData()
     m.load_config(config, "CODD_MODE_64")
 
-    be = GuppiCODDBackend(b, m, None, None, unit_test = True)
+    be = GuppiCODDBackend(b, m, None, None, None, unit_test = True)
     be.set_obs_frequency(1500.0)
     be.set_bandwidth(800.0)
 
@@ -921,27 +922,27 @@ def test_GUPPI_CODD_64_backend():
     assert_equal(be.get_status('OFFSET3'), '0.0')
     assert_equal(be.get_status('TFOLD'), '1.0')
     assert_equal(be.get_status('NRCVR'), '2')
-    assert_equal(be.get_status('FFTLEN'), '16384')
-    assert_equal(be.get_status('CHAN_BW'), '1.5625')
+    assert_equal(be.get_status('FFTLEN'), '32768')
+    assert_equal(be.get_status('CHAN_BW'), '12.5')
     assert_equal(be.get_status('NBIN'), '256')
-    assert_equal(be.get_status('OBSNCHAN'), '64')
+    assert_equal(be.get_status('OBSNCHAN'), '8')
     assert_equal(be.get_status('SCALE0'), '1.0')
     assert_equal(be.get_status('SCALE1'), '1.0')
     assert_equal(be.get_status('SCALE2'), '1.0')
     assert_equal(be.get_status('SCALE3'), '1.0')
     assert_equal(be.get_status('NPOL'), '4')
-    assert_equal(be.get_status('POL_TYPE'), 'IQUV')
+    assert_equal(be.get_status('POL_TYPE'), 'AABBCRCI')
     assert_equal(be.get_status('BANKNUM'), '0')
     assert_equal(be.get_status('ONLY_I'), '0')
-    assert_equal(be.get_status('BLOCSIZE'), '33554432')
+    assert_equal(be.get_status('BLOCSIZE'), '134201344')
     assert_equal(be.get_status('ACC_LEN'), '1')
-    assert_equal(be.get_status('OVERLAP'), '0')
-    assert_equal(be.get_status('OBS_MODE'), 'SEARCH')
-    assert_almost_equal(float(be.get_status('OBSFREQ')), 1149.21875)
+    assert_equal(be.get_status('OVERLAP'), '512')
+    assert_equal(be.get_status('OBS_MODE'), 'COHERENT_SEARCH')
+    assert_almost_equal(float(be.get_status('OBSFREQ')), 1143.75)
     assert_equal(be.get_status('PFB_OVER'), '12')
-    assert_equal(be.get_status('PARFILE'), './etc/config/example.par')
+    assert_equal(be.get_status('PARFILE'), os.getenv('DIBAS_DIR') + '/etc/config/example.par')
     assert_equal(be.get_status('OBSBW'), '100.0')
-    assert_equal(be.get_status('DS_TIME'),'64')
+    assert_equal(be.get_status('DS_TIME'),'512')
     assert_equal(be.get_status('PKTFMT'), '1SFA')
-    assert_equal(be.get_status('TBIN'), '6.4e-07')
+    assert_equal(be.get_status('TBIN'), '8e-08')
     assert_equal(be.get_status('CHAN_DM'), '0.0')
