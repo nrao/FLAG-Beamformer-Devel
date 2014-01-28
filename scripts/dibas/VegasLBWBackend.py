@@ -28,18 +28,10 @@
 #
 ######################################################################
 
-import struct
-import ctypes
-import binascii
-import player
 from VegasBackend import VegasBackend
 from vegas_ssg import SwitchingSignals
 from Backend import convertToMHz
-import subprocess
-import time
 from datetime import datetime, timedelta
-import os
-import apwlib.convert as apw
 import math
 
 class VegasLBWBackend(VegasBackend):
@@ -67,10 +59,6 @@ class VegasLBWBackend(VegasBackend):
         # gain array. May be 1 or 8 in length, depending on mode.
         self.gain = theMode.gain
 
-        if type(self) == VegasLBWBackend: # Allow subclass to handle if parent.
-            if not self.gain:
-                self.gain = [1024] # give it a default if config file is mising gain.
-
         # setup the parameter dictionary/methods
         self.params["gain"         ] = self.setLBWGain
 
@@ -81,17 +69,6 @@ class VegasLBWBackend(VegasBackend):
         self.ss.set_hwexposr(self.hwexposr)
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
-
-        # if derived class is calling, it will handle the prepare
-        if type(self) == VegasLBWBackend:
-            self.prepare()
-
-
-    def __del__(self):
-        """
-        Perform some cleanup tasks.
-        """
-        super(VegasLBWBackend, self).__del__()
 
 
     def computeSpecTick(self):
@@ -166,7 +143,7 @@ class VegasLBWBackend(VegasBackend):
         When resources change (e.g. number of channels, subbands, etc.) We
         clear the initialize indicator and tell the HPC to reallocate resources.
         """
-        self.set_status(GPUCTXIN="FALSE")
+        self.write_status(GPUCTXIN="FALSE")
         self.hpc_cmd("INIT_GPU")
         status,wait = self._wait_for_status('GPUCTXIN', 'TRUE', timedelta(seconds=75))
 
@@ -174,72 +151,10 @@ class VegasLBWBackend(VegasBackend):
             raise Exception("init_gpu_resources(): timed out waiting for 'GPUCTXIN=TRUE'")
 
 
-    def prepare(self):
-        """
-        This command writes calculated values to the hardware and status memory.
-        This command should be run prior to the first scan to properly setup
-        the hardware.
-
-        The sequence of commands to set up a measurement is thus typically::
-
-          be.set_param(...)
-          be.set_param(...)
-          ...
-          be.set_param(...)
-          be.prepare()
-        """
-        # calculate the fpga_clock and sampler frequency
-        self._sampler_frequency_dep()
-        self._chan_bw_dep()
-        self._obs_bw_dep()
-
-        # calculate actual exposure
-        self._exposure_dep()
-
-        # Switching Signals info. Switching signals should have been
-        # specified prior to prepare():
-        self._setSSKeys()
-        # program I2C: input filters, noise source, noise or tone
-        self.set_if_bits()
-        # now update all the status keywords needed for this mode:
-        self._set_state_table_keywords()
-        self._init_gpu_resources()
-
-        # set the roach registers, if this is not a base class
-        if type(self) == VegasLBWBackend:
-            if self.roach:
-                # write the switching signal specification to the roach:
-                self.roach.write_int('ssg_length', self.ss.total_duration_granules())
-                self.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
-                master = 1 if self.bank.i_am_master else 0
-                sssource = 0 # internal
-                bsource = 0 # internal
-                ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
-                self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
-                self.roach.write_int('gain', self.gain[0])
-
-
     # Algorithmic dependency methods, not normally called by a users
 
     def _fpga_clocks_per_spec_tick(self):
         return 128
-
-    def _chan_bw_dep(self):
-        self.chan_bw = self.sampler_frequency / (self.nchan * 2.0)
-        self.frequency_resolution = abs(self.chan_bw)
-        print "_chan_bw_dep(): efsampfr = %d; nchan = %i; chan_bw = %d" % \
-            (self.sampler_frequency, self.nchan, self.chan_bw)
-
-    def _sampler_frequency_dep(self):
-        """
-        Computes the effective frequency of the A/D sampler based on mode
-        """
-
-        # extract mode number from mode name, which is expected to be
-        # 'MODEx' where 'x' is the number we want:
-        self.sampler_frequency = convertToMHz(self.frequency) * 1e6 / 4
-        # calculate the fpga frequency
-        self.fpga_clock = convertToMHz(self.frequency) * 1e6 / 8
 
 
     def _set_state_table_keywords(self):
@@ -247,22 +162,9 @@ class VegasLBWBackend(VegasBackend):
         Gather status sets here
         Not yet sure what to place here...
         """
-        statusdata = super(VegasLBWBackend, self)._set_state_table_keywords()
-        statusdata["BW_MODE"  ] = "low"
-        statusdata["HWEXPOSR" ] = str(self.hwexposr)
-        statusdata["EXPOSURE" ] = str(self.exposure)
-        statusdata["EXPOCLKS" ] = str(self.expoclks)
-        statusdata["OBS_MODE" ] = "LBW"
-
-        # If self == VegasBackend then this is the instantiated object,
-        # so write to status memory. If not, then this is a base class
-        # and the writing should be done by the derived class, which
-        # presumably will add to/overwrite this dictionary.
-        if type(self) == VegasLBWBackend:
-            if self.bank is not None:
-                self.set_status(**statusdata)
-            else:
-                for i in statusdata.keys():
-                    print "%s = %s" % (i, statusdata[i])
-
-        return statusdata
+        super(VegasLBWBackend, self)._set_state_table_keywords()
+        self.set_status(BW_MODE  = "low")
+        self.set_status(HWEXPOSR = str(self.hwexposr))
+        self.set_status(EXPOSURE = str(self.exposure))
+        self.set_status(EXPOCLKS = str(self.expoclks))
+        self.set_status(OBS_MODE = "LBW")

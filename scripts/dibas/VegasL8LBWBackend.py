@@ -98,19 +98,7 @@ class VegasL8LBWBackend(VegasLBWBackend):
         """
         Computes the effective frequency of the A/D sampler based on mode
         """
-
-        # extract mode number from mode name, which is expected to be
-        # 'MODEx' where 'x' is the number we want:
-        mode = int(self.mode.name[4:])
-
-        self.sampler_frequency = self.frequency * 1e6 / 32
-        # calculate the fpga frequency
-        self.fpga_clock = self.frequency * 1e6 / 8
-
-        if mode > 9 and mode < 20:
-            self.nsubband = 1
-        else:
-            self.nsubband = 8
+        self.sampler_frequency = convertToMHz(self.frequency) * 1e6 / 32
 
 
     def _mixer_cnt_dep(self):
@@ -189,8 +177,9 @@ class VegasL8LBWBackend(VegasLBWBackend):
         for subband_num in range(len(self.subbandfreq)):
             _,actual_lo = self.lbwmixer.lo_setup(self.subbandfreq[subband_num], subband_num)
             self.actual_subband_freq.append(actual_lo)
-            self._set_status_str("SUB%iFREQ" % subband_num, actual_lo)
+
         mixerdict = self.lbwmixer.get_lo_results()
+
         for i in mixerdict.keys():
             kwval = { i : mixerdict[i] }
             self.set_register(**kwval)
@@ -219,23 +208,25 @@ class VegasL8LBWBackend(VegasLBWBackend):
           be.set_param(...)
           be.prepare()
         """
+
         super(VegasL8LBWBackend, self).prepare()
         self._subfreq_dep()
         self._gain_dep()
         self._mode_select_dep()
 
-        # now update all the status keywords needed for this mode:
+        # though parent has already called this, call again because the
+        # three calls above have added things.
         self._set_state_table_keywords()
 
+        # Talk to outside things: status memory, HPC programs, roach
+        if self.bank is not None:
+            self.write_status(**self.status_mem_local)
+        else:
+            for i in self.status_mem_local.keys():
+                print "%s = %s" % (i, self.status_mem_local[i])
+
         if self.roach:
-            # write the switching signal specification to the roach:
-            self.roach.write_int('ssg_length', self.ss.total_duration_granules())
-            self.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
-            master = 1 if self.bank.i_am_master else 0
-            sssource = 0 # internal
-            bsource = 0 # internal
-            ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
-            self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
+            self.write_registers(**self.roach_registers_local)
 
 
     def _set_state_table_keywords(self):
@@ -245,15 +236,17 @@ class VegasL8LBWBackend(VegasLBWBackend):
         the data to shared memory.
 
         """
-        # Add some additional keyword value pairs
-        statusdata = super(VegasL8LBWBackend, self)._set_state_table_keywords()
-        statusdata["NSUBBAND"] = str(self.nsubbands)
+        # Add some additional keyword value pairs.
+        super(VegasL8LBWBackend, self)._set_state_table_keywords()
+        self.set_status(NSUBBAND = str(self.nsubbands))
 
         # In the case of LBW1, we replicate the one subband frequency into all 8 keywords
         if len(self.actual_subband_freq) == 1:
             sub_band_frequencies = [ self.actual_subband_freq[0] ] * 8
         else:
             sub_band_frequencies = self.actual_subband_freq
+
+        statusdata = {}
 
         for i in range(len(sub_band_frequencies)):
             statusdata["SUB%iFREQ" % (i)] = str(sub_band_frequencies[i])
@@ -263,11 +256,4 @@ class VegasL8LBWBackend(VegasLBWBackend):
             statusdata["_MCDL_%02d" % (i+1)] = str(self.chan_bw)
             statusdata["_MFQR_%02d" % (i+1)] = str(self.frequency_resolution)
 
-        # Now write all of the keyword list
-        if self.bank is not None:
-            self.set_status(**statusdata)
-        else:
-            for i in statusdata.keys():
-                print "%s = %s" % (i, statusdata[i])
-
-        return statusdata
+        self.status_mem_local.update(statusdata)

@@ -127,14 +127,14 @@ class Backend(object):
             self.roach = None
             self.valon = None
             self.i2c = None
-            self.mock_status_mem = {}
-            self.mock_roach_registers = {}
         else:
             self.roach = theRoach
             self.valon = theValon
             self.i2c = I2C(theRoach)
             self.status = vegas_status()
 
+        self.status_mem_local = {}
+        self.roach_registers_local = {}
         self.hpc_macs = hpc_macs
 
         # This is already checked by player.py, we won't get here if not set
@@ -219,6 +219,14 @@ class Backend(object):
         if self.hpc_process is not None:
             print "Stopping HPC program!"
             self.stop_hpc()
+
+    def does_io(self):
+        """Include a call to this on any function that talks to external
+        entities: status shared memory, HPC program, roach. If it is not
+        being called in an instance class, then throws exception.
+
+        """
+
 
     def cleanup(self):
         """
@@ -497,7 +505,7 @@ class Backend(object):
 
 
         if self.test_mode: # TBF could find a way to return what is in memory.
-            kv = self.mock_status_mem
+            kv = self.status_mem_local
         else:
             self.status.read()
             kv = dict(self.status.items())
@@ -516,9 +524,7 @@ class Backend(object):
     def set_status(self, **kwargs):
         """set_status(self, **kwargs)
 
-        Modifies the status shared memory on the HPC. Updates the values
-        for the keys specified in the parameter list as keyword value
-        pairs.
+        Modifies the local status dictionary
 
         This is a low-level function that will set any arbitrary key to
         any value in status shared memory. Use *set_param()* where
@@ -533,17 +539,25 @@ class Backend(object):
 
         """
 
-        if not self.test_mode:
-            self.status.read()
-
         for k,v in kwargs.items():
-            if self.test_mode:
-                self.mock_status_mem[str(k)] = str(v)
-            else:
-                self.status.update(str(k), str(v))
+            self.status_mem_local[str(k)] = str(v)
 
+    def write_status(self, **kwargs):
+        """Writes the contents 'kwargs' to status memory.
+
+        This function does something only if the status memory object
+        exists, and not in unit-test mode. It should only be called from
+        instantiated classes, never parent classes.
+
+        """
         if not self.test_mode:
-            self.status.write()
+            if self.status:
+                self.status.read()
+
+                for k,v in kwargs.items():
+                    self.status.update(str(k), str(v))
+
+                self.status.write()
 
     def set_register(self, **kwargs):
         """set_register(self, **kwargs)
@@ -566,16 +580,29 @@ class Backend(object):
 
         for k,v in kwargs.items():
             # see if this is a integer value, or a string representation of an integer
-            try:
-                val = int(str(v), 0)
-            except:
-                # Its not, its likely a binary string -- just store it.
-                val = v
-            if self.test_mode:
-                self.mock_roach_registers[str(k)] = val
-            else:
-                # print str(k), '<-', str(v), int(str(v),0)
-                if self.roach:
+            self.roach_registers_local[str(k)] = v
+
+    def write_registers(self, **kwargs):
+        """Writes the contents of the local roach register dictionary to the
+        roach. These values will have been previously set by
+        'set_register()'.
+
+        This function should only be called by instantiated class
+        objects, not by classes that act as parent classes. It will only
+        do something if self.roach is not None, and if the object is not
+        in unit-test mode.
+
+        """
+        if not self.test_mode:
+            if self.roach:
+                for k,v in kwargs.items():
+                    # see if this is a integer value, or a string representation of an integer
+                    try:
+                        val = int(str(v), 0)
+                    except:
+                        # Its not, its likely a binary string -- just store it.
+                        val = v
+
                     if isinstance(val, str):
                         self.roach.write(str(k), val)
                     else:
@@ -584,6 +611,7 @@ class Backend(object):
 
                         if new != old:
                             self.roach.write_int(str(k), new)
+
 
     def progdev(self, bof = None):
         """progdev(self, bof, frequency):
@@ -666,7 +694,8 @@ class Backend(object):
         """
 
         if fbw not in self.filter_bw_bits:
-            return (False, "Filter bandwidth must be one of %s" % str(self.filter_bw_bits.keys()))
+            return (False, "Filter bandwidth must be one of %s" % \
+                    str(self.filter_bw_bits.keys()))
 
         self.filter_bw = fbw
         return True
@@ -897,7 +926,8 @@ class Backend(object):
         """Perform calculations for the current set of parameter settings
 
         """
-        pass
+        self.roach_registers_local = {}
+        self.status_mem_local = {}
 
     def reset_roach(self):
         """reset_roach(self):

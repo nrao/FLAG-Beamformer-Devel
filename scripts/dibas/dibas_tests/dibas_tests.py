@@ -49,8 +49,8 @@ import ConfigParser
 import os
 import math
 
-from VegasBackend import VegasBackend
-from VegasLBWBackend import VegasLBWBackend
+from VegasHBWBackend import VegasHBWBackend
+from VegasL1LBWBackend import VegasL1LBWBackend
 from VegasL8LBWBackend import VegasL8LBWBackend
 from Backend import SWbits
 from GuppiBackend import GuppiBackend
@@ -194,7 +194,7 @@ def check_hbw_mode(mode, expo):
     b, m, frequency, exposure, expoclks, blanktm, spec_tick, efsampfr, \
         hwexposr, chan_bw, bw_mode, obs_mode, fpga_clk = params
 
-    be = VegasBackend(b, m, None, None, None, unit_test = True)
+    be = VegasHBWBackend(b, m, None, None, None, unit_test = True)
 
     be.setPolarization('SELF')
     be.setIntegrationTime(expo)
@@ -211,8 +211,8 @@ def check_hbw_mode(mode, expo):
 
     # call dependency methods and update shared memory
     be.prepare()
-    print "Status memory:", be.mock_status_mem
-    print "Roach (int) registers:", be.mock_roach_registers
+    print "Status memory:", be.status_mem_local
+    print "Roach (int) registers:", be.roach_registers_local
     be.show_switching_setup()
     DEFAULT_VALUE = "unspecified"
 
@@ -305,7 +305,7 @@ def check_l1lbw1_mode(mode, expo):
         hwexposr, chan_bw, bw_mode, obs_mode, fpga_clk = params
 
 
-    be = VegasLBWBackend(b, m, None, None, None, unit_test = True)
+    be = VegasL1LBWBackend(b, m, None, None, None, unit_test = True)
     nchan = m.nchan
     frequency_resolution = abs(chan_bw)
 
@@ -325,8 +325,8 @@ def check_l1lbw1_mode(mode, expo):
 
     # call dependency methods and update shared memory
     be.prepare()
-#    print "Status memory:", be.mock_status_mem
-#    print "Roach (int) registers:", be.mock_roach_registers
+#    print "Status memory:", be.status_mem_local
+#    print "Roach (int) registers:", be.roach_registers_local
     be.show_switching_setup()
     DEFAULT_VALUE = "unspecified"
 
@@ -450,8 +450,8 @@ def check_l8lbw1_mode(mode, expo):
 
     # call dependency methods and update shared memory
     be.prepare()
-    regs = be.mock_roach_registers
-    shm  = be.mock_status_mem
+    regs = be.roach_registers_local
+    shm  = be.status_mem_local
     shmkeys = shm.keys()
     shmkeys.sort()
 
@@ -462,12 +462,6 @@ def check_l8lbw1_mode(mode, expo):
     assert_equals(int(shm['NCHAN']), m.nchan)
     assert_equals(int(shm['NSUBBAND']), 1)
     #print be.actual_subband_freq
-
-    for k in regs.keys():
-        if isinstance(regs[k], str) and len(regs[k]) > 70:
-            print "reg[%s]=" % (k), regs[k][0]
-        else:
-            print "reg[%s]=%i" % (k, regs[k])
 
     for i in range(16):
         assert_true("s0_lo_%i_lo_ram" % (i) in regs.keys())
@@ -481,7 +475,7 @@ def check_l8lbw1_mode(mode, expo):
 
     be.set_param("gain", [1024])
     be.prepare()
-    regs = be.mock_roach_registers
+    regs = be.roach_registers_local
     assert_true('mode_sel' in regs.keys())
     assert_true('s0_quant_gain' in regs.keys())
     assert_equals(int(regs['s0_quant_gain']), 1024)
@@ -577,7 +571,7 @@ def check_l8lbw1_mode(mode, expo):
 
 def check_l8lbw8_mode(mode, expo):
     """L8LBW8 8-subbands test. This test is not as comprehensive as the
-    L8_LBW1 tests, since it uses the same code--already tested by L8LBW1
+    L8LBW1 tests, since it uses the same code--already tested by L8LBW1
     tests--and focuses instead on the 8-subbands.
 
     """
@@ -614,8 +608,8 @@ def check_l8lbw8_mode(mode, expo):
 
     # call dependency methods and update shared memory
     be.prepare()
-    regs = be.mock_roach_registers
-    shm  = be.mock_status_mem
+    regs = be.roach_registers_local
+    shm  = be.status_mem_local
     shmkeys = shm.keys()
     shmkeys.sort()
 
@@ -636,12 +630,6 @@ def check_l8lbw8_mode(mode, expo):
         asb = float(be.get_status("SUB%iFREQ" % i))
         assert_almost_equal(asb / sbfreqs[i], 1.0, 5)
 
-    for k in regs.keys():
-        if isinstance(regs[k], str) and len(regs[k]) > 70:
-            print "reg[%s]=" % (k), regs[k][0]
-        else:
-            print "reg[%s]=%i" % (k, regs[k])
-
     for i in range(16):
         assert_true("s0_lo_%i_lo_ram" % (i) in regs.keys())
         assert_true("s1_lo_%i_lo_ram" % (i) in regs.keys())
@@ -654,7 +642,7 @@ def check_l8lbw8_mode(mode, expo):
 
     be.set_param("gain", [1024] * 8)
     be.prepare()
-    regs = be.mock_roach_registers
+    regs = be.roach_registers_local
     assert_true('mode_sel' in regs.keys())
     assert_equals(int(regs['mode_sel']), 0)
 
@@ -855,8 +843,8 @@ def test_GUPPI_INCO_64_backend():
 
     be.prepare()
 
-    print "Status memory:", be.mock_status_mem
-    print "Roach (int) registers:", be.mock_roach_registers
+    print "Status memory:", be.status_mem_local
+    print "Roach (int) registers:", be.roach_registers_local
 
     assert_equal(be.get_status('ACC_LEN'), '512')
     assert_equal(be.get_status('BLOCSIZE'), '33554432')
@@ -912,8 +900,8 @@ def test_GUPPI_CODD_64_backend():
     be.set_bandwidth(800.0)
 
     be.prepare()
-    print "Status memory:", be.mock_status_mem
-    print "Roach (int) registers:", be.mock_roach_registers
+    print "Status memory:", be.status_mem_local
+    print "Roach (int) registers:", be.roach_registers_local
 
     assert_equal(be.get_status('NBITS'), '8')
     assert_equal(be.get_status('OFFSET0'), '0.0')

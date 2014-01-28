@@ -66,7 +66,7 @@ class VegasBackend(Backend):
         Backend.__init__(self, theBank, theMode, theRoach , theValon, hpc_macs, unit_test)
         # Important to do this as soon as possible, so that status application
         # can change its data buffer format
-        self.set_status(BACKEND='VEGAS')
+        self.write_status(BACKEND='VEGAS')
 
         # In VEGAS mode, i_am_master means this particular backend
         # controls the switching signals. (self.bank is from base class.)
@@ -107,30 +107,12 @@ class VegasBackend(Backend):
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
 
-        if type(self) == VegasBackend:
-            self.prepare()
-
-        self.start_hpc()
-        self.start_fits_writer()
-
-
-    def __del__(self):
-        """
-        Perform some cleanup tasks.
-        """
-        if self.fits_writer_process is not None:
-            print "Deleting FITS writer!"
-            self.stop_fits_writer()
-
     def cleanup(self):
         """
         This explicitly cleans up any child processes. This will be called
         by the player before deleting the backend object.
         """
-        print "VegasBackend: cleaning up hpc and fits writer."
-        self.stop_hpc()
-        self.stop_fits_writer()
-
+        pass
 
     def computeSpecTick(self):
         """Returns the spec_tick value for this backend (the HBW value)
@@ -197,7 +179,7 @@ class VegasBackend(Backend):
 
         self.hwexposr = self.spec_tick * ipart
         self.acc_len = ipart
-        
+
     def needs_reset(self):
         """
         For some BOF's there is a status register which can flag an error state.
@@ -209,6 +191,14 @@ class VegasBackend(Backend):
             return False
 
 
+    # This function takes the current state of the backend and computes
+    # some dependencies, in the order given; then it sets up the status
+    # memory and roach dictionaries with all the values of parameters
+    # and dependencies. Derived classes will override this function, but
+    # call the parent function. Each derived class should do this, so
+    # that the prepares cascade from base class on down. Only the
+    # bottom-most class should then write the values to status memory,
+    # HPC program, and roach.
     def prepare(self):
         """
         This command writes calculated values to the hardware and status memory.
@@ -223,32 +213,30 @@ class VegasBackend(Backend):
           be.set_param(...)
           be.prepare()
         """
+        super(VegasBackend, self).prepare()
         # calculate the fpga_clock and sampler frequency
+        self._fpga_clock_dep()
         self._sampler_frequency_dep()
         self._chan_bw_dep()
         self._obs_bw_dep()
-
         self._exposure_dep()
 
-        # Switching Signals info. Switching signals should have been
-        # specified prior to prepare():
-        self._setSSKeys()
         # program I2C: input filters, noise source, noise or tone
         self.set_if_bits()
-        # now update all the status keywords needed for this mode:
+
+        # update all the status keywords needed for this mode:
         self._set_state_table_keywords()
 
-        # set the roach registers:
-        if self.roach:
-            self.set_register(acc_len=self.acc_len)
-            # write the switching signal specification to the roach:
-            self.roach.write_int('ssg_length', self.ss.total_duration_granules())
-            self.roach.write('ssg_lut_bram', self.ss.packed_lut_string())
-            master = 1 if self.bank.i_am_master else 0
-            sssource = 0 # internal
-            bsource = 0 # internal
-            ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
-            self.roach.write_int('ssg_ms_sel', ssg_ms_sel)
+        # record the switching signal specification for the roach:
+        self.set_register(ssg_length=self.ss.total_duration_granules())
+        self.set_register(ssg_lut_bram=self.ss.packed_lut_string())
+
+        # set roach master/slave selects
+        master = 1 if self.bank.i_am_master else 0
+        sssource = 0 # internal
+        bsource = 0 # internal
+        ssg_ms_sel = self.mode.master_slave_sels[master][sssource][bsource]
+        self.set_register(ssg_ms_sel=ssg_ms_sel)
 
 
     # Algorithmic dependency methods, not normally called by a users
@@ -297,14 +285,17 @@ class VegasBackend(Backend):
         self.chan_bw = self.sampler_frequency / (self.nchan * 2)
         self.frequency_resolution = abs(self.chan_bw)
 
+    def _fpga_clock_dep(self):
+        """
+        Computes the FPGA clock.
+        """
+        self.fpga_clock = convertToMHz(self.frequency) * 1e6 / 8
+
     def _sampler_frequency_dep(self):
         """
         Computes the effective frequency of the A/D sampler based on mode
         """
-
-        self.sampler_frequency = self.frequency * 1e6 * 2
-        self.fpga_clock = self.frequency * 1e6 / 8
-        self.nsubbands = 1
+        pass
 
 
     def clear_switching_states(self):
@@ -423,7 +414,7 @@ class VegasBackend(Backend):
 
 
     def _setSSKeys(self):
-        self.sskeys.clear()
+        sskeys = {}
         states = self.ss.gbt_phase_starts()
         cal = states['cal']
         sig_ref_1 = states['sig/ref']
@@ -431,25 +422,25 @@ class VegasBackend(Backend):
         empty_list = [0 for i in range(self.nPhases)] # For sig_ref_2, or I or E as appropriate
 
         for i in range(len(states['blanking'])):
-            self._set_status_str('_SBLK_%02d' % (i+1), states['blanking'][i])
+            sskeys['_SBLK_%02d' % (i+1)] = states['blanking'][i]
 
         for i in range(len(cal)):
-            self._set_status_str('_SCAL_%02d' % (i+1), cal[i])
+            sskeys['_SCAL_%02d' % (i+1)] = cal[i]
 
         for i in range(len(states['phase-starts'])):
-            self._set_status_str('_SPHS_%02d' % (i+1), states['phase-starts'][i])
+            sskeys['_SPHS_%02d' % (i+1)] = states['phase-starts'][i]
 
         for i in range(len(sig_ref_1)):
-            self._set_status_str('_SSRF_%02d' % (i+1), sig_ref_1[i])
+            sskeys['_SSRF_%02d' % (i+1)] = sig_ref_1[i]
 
         master = self.i_am_master # TBF! Make sure this exists...
-        self._setEcal(empty_list if master else cal)
-        self._setEsigRef1(empty_list if master else sig_ref_1)
-        self._setEsigRef2(empty_list)
-        self._setIcal(cal if master else empty_list)
-        self._setIsigRef1(sig_ref_1 if master else empty_list)
-        self._setIsigRef2(empty_list)
-        # self.sskeys now populated, and will be written with other status keys/vals.
+        sskeys.update(self._setEcal(empty_list if master else cal))
+        sskeys.update(self._setEsigRef1(empty_list if master else sig_ref_1))
+        sskeys.update(self._setEsigRef2(empty_list))
+        sskeys.update(self._setIcal(cal if master else empty_list))
+        sskeys.update(self._setIsigRef1(sig_ref_1 if master else empty_list))
+        sskeys.update(self._setIsigRef2(empty_list))
+        return sskeys
 
     def _setEcal(self, cals):
         """
@@ -459,8 +450,12 @@ class VegasBackend(Backend):
         1 indicates the external cal is ON
         0 indicates the external cal is OFF
         """
+        d = {}
+
         for i in range(len(cals)):
-            self._set_status_str('_AECL_%02d' % (i+1), cals[i])
+            d['_AECL_%02d' % (i+1)] = cals[i]
+
+        return d
 
     def _setEsigRef1(self, sr):
         """
@@ -470,8 +465,12 @@ class VegasBackend(Backend):
         1 indicates REF
         0 indicates SIG
         """
+        d = {}
+
         for i in range(len(sr)):
-            self._set_status_str('_AESA_%02d' % (i+1), sr[i])
+            d['_AESA_%02d' % (i+1)] = sr[i]
+
+        return d
 
     def _setEsigRef2(self, sr):
         """
@@ -481,8 +480,12 @@ class VegasBackend(Backend):
         1 indicates REF
         0 indicates SIG
         """
+        d = {}
+
         for i in range(len(sr)):
-            self._set_status_str('_AESB_%02d' % (i+1), sr[i])
+            d['_AESB_%02d' % (i+1)] = sr[i]
+
+        return d
 
     def _setIcal(self, cals):
         """
@@ -492,8 +495,12 @@ class VegasBackend(Backend):
         1 indicates the external cal is ON
         0 indicates the external cal is OFF
         """
+        d = {}
+
         for i in range(len(cals)):
-            self._set_status_str('_AICL_%02d' % (i+1), cals[i])
+            d['_AICL_%02d' % (i+1)] = cals[i]
+
+        return d
 
     def _setIsigRef1(self, sr):
         """
@@ -503,8 +510,12 @@ class VegasBackend(Backend):
         1 indicates REF
         0 indicates SIG
         """
+        d = {}
+
         for i in range(len(sr)):
-            self._set_status_str('_AISA_%02d' % (i+1), sr[i])
+            d['_AISA_%02d' % (i+1)] = sr[i]
+
+        return d
 
     def _setIsigRef2(self, sr):
         """
@@ -514,8 +525,12 @@ class VegasBackend(Backend):
         1 indicates REF
         0 indicates SIG
         """
+        d = {}
+
         for i in range(len(sr)):
-            self._set_status_str('_AISB_%02d' % (i+1), sr[i])
+            d['_AISB_%02d' % (i+1)] = sr[i]
+
+        return d
 
     def _obs_bw_dep(self):
         """
@@ -523,151 +538,134 @@ class VegasBackend(Backend):
         """
         self.obs_bw = self.chan_bw * self.nchan
 
-    def _set_status_str(self, x, y):
-        """
-        Add/update an item to the status memory keyword list
-        """
-        self.sskeys[x] = str(y)
-
     def _set_state_table_keywords(self):
         """
         Gather status sets here
         Not yet sure what to place here...
         """
         print "_set_state_table_keywords() called."
-        statusdata = {}
         DEFAULT_VALUE = "unspecified"
 
-        statusdata["BW_MODE"  ] = DEFAULT_VALUE;
-        statusdata["CAL_DCYC" ] = DEFAULT_VALUE;
-        statusdata["CAL_FREQ" ] = DEFAULT_VALUE;
-        statusdata["CAL_MODE" ] = DEFAULT_VALUE;
-        statusdata["CAL_PHS"  ] = DEFAULT_VALUE;
-        statusdata["CHAN_BW"  ] = DEFAULT_VALUE;
+        self.set_status(BW_MODE  = DEFAULT_VALUE)
+        self.set_status(CAL_DCYC = DEFAULT_VALUE)
+        self.set_status(CAL_FREQ = DEFAULT_VALUE)
+        self.set_status(CAL_MODE = DEFAULT_VALUE)
+        self.set_status(CAL_PHS  = DEFAULT_VALUE)
+        self.set_status(CHAN_BW  = DEFAULT_VALUE)
 
-        statusdata["DATADIR"  ] = DEFAULT_VALUE;
-        statusdata["DATAHOST" ] = DEFAULT_VALUE;
-        statusdata["DATAPORT" ] = DEFAULT_VALUE;
-        statusdata["EFSAMPFR" ] = DEFAULT_VALUE;
-        statusdata["EXPOSURE" ] = DEFAULT_VALUE;
-        statusdata["FILENUM"  ] = DEFAULT_VALUE;
-        statusdata["FPGACLK"  ] = DEFAULT_VALUE;
-        statusdata["HWEXPOSR" ] = DEFAULT_VALUE;
-        statusdata["M_STTMJD" ] = 0;
-        statusdata["M_STTOFF" ] = 0;
-        statusdata["NBITS"    ] = 8;
-        statusdata["NBITSADC" ] = 8;
-        statusdata["NCHAN"    ] = DEFAULT_VALUE;
+        self.set_status(DATADIR  = DEFAULT_VALUE)
+        self.set_status(DATAHOST = DEFAULT_VALUE)
+        self.set_status(DATAPORT = DEFAULT_VALUE)
+        self.set_status(EFSAMPFR = DEFAULT_VALUE)
+        self.set_status(EXPOSURE = DEFAULT_VALUE)
+        self.set_status(FILENUM  = DEFAULT_VALUE)
+        self.set_status(FPGACLK  = DEFAULT_VALUE)
+        self.set_status(HWEXPOSR = DEFAULT_VALUE)
+        self.set_status(M_STTMJD = 0)
+        self.set_status(M_STTOFF = 0)
+        self.set_status(NBITS    = 8)
+        self.set_status(NBITSADC = 8)
+        self.set_status(NCHAN    = DEFAULT_VALUE)
 
-        statusdata["NPKT"     ] = DEFAULT_VALUE;
-        statusdata["NPOL"     ] = DEFAULT_VALUE;
-        statusdata["NSUBBAND" ] = DEFAULT_VALUE;
-        statusdata["OBSBW"    ] = DEFAULT_VALUE;
+        self.set_status(NPKT     = DEFAULT_VALUE)
+        self.set_status(NPOL     = DEFAULT_VALUE)
+        self.set_status(NSUBBAND = DEFAULT_VALUE)
+        self.set_status(OBSBW    = DEFAULT_VALUE)
 
-        statusdata["OBSFREQ"  ] = DEFAULT_VALUE;
-        statusdata["OBSNCHAN" ] = DEFAULT_VALUE;
-        statusdata["OBS_MODE" ] = DEFAULT_VALUE;
-        statusdata["OBSERVER" ] = DEFAULT_VALUE;
-        statusdata["OBSID"    ] = DEFAULT_VALUE;
-        statusdata["PKTFMT"   ] = DEFAULT_VALUE;
-        statusdata["SRC_NAME" ] = DEFAULT_VALUE;
-        statusdata["RA"       ] = DEFAULT_VALUE
-        statusdata["DEC"      ] = DEFAULT_VALUE
-        statusdata["RA_STR"   ] = DEFAULT_VALUE
-        statusdata["DEC_STR"  ] = DEFAULT_VALUE
-        statusdata["SUB0FREQ" ] = DEFAULT_VALUE;
-        statusdata["SUB1FREQ" ] = DEFAULT_VALUE;
-        statusdata["SUB2FREQ" ] = DEFAULT_VALUE;
-        statusdata["SUB3FREQ" ] = DEFAULT_VALUE;
-        statusdata["SUB4FREQ" ] = DEFAULT_VALUE;
-        statusdata["SUB5FREQ" ] = DEFAULT_VALUE;
-        statusdata["SUB6FREQ" ] = DEFAULT_VALUE;
-        statusdata["SUB7FREQ" ] = DEFAULT_VALUE;
-        statusdata["SWVER"    ] = DEFAULT_VALUE;
-        statusdata["TELESCOP" ] = DEFAULT_VALUE;
+        self.set_status(OBSFREQ  = DEFAULT_VALUE)
+        self.set_status(OBSNCHAN = DEFAULT_VALUE)
+        self.set_status(OBS_MODE = DEFAULT_VALUE)
+        self.set_status(OBSERVER = DEFAULT_VALUE)
+        self.set_status(OBSID    = DEFAULT_VALUE)
+        self.set_status(PKTFMT   = DEFAULT_VALUE)
+        self.set_status(SRC_NAME = DEFAULT_VALUE)
+        self.set_status(RA       = DEFAULT_VALUE)
+        self.set_status(DEC      = DEFAULT_VALUE)
+        self.set_status(RA_STR   = DEFAULT_VALUE)
+        self.set_status(DEC_STR  = DEFAULT_VALUE)
+        self.set_status(SUB0FREQ = DEFAULT_VALUE)
+        self.set_status(SUB1FREQ = DEFAULT_VALUE)
+        self.set_status(SUB2FREQ = DEFAULT_VALUE)
+        self.set_status(SUB3FREQ = DEFAULT_VALUE)
+        self.set_status(SUB4FREQ = DEFAULT_VALUE)
+        self.set_status(SUB5FREQ = DEFAULT_VALUE)
+        self.set_status(SUB6FREQ = DEFAULT_VALUE)
+        self.set_status(SUB7FREQ = DEFAULT_VALUE)
+        self.set_status(SWVER    = DEFAULT_VALUE)
+        self.set_status(TELESCOP = DEFAULT_VALUE)
 
         # add in the config file default keywords; being defaults they
         # may be overridden below.
         for x,y in self.mode.shmkvpairs.items():
-            statusdata[x] = y
-        # add in the generated keywords from the setup
-        for x,y in self.sskeys.items():
-            statusdata[x] = y
+            self.set_status(x = y)
 
-        statusdata["OBSERVER" ] = self.observer
-        statusdata["SRC_NAME" ] = self.source
+        # set the switching signal stuff:
+        self.set_status(**self._setSSKeys())
+
+        # all the rest...
+        self.set_status(OBSERVER = self.observer)
+        self.set_status(SRC_NAME = self.source)
 
         if self.source_ra_dec:
             ra = self.source_ra_dec[0]
             dec = self.source_ra_dec[1]
-            statusdata["RA"] = ra.degrees
-            statusdata["DEC"] = dec.degrees
-            statusdata["RA_STR"] = "%02i:%02i:%05.3f" % ra.hms
-            statusdata["DEC_STR"] = apw.degreesToString(dec.degrees)
+            self.set_status(RA      = ra.degrees)
+            self.set_status(DEC     = dec.degrees)
+            self.set_status(RA_STR  = "%02i:%02i:%05.3f" % ra.hms)
+            self.set_status(DEC_STR = apw.degreesToString(dec.degrees))
 
-        statusdata["TELESCOP" ] = self.telescope
-        statusdata["BW_MODE"  ] = "high" # mode 1
-        statusdata["BOFFILE"  ] = str(self.bof_file)
-        statusdata["CHAN_BW"  ] = str(self.chan_bw)
-        statusdata["EFSAMPFR" ] = str(self.sampler_frequency)
-        statusdata["EXPOSURE" ] = str(self.exposure)
-        statusdata["FPGACLK"  ] = str(self.fpga_clock)
-        statusdata["OBSNCHAN" ] = str(self.nchan)
-        statusdata["OBS_MODE" ] = "HBW" # mode 1
-        statusdata["OBSBW"    ] = self.obs_bw
-        statusdata["PKTFMT"   ] = "SPEAD"
-        statusdata["NCHAN"    ] = str(self.nchan)
-        statusdata["NPOL"     ] = str(2)
-        statusdata["NSUBBAND" ] = self.nsubbands
+        self.set_status(TELESCOP = self.telescope)
+
+        self.set_status(BOFFILE  = str(self.bof_file))
+        self.set_status(CHAN_BW  = str(self.chan_bw))
+        self.set_status(EFSAMPFR = str(self.sampler_frequency))
+        self.set_status(EXPOSURE = str(self.exposure))
+        self.set_status(FPGACLK  = str(self.fpga_clock))
+        self.set_status(OBSNCHAN = str(self.nchan))
+        self.set_status(HWEXPOSR = str(self.hwexposr))
+
+        self.set_status(OBSBW    = self.obs_bw)
+        self.set_status(PKTFMT   = "SPEAD")
+        self.set_status(NCHAN    = str(self.nchan))
+        self.set_status(NPOL     = str(2))
+        self.set_status(NSUBBAND = self.nsubbands)
         # convertToMHz() normalizes the frequency to MHz, just in case
         # it is provided as Hz. So this will work in either case.
-        statusdata["SUB0FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
-        statusdata["SUB1FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
-        statusdata["SUB2FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
-        statusdata["SUB3FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
-        statusdata["SUB4FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
-        statusdata["SUB5FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
-        statusdata["SUB6FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
-        statusdata["SUB7FREQ" ] = convertToMHz(self.sampler_frequency) * 1e6 / 4
+        self.set_status(SUB0FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
+        self.set_status(SUB1FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
+        self.set_status(SUB2FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
+        self.set_status(SUB3FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
+        self.set_status(SUB4FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
+        self.set_status(SUB5FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
+        self.set_status(SUB6FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
+        self.set_status(SUB7FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
 
-        statusdata["BASE_BW"  ] = self.filter_bw # From MODE
-        statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOBANK'
-        statusdata["MODENUM"  ] = str(self.mode.name) # from MODE
-        statusdata["NOISESRC" ] = "OFF"  # TBD??
-        statusdata["NUMPHASE" ] = str(self.nPhases)
-        statusdata["SWPERIOD" ] = str(self.ss.total_duration())
-        statusdata["SWMASTER" ] = "VEGAS" # TBD
-        statusdata["POLARIZE" ] = self.polarization
-        statusdata["CRPIX1"   ] = str(self.nchan/2 + 1)
-        statusdata["SWPERINT" ] = str(int(self.exposure \
-                                          / self.ss.total_duration() + 0.5))
-        statusdata["NMSTOKES" ] = str(self.num_stokes)
+        self.set_status(BASE_BW  = self.filter_bw) # From MODE
+        self.set_status(BANKNAM  = self.bank.name if self.bank else 'NOBANK')
+        self.set_status(MODENUM  = str(self.mode.name)) # from MODE
+        self.set_status(NOISESRC = "OFF")  # TBD??
+        self.set_status(NUMPHASE = str(self.nPhases))
+        self.set_status(SWPERIOD = str(self.ss.total_duration()))
+        self.set_status(SWMASTER = "VEGAS") # TBD
+        self.set_status(POLARIZE = self.polarization)
+        self.set_status(CRPIX1   = str(self.nchan/2 + 1))
+        self.set_status(SWPERINT = str(int(self.exposure \
+                                          / self.ss.total_duration() + 0.5)))
+        self.set_status(NMSTOKES = str(self.num_stokes))
         # should this get set by Backend?
-        statusdata["DATAHOST" ] = self.datahost;
-        statusdata["DATAPORT" ] = self.dataport;
-        statusdata['DATADIR'  ] = self.dataroot
-        statusdata['PROJID'   ] = self.projectid
-        statusdata['SCANLEN'  ] = self.scan_length
-        statusdata['CAL_FREQ' ] = self.cal_freq
+        self.set_status(DATAHOST = self.datahost)
+        self.set_status(DATAPORT = self.dataport)
+        self.set_status(DATADIR  = self.dataroot)
+        self.set_status(PROJID   = self.projectid)
+        self.set_status(SCANLEN  = self.scan_length)
+        self.set_status(CAL_FREQ = self.cal_freq)
 
         for i in range(8):
-            statusdata["_MCR1_%02d" % (i+1)] = str(self.chan_bw)
-            statusdata["_MCDL_%02d" % (i+1)] = str(self.chan_bw)
-            statusdata["_MFQR_%02d" % (i+1)] = str(self.frequency_resolution)
+            self.set_status(**{"_MCR1_%02d" % (i+1): str(self.chan_bw),
+                               "_MCDL_%02d" % (i+1): str(self.chan_bw),
+                               "_MFQR_%02d" % (i+1): str(self.frequency_resolution)})
 
-        # If self == VegasBackend then this is the instantiated object,
-        # so write to status memory. If not, then this is a base class
-        # and the writing should be done by the derived class, which
-        # presumably will add to/overwrite this dictionary.
-        if type(self) == VegasBackend:
-            if self.bank is not None:
-                self.set_status(**statusdata)
-            else:
-                for i in statusdata.keys():
-                    print "%s = %s" % (i, statusdata[i])
 
-        # for derived class
-        return statusdata
 
     def earliest_start(self):
         """
@@ -781,7 +779,7 @@ class VegasBackend(Backend):
         # We're now within a second of the desired start time. Arm:
         self.arm_roach()
         self.scan_running = True
-        self.set_status(ACCBLKOU='-')
+        self.write_status(ACCBLKOU='-')
         return (True, "Successfully started roach for starttime=%s" % str(self.start_time))
 
     def stop(self):
@@ -792,7 +790,7 @@ class VegasBackend(Backend):
             self.hpc_cmd('stop')
             self.fits_writer_cmd('stop')
             self.scan_running = False
-            self.set_status(DISKSTAT='-')
+            self.write_status(DISKSTAT='-')
             return (True, "Scan ended")
 
         if self.monitor_mode:
@@ -863,7 +861,7 @@ class VegasBackend(Backend):
                     killed = True
                 else:
                     self.fits_writer_process.kill()
-                    killed = True;
+                    killed = True
             else:
                 killed = False
             self.fits_writer_process = None
