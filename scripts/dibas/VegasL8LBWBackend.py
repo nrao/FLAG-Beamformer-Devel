@@ -85,7 +85,9 @@ class VegasL8LBWBackend(VegasLBWBackend):
         self.lbwmixer = LBWMixerCalcs(self.frequency)
 
         self.prepare()
-
+        self.start_hpc()
+        self.start_fits_writer()
+        self._init_gpu_resources()
 
     def __del__(self):
         """

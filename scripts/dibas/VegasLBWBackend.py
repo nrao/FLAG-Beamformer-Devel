@@ -143,12 +143,13 @@ class VegasLBWBackend(VegasBackend):
         When resources change (e.g. number of channels, subbands, etc.) We
         clear the initialize indicator and tell the HPC to reallocate resources.
         """
-        self.write_status(GPUCTXIN="FALSE")
-        self.hpc_cmd("INIT_GPU")
-        status,wait = self._wait_for_status('GPUCTXIN', 'TRUE', timedelta(seconds=75))
+        if not self.test_mode:
+            self.write_status(GPUCTXIN="FALSE")
+            self.hpc_cmd("INIT_GPU")
+            status,wait = self._wait_for_status('GPUCTXIN', 'TRUE', timedelta(seconds=75))
 
-        if not status:
-            raise Exception("init_gpu_resources(): timed out waiting for 'GPUCTXIN=TRUE'")
+            if not status:
+                raise Exception("init_gpu_resources(): timed out waiting for 'GPUCTXIN=TRUE'")
 
 
     # Algorithmic dependency methods, not normally called by a users
@@ -159,8 +160,7 @@ class VegasLBWBackend(VegasBackend):
 
     def _set_state_table_keywords(self):
         """
-        Gather status sets here
-        Not yet sure what to place here...
+        Gather status sets here for LBW cases.
         """
         super(VegasLBWBackend, self)._set_state_table_keywords()
         self.set_status(BW_MODE  = "low")

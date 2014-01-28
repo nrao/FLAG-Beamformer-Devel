@@ -54,6 +54,9 @@ class VegasL1LBWBackend(VegasLBWBackend):
             self.gain = [1024] # give it a default if config file is mising gain.
 
         self.prepare()
+        self.start_hpc()
+        self.start_fits_writer()
+        self._init_gpu_resources()
 
     def prepare(self):
         """
@@ -71,7 +74,6 @@ class VegasL1LBWBackend(VegasLBWBackend):
         """
         super(VegasL1LBWBackend, self).prepare()
         self.set_register(gain = self.gain[0])
-        self._init_gpu_resources()
 
         # Talk to outside things: status memory, HPC programs, roach
         if self.bank is not None:
