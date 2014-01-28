@@ -13,13 +13,8 @@ telescope = SHAO
 # Which bank is switching master?
 who_is_master = BANKA
 
+# TCP port for player daemons
 player_port = 6667
-
-# paths for the vegas_hpc_servers
-# vegas-hpc & others found in /home/dibas tree.
-#python_path = /opt/dibas/newt
-#cuda_path = /usr/local/cuda/lib64
-#lib_path = /opt/dibas/newt/lib:/usr/local/cuda/lib64
 
 [HPCMACS]
 hpc1 = 0x0002C9EBC940
@@ -53,6 +48,12 @@ players = BANKA, BANKB, BANKC, BANKD, BANKE, BANKF, BANKG, BANKH
 # synth_options   : Valon options. With the exception of the reference frequency multiplier,
 #                   all of these are flags which either are clear (0) or set (1)
 #                   doubler, halver, multiplier, low-spur
+#
+# filter_bandwidth_bits:
+#                   These are the input filters. They are low-pass. The
+#                   values are arranged as bw, bits, bw, bits, bw,
+#                   bits. The SHAO and Green Bank devices differ in
+#                   filter values, hence this entry.
 #
 # Optional:
 #
@@ -90,6 +91,8 @@ synth_ref_freq = 10000000
 synth_vco_range = 2200, 4400
 synth_rf_level = 5
 synth_options = 0,0,1,0
+# I2C
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKB]
 # HPC / Player host & port
@@ -112,6 +115,8 @@ synth_ref_freq = 10000000
 synth_vco_range = 2200, 4400
 synth_rf_level = 5
 synth_options = 0,0,1,0
+# I2C
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKC]
 # HPC / Player host & port
@@ -134,6 +139,8 @@ synth_ref_freq = 10000000
 synth_vco_range = 2200, 4400
 synth_rf_level = 5
 synth_options = 0,0,1,0
+# I2C
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 ######################################################################
 # The remaining banks are only used for GUPPI CODD modes and thus do not
@@ -213,7 +220,7 @@ data_destination_port = 60000
 
 ###################################  MODE 1  #############################################
 [MODE1]
-shmkeys = OBS_MODE,BW_MODE,BACKEND,_SWSGPLY,MODENAME,HWEXPOSR
+shmkeys = OBS_MODE,BW_MODE,BACKEND,_SWSGPLY,MODENAME,hwexposr
 
 OBS_MODE = HBW
 BW_MODE=high
@@ -221,7 +228,7 @@ BACKEND=VEGAS
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
 _SWSGPLY=3
 MODENAME = h1k
-HWEXPOSR = 0.000524288
+hwexposr = 0.000524288
 
 
 
@@ -273,12 +280,12 @@ file_system = /lustre/gbtdata
 ############################## MODE 2 ##############################
 
 [MODE2]
-shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,HWEXPOSR,_SWSGPLY
+shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,hwexposr,_SWSGPLY
 OBS_MODE = HBW
 BW_MODE=high
 BACKEND=VEGAS
 MODENAME = h16k
-HWEXPOSR = 0.008388608
+hwexposr = 0.008388608
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
 _SWSGPLY=12
 
@@ -330,12 +337,12 @@ file_system = /lustre/gbtdata
 ############################## MODE 3 ##############################
 
 [MODE3]
-shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,HWEXPOSR,_SWSGPLY
+shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,hwexposr,_SWSGPLY
 OBS_MODE = HBW
 BW_MODE=high
 BACKEND=VEGAS
 MODENAME = h16k
-HWEXPOSR = 0.012582912
+hwexposr = 0.012582912
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
 _SWSGPLY=12
 
@@ -1753,6 +1760,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -1860,6 +1868,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -1958,6 +1967,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2056,6 +2066,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2154,6 +2165,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2247,6 +2259,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-codd
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2341,6 +2354,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-codd
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2434,6 +2448,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-codd
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2527,6 +2542,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2586,6 +2602,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2637,6 +2654,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2688,6 +2706,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2739,6 +2758,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2790,6 +2810,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2849,6 +2870,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2904,6 +2926,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF

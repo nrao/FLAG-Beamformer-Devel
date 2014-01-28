@@ -175,8 +175,6 @@ synth_ref_freq = N/A
 synth_vco_range = N/A
 synth_rf_level = N/A
 synth_options = N/A
-# I2C
-filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKE]
 # HPC / Player host & port
@@ -187,8 +185,6 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = vegas-hpc5-10
 data_destination_port = 60000
-# I2C
-filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKF]
 # HPC / Player host & port
@@ -199,8 +195,6 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = vegas-hpc6-10
 data_destination_port = 60000
-# I2C
-filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKG]
 # HPC / Player host & port
@@ -211,8 +205,6 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = vegas-hpc7-10
 data_destination_port = 60000
-# I2C
-filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKH]
 # HPC / Player host & port
@@ -223,13 +215,11 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = vegas-hpc8-10
 data_destination_port = 60000
-# I2C
-filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 
 ###################################  MODE 1  #############################################
 [MODE1]
-shmkeys = OBS_MODE,BW_MODE,BACKEND,_SWSGPLY,MODENAME,HWEXPOSR
+shmkeys = OBS_MODE,BW_MODE,BACKEND,_SWSGPLY,MODENAME,hwexposr
 
 OBS_MODE = HBW
 BW_MODE=high
@@ -237,7 +227,7 @@ BACKEND=VEGAS
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
 _SWSGPLY=3
 MODENAME = h1k
-HWEXPOSR = 0.000524288
+hwexposr = 0.000524288
 
 
 
@@ -289,12 +279,12 @@ file_system = /lustre/gbtdata
 ############################## MODE 2 ##############################
 
 [MODE2]
-shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,HWEXPOSR,_SWSGPLY
+shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,hwexposr,_SWSGPLY
 OBS_MODE = HBW
 BW_MODE=high
 BACKEND=VEGAS
 MODENAME = h16k
-HWEXPOSR = 0.008388608
+hwexposr = 0.008388608
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
 _SWSGPLY=12
 
@@ -346,12 +336,12 @@ file_system = /lustre/gbtdata
 ############################## MODE 3 ##############################
 
 [MODE3]
-shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,HWEXPOSR,_SWSGPLY
+shmkeys = OBS_MODE,BW_MODE,BACKEND,MODENAME,hwexposr,_SWSGPLY
 OBS_MODE = HBW
 BW_MODE=high
 BACKEND=VEGAS
 MODENAME = h16k
-HWEXPOSR = 0.012582912
+hwexposr = 0.012582912
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
 _SWSGPLY=12
 
@@ -1769,6 +1759,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -1876,6 +1867,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -1974,6 +1966,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2072,6 +2065,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2170,6 +2164,7 @@ CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
 BACKEND=GUPPI
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2268,6 +2263,7 @@ CAL_FREQ=25.0
 CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2362,6 +2358,7 @@ CAL_FREQ=25.0
 CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2455,6 +2452,7 @@ CAL_FREQ=25.0
 CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2543,6 +2541,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2602,6 +2601,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2653,6 +2653,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2704,6 +2705,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2755,6 +2757,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2806,6 +2809,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2865,6 +2869,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
@@ -2920,6 +2925,7 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
+MODENAME=guppi-inco
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF

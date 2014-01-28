@@ -461,6 +461,13 @@ class ModeData(ConfigData):
         ConfigData.__init__(self)
         self.name = None
         """Mode name"""
+        self.backend_name = "Unspecified"
+        """Name of the backend type. This is used to determine which Backend to
+        instantiate. May be one of:
+
+        h1k, h16k l1/lbw1, l8/lbw1, l8/lbw8, guppi-inco, guppi-codd
+
+        """
         self.hwexposr = None
         """Shortest possible integration, in seconds"""
         self.filter_bw = None
@@ -596,6 +603,7 @@ class ModeData(ConfigData):
         self.nchan                   = self._get_int(mode,    'nchan')
         self.bof                     = self._get_string(mode, 'bof_file')
         self.backend_type            = self._get_string(mode, 'BACKEND')
+        self.backend_name            = self._get_string(mode, "MODENAME")
         self.hpc_program             = self._get_string(mode, 'hpc_program')
         self.hpc_fifo_name           = self._get_string(mode, 'hpc_fifo_name')
         arm_delay                    = self._get_int(mode,    'needed_arm_delay')
