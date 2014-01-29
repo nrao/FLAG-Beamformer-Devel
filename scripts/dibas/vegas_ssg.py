@@ -201,10 +201,7 @@ class SwitchingSignals(object):
         granules = sum([p.duration() for p in self.phases])
         # if no phases are specified or if there is only a single phase,
         # don't return a zero sum. In these cases the duration doesn't mean anything.
-        if len(self.phases) > 1:
-            return granules
-        else:
-            return 1
+        return granules
 
     def add_phase(self, dur, bl = False, cal = False, sr1 = False, sr2 = False, asr = False):
         """Adds one switching phase to the cycle.

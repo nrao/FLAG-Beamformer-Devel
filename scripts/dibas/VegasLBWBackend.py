@@ -70,12 +70,13 @@ class VegasLBWBackend(VegasBackend):
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
 
+    def __del__(self):
+        super(VegasLBWBackend, self).__del__()
 
     def computeSpecTick(self):
         """Returns the spec_tick value for this backend (the LBW value)
 
         """
-        print "VegasLBWBackend::computeSpecTick: self.frequency =", self.frequency
         return 1024.0 / (convertToMHz(self.frequency) * 1e6)
 
 

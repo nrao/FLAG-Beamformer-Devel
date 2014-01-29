@@ -66,7 +66,7 @@ class VegasL8LBWBackend(VegasLBWBackend):
         VegasLBWBackend.__init__(self, theBank, theMode, \
                                  theRoach , theValon, hpc_macs, unit_test)
 
-        if 'lbw8' in theMode.shmkvpairs['MODENAME']:
+        if 'lbw8' in theMode.backend_name.lower():
             nsubbands = 8
         else:
             nsubbands = 1
@@ -83,6 +83,16 @@ class VegasL8LBWBackend(VegasLBWBackend):
         # L8 specific parameters
         self.params["subband_freq" ] = self._setSubbandFreq
         self.lbwmixer = LBWMixerCalcs(self.frequency)
+
+        self.progdev()
+        self.net_config()
+
+        if self.mode.roach_kvpairs:
+            self.write_registers(**self.mode.roach_kvpairs)
+
+        self.reset_roach()
+        self.clear_switching_states()
+        self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
 
         self.prepare()
         self.start_hpc()
