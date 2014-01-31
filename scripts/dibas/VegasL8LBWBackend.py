@@ -78,7 +78,7 @@ class VegasL8LBWBackend(VegasLBWBackend):
 
         # default dependent values, computed from Parameters:
         # a resonable default:
-        self.subbandfreq = [ convertToMHz(self.frequency/2) ] * nsubbands
+        self.subbandfreq = [ convertToMHz(self.frequency/2) * 1.0e6 ] * nsubbands
         self.actual_subband_freq = self.subbandfreq
         # L8 specific parameters
         self.params["subband_freq" ] = self._setSubbandFreq
@@ -182,10 +182,10 @@ class VegasL8LBWBackend(VegasLBWBackend):
 
         # clear out previous results
         self.lbwmixer.clear_results()
-        self.actual_subband_freq = [ 0 ] * self.nsubbands
 
         # calculate the nearest lo frequency and save it for writing the SUBxFREQ keywords
         self.actual_subband_freq = []
+
         for subband_num in range(len(self.subbandfreq)):
             _,actual_lo = self.lbwmixer.lo_setup(self.subbandfreq[subband_num], subband_num)
             self.actual_subband_freq.append(actual_lo)
@@ -260,7 +260,9 @@ class VegasL8LBWBackend(VegasLBWBackend):
 
         statusdata = {}
 
+        print str(self.subbandfreq)
         for i in range(len(sub_band_frequencies)):
+            print "SUB%iFREQ =" % (i), str(sub_band_frequencies[i])
             statusdata["SUB%iFREQ" % (i)] = str(sub_band_frequencies[i])
 
         for i in range(self.nsubbands):
