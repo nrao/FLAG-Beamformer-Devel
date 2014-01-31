@@ -1351,8 +1351,8 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     // Use the accumid_xor_mask to invert the accumid to a sense
     // which matches the state table convention:
     int switch_state  = (accum ^ accumid_xor_mask);
-    int accum_sig_state  = switch_state & SIGREFBIT0 ? true : false;
-    int accum_cal_state  = switch_state & CAL_BIT    ? true : false;
+    int accum_sig_state  = switch_state & SIGREFBIT0 ? false : true;
+    int accum_cal_state  = switch_state & CAL_BIT    ? false : true;
     int state_offset;
 
     // Search the knowns switching states and match it against this accum
