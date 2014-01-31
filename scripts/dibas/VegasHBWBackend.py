@@ -56,26 +56,18 @@ class VegasHBWBackend(VegasBackend):
 
         VegasBackend.__init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test)
 
+        self.progdev()
+        self.net_config()
+
+        if self.mode.roach_kvpairs:
+            self.write_registers(**self.mode.roach_kvpairs)
+
+        self.reset_roach()
         self.prepare()
+        self.clear_switching_states()
+        self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
         self.start_hpc()
         self.start_fits_writer()
-
-    def __del__(self):
-        """
-        Perform some cleanup tasks.
-        """
-        if self.fits_writer_process is not None:
-            print "Deleting FITS writer!"
-            self.stop_fits_writer()
-
-    def cleanup(self):
-        """
-        This explicitly cleans up any child processes. This will be called
-        by the player before deleting the backend object.
-        """
-        print "VegasBackend: cleaning up hpc and fits writer."
-        self.stop_hpc()
-        self.stop_fits_writer()
 
     # prepare() for this class calls the base class prepare then does
     # the bare minimum required just for this backend, and then writes

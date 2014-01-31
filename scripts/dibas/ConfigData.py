@@ -380,10 +380,13 @@ class BankData(ConfigData):
         that filter_bw as a value.
 
         """
-        l = fbw_string.split(',')
-        k = [int(i) for i in l[::2]]
-        v = [int(i, 16) for i in l[1::2]]
-        return dict(zip(k, v))
+        if fbw_string:
+            l = fbw_string.split(',')
+            k = [int(i) for i in l[::2]]
+            v = [int(i, 16) for i in l[1::2]]
+            return dict(zip(k, v))
+        return None
+
 
 
     def load_config(self, config, bank):
@@ -405,12 +408,12 @@ class BankData(ConfigData):
         data_destination_host = self._get_string(bank, 'data_destination_host')
         self.dest_port = self._get_int(bank, 'data_destination_port')
         self.dataport = self._get_int(bank, 'data_source_port')
-        self.filter_bw_bits = self._parse_filter_bw_bits(self._get_string(bank, 'filter_bandwidth_bits'))
 
         # the following are mandatory only if 'self.has_roach' is True
         if not self.has_roach:
             self._optional()
 
+        self.filter_bw_bits = self._parse_filter_bw_bits(self._get_string(bank, 'filter_bandwidth_bits'))
         self.datahost = _hostname_to_ip(
             self._get_string(bank, 'data_source_host'))
         self.katcp_ip = self._get_string(bank, 'katcp_ip')
@@ -626,8 +629,10 @@ class ModeData(ConfigData):
         cdd_data_interfaces    = self._get_string(mode,           'cdd_data_interfaces')
         cdd_hpcs               = self._get_string(mode,           'cdd_hpcs')
         self.cdd_master_hpc    = self._get_string(mode,           'cdd_master_hpc')
-        self.is_cdd_mode       = self._get_string(mode,           'is_cdd_mode')
         self.gain              = self._get_ints(mode,             'gain')
+
+        if self.backend_name and self.backend_name == "guppi-codd":
+            self.is_cdd_mode = True
 
         # this will throw if any key listed under 'self._mandatory()' did not load.
         self._throw_on_error()

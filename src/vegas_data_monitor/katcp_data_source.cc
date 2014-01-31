@@ -312,12 +312,12 @@ void KATCPDataSource::_katcp_task()
             RoachInterface *p = roach_interface[*i];
 
             bool snap =
-                p->setValue("raw_adc_trig", 0) &&
+                p->setValue("trig", 0) &&
                 p->setValue("adcsnap0_ctrl", 0) &&
                 p->setValue("adcsnap1_ctrl", 0) &&
                 p->setValue("adcsnap0_ctrl", 5) &&
                 p->setValue("adcsnap1_ctrl", 5) &&
-                p->setValue("raw_adc_trig", 1);
+                p->setValue("trig", 1);
 
             if (!snap)
             {

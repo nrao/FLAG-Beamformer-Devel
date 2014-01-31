@@ -200,33 +200,13 @@ class Backend(object):
         self.dataport = self.bank.dataport
         self.bof_file = self.mode.bof
 
-        self.progdev()
-        self.net_config()
-
-        if self.mode.roach_kvpairs:
-            self.set_register(**self.mode.roach_kvpairs)
-        self.reset_roach()
-
 
     def __del__(self):
         """
         Perform cleanup activities for a Bank object.
         """
         # Stop the HPC program if it is running
-        if self.test_mode:
-            return
-
-        if self.hpc_process is not None:
-            print "Stopping HPC program!"
-            self.stop_hpc()
-
-    def does_io(self):
-        """Include a call to this on any function that talks to external
-        entities: status shared memory, HPC program, roach. If it is not
-        being called in an instance class, then throws exception.
-
-        """
-
+        self.cleanup()
 
     def cleanup(self):
         """
@@ -317,7 +297,7 @@ class Backend(object):
         process_list = [self.dibas_dir + '/exec/x86_64-linux/' + hpc_program]
 
         if self.mode.hpc_program_flags:
-            process_list.append(self.mode.hpc_program_flags)
+            process_list = process_list + self.mode.hpc_program_flags.split()
 
         self.hpc_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
 

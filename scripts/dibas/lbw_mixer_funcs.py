@@ -93,10 +93,12 @@ class LBWMixerCalcs:
         wavei = np.zeros((nsamples * 2,), dtype='=i2')   # host order
         wavef = np.zeros((nsamples * 2,), dtype='float') # host order
         
-        if abs(normalized_frequency) < 1e3:
+        if abs(normalized_frequency) == 262144:
             # generate a constant representing zero frequency, at maximum amplitude        
+            print "NOTE ZERO FREQUENCY"
             wavef[:] = MAX_LEVEL
         else:
+            print "nsamples=", nsamples, " normalized_frequency ", normalized_frequency
             # fill in even indicies with the cos results
             wavef[::2]  = np.sin(2*np.pi*normalized_frequency*np.arange(nsamples)/float(nsamples))*(MAX_LEVEL)
             # fill in odd indicies with the sin results
@@ -106,14 +108,14 @@ class LBWMixerCalcs:
         #wavei[:] = np.round(wavef).astype('>i2')
         wavei[:] = wavef.astype('>i2')
         # Now re-interpret the 16bit byteswapped pairs as 32bit values, without changing the order
-        wavei = wavei.view('=i4')
+        waveq = wavei.view('=i4')
         # Now interleave the data 'interleave' ways as 32bit values
         # the result should be a list of 16 (i.e. interleave) binary strings. Each string 
         # should bewritten to one lo sub-register. 
         # (e.g: bram_reg_block[0] -> s0_lo_0_ram, bram_reg_block[1] -> s0_lo_1_ram ...)
         bram_regs = []
         for k in range(interleave):
-            bram_regs.append(wavei[k::interleave].tostring())
+            bram_regs.append(waveq[k::interleave].tostring())
             
         return bram_regs
         
@@ -135,6 +137,7 @@ class LBWMixerCalcs:
         bram_block: A list of 16 binary strings created by wave_generator()
         """
     
+        self.lo_regs['s' + str(subband_num) + '_mixer_cnt'] = 1022
         # setup the sixteen registers for this subband
         for i in range(self.interleave):
            self.lo_regs['s' + str(subband_num) +'_lo_'+str(i)+'_lo_ram'] = bram_block[i]    

@@ -53,6 +53,16 @@ class VegasL1LBWBackend(VegasLBWBackend):
         if not self.gain:
             self.gain = [1024] # give it a default if config file is mising gain.
 
+        self.progdev()
+        self.net_config()
+
+        if self.mode.roach_kvpairs:
+            self.write_registers(**self.mode.roach_kvpairs)
+
+        self.reset_roach()
+        self.clear_switching_states()
+        self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
+
         self.prepare()
         self.start_hpc()
         self.start_fits_writer()

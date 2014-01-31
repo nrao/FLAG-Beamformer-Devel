@@ -90,7 +90,6 @@ class VegasBackend(Backend):
         self.fits_writer_process = None
         self.scan_length = 30.0
         self.spec_tick = self.computeSpecTick()
-        print "VegasBackend: self.spec_tick =", self.spec_tick
         self.setHwExposr(self.mode.hwexposr)
 
         # setup the parameter dictionary/methods
@@ -104,24 +103,22 @@ class VegasBackend(Backend):
         self.sskeys = {}
         self.ss.set_spec_tick(self.spec_tick)
         self.ss.set_hwexposr(self.hwexposr)
-        self.clear_switching_states()
-        self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
 
     def cleanup(self):
         """
         This explicitly cleans up any child processes. This will be called
         by the player before deleting the backend object.
         """
-        pass
+        print "VegasBackend: cleaning up hpc and fits writer."
+        self.stop_hpc()
+        self.stop_fits_writer()
+
 
     def computeSpecTick(self):
         """Returns the spec_tick value for this backend (the HBW value)
 
         """
-        print "VegasBackend::computeSpecTick: self.frequency =", convertToMHz(self.frequency) * 1e6
-        print "self.nchan =", self.nchan
         st = float(self.nchan) / (convertToMHz(self.frequency) * 1e6)
-        print "st =", st
         return st
 
     ### Methods to set user or mode specified parameters
@@ -178,7 +175,7 @@ class VegasBackend(Backend):
             ipart = int(ipart) + 1
 
         self.hwexposr = self.spec_tick * ipart
-        self.acc_len = ipart
+        self.acc_len = int(ipart)
 
     def needs_reset(self):
         """
@@ -259,9 +256,6 @@ class VegasBackend(Backend):
             sw_period = self.ss.total_duration()
             sw_granules = self.ss.total_duration_granules()
 
-            print "sw_period =", sw_period, "sw_granules =", sw_granules
-            print "init_exp =", init_exp
-
             r = init_exp / sw_period
             fpart, ipart = math.modf(r)
 
@@ -333,7 +327,6 @@ class VegasBackend(Backend):
         """
         dur = int(math.ceil(duration / self.hwexposr) * self.hwexposr / self.spec_tick)
         self.ss.add_phase(dur = dur, bl = blank, cal = cal, sr1 = sig_ref_1)
-        print "added switching phase", dur, blank, cal, sig_ref_1
         return (True, self.ss.number_phases())
 
     def set_gbt_ss(self, period, ss_list):
@@ -596,8 +589,7 @@ class VegasBackend(Backend):
 
         # add in the config file default keywords; being defaults they
         # may be overridden below.
-        for x,y in self.mode.shmkvpairs.items():
-            self.set_status(x = y)
+        self.set_status(**self.mode.shmkvpairs)
 
         # set the switching signal stuff:
         self.set_status(**self._setSSKeys())
