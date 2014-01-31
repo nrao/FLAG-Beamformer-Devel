@@ -127,7 +127,7 @@ void configure_accumulator_buffer_size(struct vegas_status *stat, struct vegas_d
     disk_block_size = num_exp_per_blk * (sf.hdr.nchan * sf.hdr.nsubband * 4 * 4);
     if (disk_block_size > (int64_t)(32*1024*1024))
     {
-        disk_block_size = disk_block_size > (int64_t)(32*1024*1024);
+        disk_block_size = (int64_t)(32*1024*1024);
     }
     vegas_conf_databuf_size(dbuf_acc, disk_block_size);
 #endif
