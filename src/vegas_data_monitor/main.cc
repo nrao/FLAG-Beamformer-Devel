@@ -130,11 +130,14 @@ bool _get_config(ConfigData &d)
 	if (d.source == "katcp") // katcp we want 'dibasr2-1,
                                  // dibas2-2' etc.
         {
+            string roach_base_name;
+            cf.Get("roach_base_name", roach_base_name); // vegasr2,
+                                                        // dibasr2, etc.
             for (vector<int>::iterator i = sub_sys.begin(); i != sub_sys.end(); ++i)
             {
                 char buf[12];
 
-                snprintf(buf, 12, "dibasr2-%i", *i);
+                snprintf(buf, 12, "%s-%i", roach_base_name.c_str(), *i);
                 d.devices.push_back(buf);
             }
         }
