@@ -32,7 +32,7 @@
 import math
 import struct
 
-class LBWMixerCalcs:
+class LBWMixerCalcs(object):
     """
     L8_LBW1 / L8_LBW8 parameter calculations helper
     This class creates and returns a dictionary with register name
@@ -58,6 +58,7 @@ class LBWMixerCalcs:
         self.log_bramlength = 10 # log2 bram register length
         self.interleave   =   16 # interleave factor for lo table
         self.sample_f     =   valon_frequency * 2 # from Anish's document
+        self.MAX_INT      =   32767
 
     def set_valon_frequency(self, valon_frequency):
         """
@@ -93,14 +94,14 @@ class LBWMixerCalcs:
         """
         bram_len = 1 << log_bram_len
         nsamples = interleave * bram_len
-        scu = SinCosUnion()
+        scu = LBWMixerCalcs.SinCosUnion()
         non_interleaved = list()
         # we're going to return this
         interleaved = [scu] * nsamples
 
         if abs(normalized_frequency) < 1e-3:
             for i in range(0, nsamples):
-                interleaved.append(SinCosUnion(MAX_INT, MAX_INT))
+                interleaved.append(SinCosUnion(self.MAX_INT, self.MAX_INT))
 
             return interleaved
 
@@ -108,14 +109,15 @@ class LBWMixerCalcs:
         t = 0.0
 
         for i in range(0, nsamples):
-            sinf = math.sin(2 * math.pi * normalized_frequency * t / npts) * MAX_INT
-            cosf = math.cos(2 * math.pi * normalized_frequency * t / npts) * MAX_INT
-            non_interleaved.append(SinCosUnion(sinf, cosf))
+            sinf = math.sin(2 * math.pi * normalized_frequency * t / npts) * self.MAX_INT
+            cosf = math.cos(2 * math.pi * normalized_frequency * t / npts) * self.MAX_INT
+            non_interleaved.append(LBWMixerCalcs.SinCosUnion(sinf, cosf))
             t += 1.0
 
         for r in range(bram_len):
             for i in range(interleave):
-                scu = SinCosUnion(non_interleaved[interleave * r + i].sin, non_interleaved[interleave * r + i].cos)
+                scu = LBWMixerCalcs.SinCosUnion(non_interleaved[interleave * r + i].sin,
+                                                non_interleaved[interleave * r + i].cos)
                 interleaved[r + i * bram_len] = scu
 
         return interleaved
