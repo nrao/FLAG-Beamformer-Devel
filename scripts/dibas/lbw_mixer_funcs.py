@@ -57,7 +57,7 @@ class LBWMixerCalcs(object):
 
         self.log_bramlength = 10 # log2 bram register length
         self.interleave   =   16 # interleave factor for lo table
-        self.sample_f     =   valon_frequency * 2 # from Anish's document
+        self.sample_f     =   self.valon_frequency * 2 # from Anish's document
         self.MAX_INT      =   32767
 
     def set_valon_frequency(self, valon_frequency):
