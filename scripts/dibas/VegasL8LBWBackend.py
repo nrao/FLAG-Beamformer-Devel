@@ -124,7 +124,7 @@ class VegasL8LBWBackend(VegasLBWBackend):
         LOG_LO_BRAM_LENGTH = 10
         reg_size = (1<<LOG_LO_BRAM_LENGTH)-2 # length of each BRAM register
         for i in range(self.nsubbands):
-            reg_val = { "s" + i + "_mixer_cnt" : reg_size }
+            reg_val = { "s" + str(i) + "_mixer_cnt" : reg_size }
             self.set_register(**reg_val)
 
 
@@ -225,6 +225,7 @@ class VegasL8LBWBackend(VegasLBWBackend):
         self._subfreq_dep()
         self._gain_dep()
         self._mode_select_dep()
+        self._mixer_cnt_dep()
 
         # though parent has already called this, call again because the
         # three calls above have added things.
