@@ -797,6 +797,7 @@ class Backend(object):
         self.roach.write_int(dest_ip_register_name, dest_ip)
         self.roach.write_int(dest_port_register_name, dest_port)
         regs = [gigbit_name]
+        time.sleep(1)
         set_arp(self.roach, regs, self.hpc_macs)
 
         return 'ok'

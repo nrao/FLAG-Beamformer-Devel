@@ -28,29 +28,38 @@
 
 # L8_LBW1 / L8_LBW8 parameter calculations
 # algorithms taken from mixercic_funcs.py
-# Either scipy or numpy will statisfy the dependencies
-#from numpy import *
-#from scipy import *
-from math import *
-import numpy as np
+
+import math
 import struct
-    
-class LBWMixerCalcs:
+
+class LBWMixerCalcs(object):
     """
     L8_LBW1 / L8_LBW8 parameter calculations helper
     This class creates and returns a dictionary with register name
     value pairs. No direct FPGA access is performed.
     """
 
+    class SinCosUnion(object):
+        def __init__(self, sin = 0.0, cos = 0.0):
+            self.cos = cos
+            self.sin = sin
+
+        def __repr__(self):
+            return "sin: %s, cos: %s" % (str(self.sin), str(self.cos))
+
+        def as_int(self):
+            return (int(self.cos) << 16) + int(self.sin)
+
     def __init__(self, valon_frequency):
         self.valon_frequency = 0
         self.set_valon_frequency(valon_frequency)
         self.clear_results()
-                
+
         self.log_bramlength = 10 # log2 bram register length
         self.interleave   =   16 # interleave factor for lo table
-        self.sample_f     =   valon_frequency/32.0 # from Anish's document
-        
+        self.sample_f     =   self.valon_frequency * 2 # from Anish's document
+        self.MAX_INT      =   32767
+
     def set_valon_frequency(self, valon_frequency):
         """
         Update the mixer calculation of a change in valon frequency.
@@ -61,17 +70,16 @@ class LBWMixerCalcs:
             valon_frequency = valon_frequency * 1e6
         else:
             valon_frequency = valon_frequency
-        
+
         if  self.valon_frequency != valon_frequency:
             self.valon_frequency = valon_frequency
-            self.clear_results() # previous results now invalid       
-        self.sample_f = valon_frequency/32.0
-
+            self.clear_results() # previous results now invalid
+        self.sample_f = valon_frequency * 2
 
     def wave_generator(self, normalized_frequency, interleave=16, log_bram_len=10):
         """
         Parameters:
-            normalized_frequency: 
+            normalized_frequency:
                 represents the factor to apply when generating the sin/cos tables
 	    interleave:
                 The number of registers to interleave the data (always 16)
@@ -84,64 +92,60 @@ class LBWMixerCalcs:
         Notes:
 	    Assuming the data type is FIX_16_15 in BRAM
         """
-        
-        bram_len = 1<<log_bram_len
+        bram_len = 1 << log_bram_len
         nsamples = interleave * bram_len
-        MAX_LEVEL = 32767 # maximum signed short value
-        
-        # make a numpy array of big endian short zeros
-        wavei = np.zeros((nsamples * 2,), dtype='=i2')   # host order
-        wavef = np.zeros((nsamples * 2,), dtype='float') # host order
-        
-        if abs(normalized_frequency) == 262144:
-            # generate a constant representing zero frequency, at maximum amplitude        
-            print "NOTE ZERO FREQUENCY"
-            wavef[:] = MAX_LEVEL
-        else:
-            print "nsamples=", nsamples, " normalized_frequency ", normalized_frequency
-            # fill in even indicies with the cos results
-            wavef[::2]  = np.sin(2*np.pi*normalized_frequency*np.arange(nsamples)/float(nsamples))*(MAX_LEVEL)
-            # fill in odd indicies with the sin results
-            wavef[1::2] = np.cos(2*np.pi*normalized_frequency*np.arange(nsamples)/float(nsamples))*(MAX_LEVEL)
-            
-        # round all data to integral values and convert to big endian 16bit format 
-        #wavei[:] = np.round(wavef).astype('>i2')
-        wavei[:] = wavef.astype('>i2')
-        # Now re-interpret the 16bit byteswapped pairs as 32bit values, without changing the order
-        waveq = wavei.view('=i4')
-        # Now interleave the data 'interleave' ways as 32bit values
-        # the result should be a list of 16 (i.e. interleave) binary strings. Each string 
-        # should bewritten to one lo sub-register. 
-        # (e.g: bram_reg_block[0] -> s0_lo_0_ram, bram_reg_block[1] -> s0_lo_1_ram ...)
-        bram_regs = []
-        for k in range(interleave):
-            bram_regs.append(waveq[k::interleave].tostring())
-            
-        return bram_regs
-        
+        scu = LBWMixerCalcs.SinCosUnion()
+        non_interleaved = list()
+        # we're going to return this
+        interleaved = [scu] * nsamples
+
+        if abs(normalized_frequency) < 1e-3:
+            for i in range(0, nsamples):
+                interleaved.append(SinCosUnion(self.MAX_INT, self.MAX_INT))
+
+            return interleaved
+
+        npts = float(nsamples)
+        t = 0.0
+
+        for i in range(0, nsamples):
+            sinf = math.sin(2 * math.pi * normalized_frequency * t / npts) * self.MAX_INT
+            cosf = math.cos(2 * math.pi * normalized_frequency * t / npts) * self.MAX_INT
+            non_interleaved.append(LBWMixerCalcs.SinCosUnion(sinf, cosf))
+            t += 1.0
+
+        for r in range(bram_len):
+            for i in range(interleave):
+                scu = LBWMixerCalcs.SinCosUnion(non_interleaved[interleave * r + i].sin,
+                                                non_interleaved[interleave * r + i].cos)
+                interleaved[r + i * bram_len] = scu
+
+        return interleaved
+
+
     def get_lo_results(self):
         """
         Returns a dictionary with keys which match register names and values which
         can be written directly to the respective register.
         """
         return self.lo_regs
-        
-        
+
+
     def clear_results(self):
         self.lo_regs = {}
-        
+
 
     def fill_mixer_bram(self, subband_num, bram_block):
         """
         subband_num: The subband number in the range 0..7
         bram_block: A list of 16 binary strings created by wave_generator()
         """
-    
+
         self.lo_regs['s' + str(subband_num) + '_mixer_cnt'] = 1022
         # setup the sixteen registers for this subband
         for i in range(self.interleave):
-           self.lo_regs['s' + str(subband_num) +'_lo_'+str(i)+'_lo_ram'] = bram_block[i]    
-               
+           self.lo_regs['s' + str(subband_num) +'_lo_'+str(i)+'_lo_ram'] = bram_block[i]
+
 
     def calc_lo_frequency(self, lo_freq, sampling_f, interleave=16, log_bram_len = 10):
         """
@@ -151,28 +155,37 @@ class LBWMixerCalcs:
         of the iterative version of the calculation.
         Returns the normalized frequency and actual achieved frequency
         """
-        bram_length = 1<<log_bram_len
-        wave_len = interleave * bram_length
+        wave_len = interleave * (1 << log_bram_len)
+        frac_lo = round((lo_freq / sampling_f) * wave_len)
+        actual_lo = sampling_f * frac_lo / float(wave_len)
+        return frac_lo, actual_lo
 
-        frac_lo   = int(round((lo_freq/sampling_f)*wave_len))
-        actual_lo = sampling_f*frac_lo/float(wave_len)
-        return frac_lo, actual_lo    
+
+    def wave_to_string(self, wave):
+        """Converts the calculated interleaved values into a list of 16 packed
+        strings for the roach.
+
+        """
+        packed_vals = []
+        for i in range(0, 16):
+            start_idx = i * 1024;
+            end_idx = start_idx + 1024
+            my_vals = [i.as_int() for i in wave[start_idx:end_idx]]
+            packed_vals.append(struct.pack('>%ii' % len(my_vals), *my_vals))
+
+        return packed_vals
 
 
     def lo_setup(self, lo_f, subband_num):
         """
-        Calculate the lo frequency tables for the bram's given the sub-band number (0..7) and the 
+        Calculate the lo frequency tables for the bram's given the sub-band number (0..7) and the
         base-band requested center frequency.
         The binary data strings to send to the LO registers is returned in the self.regs dictionary.
         See get_lo_results()
         """
-    
+
         frac_lo, actual_f = self.calc_lo_frequency(lo_f, self.sample_f)
-        bram_block_list = self.wave_generator(frac_lo)
+        interleaved_results = self.wave_generator(frac_lo)
+        bram_block_list = self.wave_to_string(interleaved_results)
         self.fill_mixer_bram(subband_num, bram_block_list)
         return frac_lo, actual_f
-        
-
-    
-    
-
