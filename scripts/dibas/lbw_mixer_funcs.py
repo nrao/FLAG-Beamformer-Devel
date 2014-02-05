@@ -101,7 +101,7 @@ class LBWMixerCalcs(object):
 
         if abs(normalized_frequency) < 1e-3:
             for i in range(0, nsamples):
-                interleaved.append(SinCosUnion(self.MAX_INT, self.MAX_INT))
+                interleaved[i] = LBWMixerCalcs.SinCosUnion(self.MAX_INT, self.MAX_INT)
 
             return interleaved
 

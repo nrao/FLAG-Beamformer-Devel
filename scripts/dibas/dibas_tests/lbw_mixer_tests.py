@@ -4184,23 +4184,19 @@ from nose.tools import assert_equals,assert_almost_equals
 
 def test_lbw_mixer_case1():
     """
-    Not a very good test.
+    Verify mixer_cnt register settings.
     """
-    m = mix.LBWMixerCalcs(1500)
+    m = mix.LBWMixerCalcs(2*1500)
 
     lo_f = [0, 77, 91, 135, 296, 588, 710, 1000]
     nerrs=0
     for i in range(len(lo_f)):
         m.lo_setup(lo_f[i], i)
         
-    loregs = m.get_lo_results()        
-    for i in loregs:
-        if not isinstance(loregs[i], str):
-            print i, ' = ', loregs[i]
-            nerrs = nerrs+1
-        assert(isinstance(loregs[i], str))
-
-    #print "testcase1 %d errors" % (nerrs)        
+    loregs = m.get_lo_results()
+    for i in range(len(lo_f)):
+        assert('s'+ str(i) + '_mixer_cnt' in loregs.keys())
+        assert_equals(loregs['s'+ str(i) + '_mixer_cnt'], 1022)        
     
 def test_lbw_mixer_case2():
     """ 
@@ -4210,37 +4206,67 @@ def test_lbw_mixer_case2():
     nerrs=0
     for i in lbw_test_data_requested_expected:
         frac, act_f = m.calc_lo_frequency(i[0], 2.0E9)
-        #if abs(act_f - i[1]) > 10000:
-        #    print "requested = %f, actual = %f" % (i[0],act_f) 
-        #    nerrs = nerrs+1
         assert_almost_equals(act_f, i[1])
-    #print "testcase2 %d errors" % (nerrs)
+
 
 def test_lbw_mixer_case3():
     """
-    Rigously test the result of the LO calculations and the byteswapped,
+    Rigously test the result of the LO calculations and the byteswapping,
     merged, and interleaved result against a known dataset.
     """
-    m = mix.LBWMixerCalcs(2e9)
+    m = mix.LBWMixerCalcs(2*1500e6)
     nerrs=0
-    frac_lo, actual_f = m.calc_lo_frequency(317000000.0, 2e9)
-    bram_block_list   = m.wave_generator(frac_lo)
-    j=0
+    frac_lo, actual_f = m.calc_lo_frequency(750.0e6, 2*1500e6)
+    assert_equals(frac_lo, 4096.0)
+    bram_block_list   = m.wave_to_string(m.wave_generator(frac_lo))
+
+    # Each register ends up with a constant pattern which repeats every 4th register at
+    # this frequency. 
+    expected_patterns = [ (32767, 0), \
+                          (0, 32767), \
+                          (-32767, 0), \
+                          (-1, -32767) ]
+                     
     for subreg in range(16):
-        kk=struct.unpack('>2048H', bram_block_list[subreg])
-        for i in range(len(kk)):
-            #if kk[i] != lbw_test_data_bram[j]:
-            #    print "%x != %x at index %d subband register %d" % (kk[i], lbw_test_data_bram[j], i, subreg)
-            #    nerrs=nerrs+1
-            assert_equals(kk[i], lbw_test_data_bram[j])
-            j=j+1
-                
-    #print "testcase3 %d errors" % (nerrs)
-        
+        kk=struct.unpack('>2048h', bram_block_list[subreg])
+        for i in range(0, len(kk), 2):
+            if kk[i] != expected_patterns[subreg/4][0]:
+                print "%d != %d at index %d subband register %d" % (kk[i],   expected_patterns[subreg%4][0], i, subreg)
+            if kk[i+1] != expected_patterns[subreg/4][1]:
+                print "%d != %d at index %d subband register %d" % (kk[i+1],   expected_patterns[subreg%4][1], i+1, subreg)
+
+            assert_equals(kk[i],   expected_patterns[subreg%4][0])
+            assert_equals(kk[i+1], expected_patterns[subreg%4][1])
+
+def test_lbw_mixer_case4():
+    """
+    Rigously test the result of the LO calculations and the byteswapping,
+    merged, and interleaved result against a known dataset.
+    """
+    m = mix.LBWMixerCalcs(2*1500e6)
+    nerrs=0
+    frac_lo, actual_f = m.calc_lo_frequency(0.0, 2*1500e6)
+    assert_equals(frac_lo, 0.0)
+    bram_block_list   = m.wave_to_string(m.wave_generator(frac_lo))
+
+    #At zero frequency we just set a constant MAX_INT into both sin and cos tables for all registers
+    expected_patterns = [ (32767, 32767) ]
+                                              
+    for subreg in range(16):
+        kk=struct.unpack('>2048h', bram_block_list[subreg])
+        for i in range(0, len(kk), 2):
+            if kk[i] != expected_patterns[0][0]:
+                print "%d != %d at index %d subband register %d" % (kk[i],   expected_patterns[0][0], i, subreg)
+            if kk[i+1] != expected_patterns[0][1]:
+                print "%d != %d at index %d subband register %d" % (kk[i+1],   expected_patterns[0][1], i+1, subreg)
+
+            assert_equals(kk[i],   expected_patterns[0][0])
+            assert_equals(kk[i+1], expected_patterns[0][1])  
 
 if __name__ == "__main__":
     testcase1()
     testcase2()
     testcase3()
+    testcase4()
     
 
