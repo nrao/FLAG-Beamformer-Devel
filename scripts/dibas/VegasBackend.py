@@ -623,14 +623,14 @@ class VegasBackend(Backend):
         self.set_status(NSUBBAND = self.nsubbands)
         # convertToMHz() normalizes the frequency to MHz, just in case
         # it is provided as Hz. So this will work in either case.
-        self.set_status(SUB0FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
-        self.set_status(SUB1FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
-        self.set_status(SUB2FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
-        self.set_status(SUB3FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
-        self.set_status(SUB4FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
-        self.set_status(SUB5FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
-        self.set_status(SUB6FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
-        self.set_status(SUB7FREQ = convertToMHz(self.sampler_frequency) * 1e6 / 4)
+        self.set_status(SUB0FREQ = convertToMHz(self.frequency) * 1e6 / 2)
+        self.set_status(SUB1FREQ = convertToMHz(self.frequency) * 1e6 / 2)
+        self.set_status(SUB2FREQ = convertToMHz(self.frequency) * 1e6 / 2)
+        self.set_status(SUB3FREQ = convertToMHz(self.frequency) * 1e6 / 2)
+        self.set_status(SUB4FREQ = convertToMHz(self.frequency) * 1e6 / 2)
+        self.set_status(SUB5FREQ = convertToMHz(self.frequency) * 1e6 / 2)
+        self.set_status(SUB6FREQ = convertToMHz(self.frequency) * 1e6 / 2)
+        self.set_status(SUB7FREQ = convertToMHz(self.frequency) * 1e6 / 2)
 
         self.set_status(BASE_BW  = self.filter_bw) # From MODE
         self.set_status(BANKNAM  = self.bank.name if self.bank else 'NOBANK')
