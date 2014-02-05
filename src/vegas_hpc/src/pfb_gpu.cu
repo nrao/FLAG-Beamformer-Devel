@@ -176,7 +176,6 @@ static int g_iHeapOut = 0;
    since we don't know the exact length, just allocate twice that value */
 static unsigned int g_auiStatusBits[2*MAX_HEAPS_PER_BLK] = {0};
 static unsigned int g_auiHeapValid[2*MAX_HEAPS_PER_BLK] = {0};
-static int g_iFirstHeapIn = 0;
 static int g_iSpecPerAcc = 0;
 
 void __CUDASafeCall(cudaError_t iCUDARet,
@@ -580,6 +579,7 @@ void do_pfb(struct vegas_databuf *db_in,
     int num_in_heaps_tail = 0;
     int i = 0;
     int iBlockInDataSize;
+    double first_time_heap_mjd;
 
     /* Setup input and first output data block stuff */
     index_in = (struct databuf_index*)vegas_databuf_index(db_in, curblock_in);
@@ -607,10 +607,7 @@ void do_pfb(struct vegas_databuf *db_in,
                         sizeof(struct time_spead_heap) * heap_in);
     // first_time_heap_in_accum = (struct time_spead_heap*)(heap_addr_in);
     memcpy(&first_time_heap_in_accum, heap_addr_in, sizeof(first_time_heap_in_accum));
-    if (first)
-    {
-        g_iFirstHeapIn = heap_in;
-    }
+    first_time_heap_mjd = index_in->cpu_gpu_buf[heap_in].heap_rcvd_mjd;
     /* Here, the payload_addr_in is the start of the contiguous block of data that will be
        copied to the GPU (heap_in = 0) */
     payload_addr_in = (char*)(vegas_databuf_data(db_in, curblock_in) +
@@ -724,7 +721,9 @@ ents at the end for
                 }
                 heap_addr_in = (char*)(vegas_databuf_data(db_in, curblock_in) +
                                     sizeof(struct time_spead_heap) * heap_in);
-                memcpy(&first_time_heap_in_accum, heap_addr_in, sizeof(first_time_heap_in_accum));
+                // The check above indicates this is an invalid heap, therefore we don't treat
+                // it as the 'first heap'                    
+                // memcpy(&first_time_heap_in_accum, heap_addr_in, sizeof(first_time_heap_in_accum));
                 continue;
             }
         }
@@ -780,7 +779,7 @@ ents at the end for
                                       &first_time_heap_in_accum,// first time sample of input 
                                       g_iTotHeapOut,                      // spectrum number/counter
                                       g_iSpecPerAcc,                      // GPU accumulations in this heap
-                                      index_in->cpu_gpu_buf[g_iFirstHeapIn].heap_rcvd_mjd); // MJD from index_input
+                                      first_time_heap_mjd); // MJD from index_input
                                                                        
                 if (iRet != VEGAS_OK)
                 {
@@ -808,7 +807,7 @@ ents at the end for
                                   &first_time_heap_in_accum,
                                   g_iTotHeapOut,
                                   g_iSpecPerAcc,
-                                  index_in->cpu_gpu_buf[g_iFirstHeapIn].heap_rcvd_mjd);
+                                  first_time_heap_mjd);
                                   
             if (iRet != VEGAS_OK)
             {
@@ -837,7 +836,7 @@ ents at the end for
         {
             // first_time_heap_in_accum = (struct time_spead_heap*)(heap_addr_in);
             memcpy(&first_time_heap_in_accum, heap_addr_in, sizeof(first_time_heap_in_accum));
-            g_iFirstHeapIn = heap_in;
+            first_time_heap_mjd = index_in->cpu_gpu_buf[heap_in].heap_rcvd_mjd;
         }
 
         /* if output block is full */
