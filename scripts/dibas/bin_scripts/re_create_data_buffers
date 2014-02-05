@@ -37,6 +37,10 @@ remove_data_buffers()
 ## Setup buffers for vegas_hpc_server. If any command fails return a non-zero status
 vegas_hpc_setup()
 {
+    # remove and recreate the HPC and FITS writer control fifos:
+    rm -f  /tmp/vegas_daq_control /tmp/vegas_fits_control
+    mkfifo /tmp/vegas_daq_control /tmp/vegas_fits_control
+
     # remove the previous buffers (if they exist)
     remove_data_buffers
 
@@ -60,6 +64,10 @@ vegas_hpc_setup()
 
 guppi_hpc_setup()
 {
+    # remove and recreate the HPC control fifo:
+    rm -f  /tmp/guppi_daq_control 
+    mkfifo /tmp/guppi_daq_control
+
     # remove the previous buffers (if they exist)
     remove_data_buffers
 
