@@ -275,6 +275,7 @@ class Bank(object):
         """
         self.scan_number = num
         self.set_status(SCANNUM=num)
+        self.set_status(SCAN=num)
 
     def increment_scan_number(self):
         """
@@ -297,7 +298,7 @@ class Bank(object):
         would set those two parameters.
         """
         if self.backend is not None:
-            self.backend.set_status(**kwargs)
+            self.backend.write_status(**kwargs)
 
     def get_status(self, keys = None):
         """

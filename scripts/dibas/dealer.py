@@ -464,7 +464,7 @@ class Dealer(object):
         """
         Perform calculations for the current set of parameter settings
         """
-        return self._execute("prepare")
+        return self._pexecute("prepare", None)
 
     def set_param(self, **kvpairs):
         """A pass-thru method which conveys a backend specific parameter to the
@@ -567,7 +567,7 @@ class Dealer(object):
           d.add_switching_state(0.09, blank = False, cal = False, sig_ref_1 = False) # |  |   |
 
         """
-        return self._execute("add_switching_state", [duration, blank, cal, sig_ref_1])
+        return self._pexecute("add_switching_state", None, [duration, blank, cal, sig_ref_1])
 
     def set_gbt_ss(self, period, ss_list):
         """
