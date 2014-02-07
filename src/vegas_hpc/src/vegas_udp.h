@@ -26,6 +26,8 @@ struct vegas_udp_params {
     int sock;                       /**< Receive socket */
     struct addrinfo sender_addr;    /**< Sender hostname/IP params */
     struct pollfd pfd;              /**< Use to poll for avail data */
+    int observation_started;        /**< Flag used for synthetic blanking data prior to scan start */
+    int is_hbw;                     /**< Indicates expected high/low bandwidth packet format */
 };
 
 /** Basic structure of a packet.  This struct, functions should 

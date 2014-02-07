@@ -37,7 +37,7 @@ const unsigned char sphead[] = {
     0x80, 0x00, PAYLOAD_OFFSET_ID,           0x00, 0x00, 0x00, 0x20, 0x00, // 4
     0x80, 0x00, TIME_STAMP_ID,               0x00, 0x00, 0x00, 0x00, 0x00, // 5 (abs time?)
     0x80, 0x00, SPECTRUM_COUNTER_ID,         0x00, 0x00, 0x00, 0x00, 0x0D, // 6
-    0x80, 0x00, SPECTRUM_PER_INTEGRATION_ID, 0x00, 0x00, 0x00, 0x00, 0x00, // 7
+    0x80, 0x00, SWITCHING_STATE_ID,          0x00, 0x00, 0x00, 0x00, 0x00, // 7
     0x00, 0x00, MODE_NUMBER_ID,              0x00, 0x00, 0x00, 0x00, 0x00  // 8 
 };
 
@@ -63,6 +63,8 @@ static inline unsigned int BYTE_ARR_TO_UINT(const char *p1, int idx)
 /// Extract the number of items in the SPEAD header.
 static uint32_t ok_packets =0;
 static uint32_t error_packets=0;
+
+static void set_obs_status_bit(struct vegas_udp_packet *p);
 
 int32_t num_spead_items(const VegasSpeadPacketHeader *sptr)
 {
@@ -260,7 +262,7 @@ int vegas_udp_wait(struct vegas_udp_params *p) {
 int vegas_udp_recv(struct vegas_udp_params *p, struct vegas_udp_packet *b, char bw_mode[]) 
 {
     int rv = 0;
-    int hbw = (strncmp(bw_mode, "high", 4) == 0);
+    int hbw = p->is_hbw;
     if (hbw) /* high bandwidth mode */
     {
         rv = recv(p->sock, b->data, VEGAS_MAX_PACKET_SIZE, 0);
@@ -305,6 +307,12 @@ int vegas_udp_recv(struct vegas_udp_params *p, struct vegas_udp_packet *b, char 
                 // In HBW mode the spead header is already there, so just byte swap the item table
                 is_ok = byte_swap_spead_header(b);
             }
+            // If the observation has not yet started, set the SCAN_NOT_STARTED and blanking bits
+            // This allows the data pipeline to flow without recording/accumulating data.
+            if (p->observation_started == 0)
+            {
+                set_obs_status_bit(b);
+            }
             if (is_ok < 0)
                 return(VEGAS_ERR_PACKET);
             else 
@@ -339,6 +347,27 @@ unsigned long long change_endian64(const unsigned long long *d)
 #else
     return be64toh(*d);
 #endif 
+}
+
+/// Set the blanking and scan not started bits in the status field.
+void set_obs_status_bit(struct vegas_udp_packet *p)
+{
+    VegasSpeadPacketHeader *sptr = (VegasSpeadPacketHeader *)p->data;
+    // Get number of items from the header
+    int32_t num_items = (int)num_spead_items(sptr);
+    int32_t i;
+    // Get packet payload length, by searching through the fields
+    // Note that HBW packets do not all include a full header. We
+    // skip it if the SWITCHING_STATE_ID item is not present.
+    for(i = 0; i<num_items; ++i)
+    {
+        //If we found the packet payload length item
+        if (sptr->items[i].item_identifier == SWITCHING_STATE_ID)
+        {
+            sptr->items[i].item_address |= (SCAN_NOT_STARTED | BLANKING_BIT);
+            break;
+        }
+    }
 }
 
 /// @defgroup GUPPI ''GUPPI style (non-spead format) processing routines.''

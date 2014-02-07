@@ -273,6 +273,7 @@ void *vegas_net_thread(void *_args) {
     /* Read network params */
     struct vegas_udp_params up;
     vegas_read_net_params(status_buf, &up);
+    up.observation_started = 0;
 
     /* Attach to databuf shared mem */
     struct vegas_databuf *db;
@@ -316,12 +317,14 @@ void *vegas_net_thread(void *_args) {
             heap_size = sizeof(struct freq_spead_heap) + nchan*4*sizeof(int);
             spead_hdr_size = sizeof(struct freq_spead_heap);
             packets_per_heap = nchan*4*sizeof(int) / PAYLOAD_SIZE;
+            up.is_hbw = 1;
         }
         else if(strncasecmp(bw_mode, "low", 3) == 0)
         {
             heap_size = sizeof(struct time_spead_heap) + PAYLOAD_SIZE;
             spead_hdr_size = sizeof(struct time_spead_heap);
             packets_per_heap = 1;
+            up.is_hbw = 0;
         }
         else
         {
@@ -462,6 +465,7 @@ void *vegas_net_thread(void *_args) {
             {
                 force_new_block=1;
                 obs_started = 1;
+                up.observation_started = 1;
 
                 #ifdef DEBUG_NET
                 printf("Debug: observation started\n");
@@ -502,8 +506,11 @@ void *vegas_net_thread(void *_args) {
             npacket_total = 0;
             ndropped_total = 0;
             npacket_this_block = 0;
-
-            continue;
+            // insert synthetic blanking and the SCAN_NOT_STARTED bits in status field
+            // [performed in the vegas_udp_recv() call above] and keep going.
+            // This allows data to begin flowing through the data buffers without
+            // being accumulated/recorded.
+            // continue;
         }
 
         /* Determine if we go to next block */

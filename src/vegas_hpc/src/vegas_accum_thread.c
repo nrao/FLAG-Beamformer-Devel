@@ -37,9 +37,6 @@
 #define INT_PAYLOAD     1
 #define FLOAT_PAYLOAD   2
 
-#define BLANKING_MASK   (0x8)
-#define CAL_SR_MASK     (0x7)
-
 int g_debug_accumulator_thread = 0; // flag optionally set by main() 
 
 /*
@@ -421,6 +418,17 @@ void vegas_accum_thread(void *_args) {
             int32_t *i_payload = (int32_t*)(payload_addr);
             float *f_payload = (float*)(payload_addr);
 
+            if (freq_heap->status_bits & SCAN_NOT_STARTED)
+            {
+                if (g_debug_accumulator_thread)
+                {
+                    printf("FB: %lu, %x\n",
+                           (((uint64_t)freq_heap->time_cntr_top8) << 32) + (uint64_t)freq_heap->time_cntr,
+                           freq_heap->status_bits);
+                }
+                continue;
+            }
+
             /* This optionally inverts the sense of switching signal inputs.
              * 0x8 - inverts blanking
              * 0x4 - not used?
@@ -428,6 +436,7 @@ void vegas_accum_thread(void *_args) {
              * 0x1 - inverts cal
              * The bits above 0x8 are cleared.
              */
+
             freq_heap->status_bits = (freq_heap->status_bits ^ accumid_xor_mask) & (CAL_SR_MASK|BLANKING_MASK);
             /* for accumid we only care for the lower bits */
             accumid = freq_heap->status_bits & CAL_SR_MASK;
