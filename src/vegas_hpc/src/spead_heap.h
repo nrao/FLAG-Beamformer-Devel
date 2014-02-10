@@ -1,7 +1,15 @@
 #ifndef _SPEAD_HEAP_H_
 #define _SPEAD_HEAP_H_
 
-#define SPEAD_NUM_ITEMS     6
+/// Bit definitions for the switching signal status field in host order
+#define SIG_REF_BIT      (0x1)
+#define CAL_BIT          (0x2)
+#define ADV_SIG_REF_BIT  (0x4)
+#define BLANKING_BIT     (0x8)
+#define BLANKING_MASK    (0x8)
+#define CAL_SR_MASK      (SIG_REF_BIT|CAL_BIT|ADV_SIG_REF_BIT)
+#define SCAN_NOT_STARTED (0x10)
+
 
 #pragma pack(push)
 #pragma pack(1)
