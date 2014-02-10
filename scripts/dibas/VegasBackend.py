@@ -698,8 +698,9 @@ class VegasBackend(Backend):
         exception is thrown.
         """
 
-        self.stop() # stop any possible monitor mode first. Monitor mode
-                    # harmless, but keeps things straight here.
+        if self.scan_running:
+            return (False, "Scan already started.")
+
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
 
