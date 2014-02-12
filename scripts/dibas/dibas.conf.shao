@@ -245,8 +245,8 @@ hpc_program=vegas_hpc_server
 hpc_program_flags=--resize-obuf
 hpc_fifo_name=/tmp/vegas_daq_control
 
-#bof_file = h1k_ver102_2013_Jun_01_1729.bof
-bof_file = h1k_ver103_2013_Aug_24_1500.bof
+#bof_file = h1k_ver103_2013_Aug_24_1500.bof
+bof_file = h1k_ver105_2013_Dec_02_1551.bof
 
 nchan = 1024
 filter_bw = 1450
@@ -303,7 +303,8 @@ hpc_program_flags=--resize-obuf
 hpc_fifo_name=/tmp/vegas_daq_control
 
 
-bof_file = h16k_ver103_2013_Aug_24_1630.bof
+#bof_file = h16k_ver103_2013_Aug_24_1630.bof
+bof_file = h16k_ver109_2013_Nov_27_1633.bof
 
 nchan = 16384
 filter_bw = 1450
@@ -360,7 +361,8 @@ hpc_program_flags=--resize-obuf
 hpc_fifo_name=/tmp/vegas_daq_control
 
 
-bof_file = h16k_ver103_2013_Aug_24_1630.bof
+#bof_file = h16k_ver103_2013_Aug_24_1630.bof
+bof_file = h16k_ver109_2013_Nov_27_1633.bof
 
 nchan = 16384
 filter_bw = 450
@@ -2259,12 +2261,12 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
-MODENAME=guppi-codd
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2354,12 +2356,12 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
-MODENAME=guppi-codd
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
@@ -2448,12 +2450,12 @@ hpc_program=guppi_daq_server
 hpc_fifo_name=/tmp/guppi_daq_control
 
 BACKEND=GUPPI
-MODENAME=guppi-codd
 CAL_DCYC=0.5
 CAL_FREQ=25.0
 CAL_MODE=OFF
 DS_FREQ=1
 TELESCOP=GBT
+MODENAME=guppi-codd
 
 # ROACH and HPC host to be used. The values refer to the sections
 # above. Hence, 'cdd_roach=BANKA' means that the roach used would be the
