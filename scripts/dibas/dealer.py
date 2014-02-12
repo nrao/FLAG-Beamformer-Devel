@@ -37,6 +37,14 @@ import pytz
 from datetime import datetime, timedelta
 from ZMQJSONProxy import ZMQJSONProxyClient
 
+class SWbits:
+    """
+    A class to hold and encode the bits of a single phase of a switching signal generator phase
+    """
+    SIG=0
+    REF=1
+    CALON=1
+    CALOFF=0
 
 def datetime_to_tuple(dt):
     return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond)

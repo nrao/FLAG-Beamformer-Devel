@@ -136,3 +136,9 @@ Restarting Players
 ------------------
 
 Players may be restared for any reason (updates, etc.) without the need to restart the process that contains the Dealer. The only consideration is that the restarted Player will need to be reconfigured by the Dealer.
+
+
+Further reading
+---------------
+
+`VEGAS FPGA mode documentation <https://docs.google.com/document/d/1C_it02j8yqu_VZcYnN6aVC-jrgP4ClAxbj8KP4cH4EQ/edit?pli=1>`_

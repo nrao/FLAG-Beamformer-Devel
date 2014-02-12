@@ -20,7 +20,8 @@ case $LOCATION in
 esac
 
 export VEGAS_DIR=$VEGAS/vegas_hpc
-export PYSLALIB=$DIBAS/dibaslibs/python2.6/site-packages/pyslalib
+#export PYSLALIB=$DIBAS/dibaslibs/python2.6/site-packages/pyslalib
+export PYSLALIB=$DIBAS/pulsar/src/presto/lib
 export PRESTO=$DIBAS/pulsar/src/presto
 export VEGAS_INCL=$DIBAS/dibaslibs/include
 #export VEGAS_BIN=/opt/local/bin
