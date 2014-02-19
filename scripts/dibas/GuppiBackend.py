@@ -40,7 +40,9 @@ class GuppiBackend(Backend):
         Backend.__init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test)
         # This needs to happen on construct so that status monitors can
         # switch their data buffer format
-        self.set_status(BACKEND="GUPPI")
+        self.progdev()
+        self.net_config()
+        self.write_status(BACKEND="GUPPI")
         # The default switching in the Backend ctor is a static SIG, NOCAL, and no blanking
 
         # defaults
@@ -228,6 +230,9 @@ class GuppiBackend(Backend):
         """
         # TBF self.frequency is set upon programming roach. The entire
         # 'bandwidth' & 'frequency' dependencies need to be reworked.
+
+        super(GuppiBackend, self).prepare()
+
         self.bandwidth = self.frequency
 
         self._hw_nchan_dep()
@@ -250,15 +255,16 @@ class GuppiBackend(Backend):
         # program I2C: input filters, noise source, noise or tone
         self.set_if_bits()
 
-        # The prepare after construction, starts the HPC and
-        # arm's the roach. This gets packets flowing. If the roach is
-        # not primed, the start() will fail because of the state of the
-        # net thread being 'waiting' instead of 'receiving'
+        # Talk to outside things: status memory, HPC programs, roach
 
-        # if self.hpc_process is None:
-        #     self.start_hpc()
-        #     time.sleep(5)
-        #     self.arm_roach()
+        if self.bank is not None:
+            self.write_status(**self.status_mem_local)
+        else:
+            for i in self.status_mem_local.keys():
+                print "%s = %s" % (i, self.status_mem_local[i])
+
+        if self.roach:
+            self.write_registers(**self.roach_registers_local)
 
     def earliest_start(self):
         """

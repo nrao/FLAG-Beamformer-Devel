@@ -70,6 +70,8 @@ class GuppiCODDBackend(Backend):
 
         if theMode.cdd_master_hpc == theBank.name:
             Backend.__init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test)
+            self.progdev()
+            self.net_config()
         else:
             Backend.__init__(self, theBank, theMode, None, None, None, unit_test)
 
@@ -252,6 +254,7 @@ class GuppiCODDBackend(Backend):
         """
         A place to hang the dependency methods.
         """
+        super(GuppiCODDBackend, self).prepare()
 
         self._node_nchan_dep()
         self._acc_len_dep()
@@ -269,14 +272,21 @@ class GuppiCODDBackend(Backend):
         self._node_rf_frequency_dep()
         self._dm_dep()
         self._fft_params_dep()
-
         self._set_status_keys()
-        self.set_if_bits()
+        self.set_registers()
+
+        # Talk to outside things: status memory, HPC programs, roach
+
+        if self.bank is not None:
+            self.write_status(**self.status_mem_local)
+        else:
+            for i in self.status_mem_local.keys():
+                print "%s = %s" % (i, self.status_mem_local[i])
 
         if self.cdd_master():
-            self.set_registers()
             # program I2C: input filters, noise source, noise or tone
             self.set_if_bits()
+            self.write_registers(**self.roach_registers_local)
 
     def earliest_start(self):
         now = datetime.utcnow()

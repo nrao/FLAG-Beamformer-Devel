@@ -130,7 +130,12 @@ class Backend(object):
         else:
             self.roach = theRoach
             self.valon = theValon
-            self.i2c = I2C(theRoach)
+
+            if self.roach:
+                self.i2c = I2C(theRoach)
+            else:
+                self.i2c = None
+
             self.status = vegas_status()
 
         self.status_mem_local = {}
