@@ -678,7 +678,7 @@ class Backend(object):
         Filter bandwidth. Must be a value in [450, 1450, 1900]
         """
 
-        if fbw not in self.filter_bw_bits:
+        if self.filter_bw_bits and fbw not in self.filter_bw_bits:
             return (False, "Filter bandwidth must be one of %s" % \
                     str(self.filter_bw_bits.keys()))
 
