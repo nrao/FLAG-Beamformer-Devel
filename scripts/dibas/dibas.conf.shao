@@ -176,6 +176,7 @@ synth_ref_freq = N/A
 synth_vco_range = N/A
 synth_rf_level = N/A
 synth_options = N/A
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKE]
 # HPC / Player host & port
@@ -186,6 +187,7 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = hpc5-10
 data_destination_port = 60000
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKF]
 # HPC / Player host & port
@@ -196,6 +198,7 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = hpc6-10
 data_destination_port = 60000
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKG]
 # HPC / Player host & port
@@ -206,6 +209,7 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = hpc7-10
 data_destination_port = 60000
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKH]
 # HPC / Player host & port
@@ -216,7 +220,7 @@ has_roach = false
 data_source_port = 60000
 data_destination_host = hpc8-10
 data_destination_port = 60000
-
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 ###################################  MODE 1  #############################################
 [MODE1]
@@ -226,7 +230,7 @@ OBS_MODE = HBW
 BW_MODE=high
 BACKEND=VEGAS
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=3
+_SWSGPLY=0
 MODENAME = h1k
 hwexposr = 0.000524288
 
@@ -287,7 +291,7 @@ BACKEND=VEGAS
 MODENAME = h16k
 hwexposr = 0.008388608
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 roach_reg_keys=sg_period,acc_len,fftshift
 fftshift=0x5555
@@ -345,7 +349,7 @@ BACKEND=VEGAS
 MODENAME = h16k
 hwexposr = 0.012582912
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 roach_reg_keys=sg_period,acc_len,fftshift
 fftshift=0x5555
@@ -400,7 +404,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l1/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l1_ver116_2013_Dec_19_1106.bof
 
@@ -449,7 +453,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l1/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l1_ver116_2013_Dec_19_1106.bof
 
@@ -506,7 +510,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l1/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l1_ver116_2013_Dec_19_1106.bof
 
@@ -555,7 +559,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l1/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l1_ver116_2013_Dec_19_1106.bof
 
@@ -604,7 +608,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l1/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l1_ver116_2013_Dec_19_1106.bof
 
@@ -653,7 +657,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l1/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l1_ver116_2013_Dec_19_1106.bof
 
@@ -702,7 +706,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -750,7 +754,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -798,7 +802,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -846,7 +850,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -894,7 +898,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -942,7 +946,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -990,7 +994,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1038,7 +1042,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1086,7 +1090,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1134,7 +1138,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw1
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1182,7 +1186,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1239,7 +1243,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1296,7 +1300,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1353,7 +1357,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1410,7 +1414,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1467,7 +1471,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1524,7 +1528,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1581,7 +1585,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1638,7 +1642,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
@@ -1695,7 +1699,7 @@ shmkeys = BACKEND,MODENAME,_SWSGPLY
 BACKEND=VEGAS
 MODENAME = l8/lbw8
 # Switching signal polarity. 3-bits: 0= 1= 2=. 1 for normal logic, 0 to invert.
-_SWSGPLY=12
+_SWSGPLY=0
 
 bof_file = l8_ver139_2013_Dec_10_1334.bof
 
