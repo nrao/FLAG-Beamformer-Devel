@@ -1,3 +1,31 @@
+######################################################################
+#
+#  GuppiBackend.py -- INCO modes for GUPPI
+#
+#  Copyright (C) 2013 Associated Universities, Inc. Washington DC, USA.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+#  General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#  Correspondence concerning GBT software should be addressed as follows:
+#  GBT Operations
+#  National Radio Astronomy Observatory
+#  P. O. Box 2
+#  Green Bank, WV 24944-0002 USA
+#
+######################################################################
+
 import struct
 import ctypes
 import binascii
@@ -41,7 +69,12 @@ class GuppiBackend(Backend):
         # This needs to happen on construct so that status monitors can
         # switch their data buffer format
         self.progdev()
-        self.net_config()
+        self.net_config(
+
+        if self.mode.roach_kvpairs:
+            self.write_registers(**self.mode.roach_kvpairs)
+
+        self.reset_roach()
         self.write_status(BACKEND="GUPPI")
         # The default switching in the Backend ctor is a static SIG, NOCAL, and no blanking
 
@@ -598,6 +631,7 @@ class GuppiBackend(Backend):
         statusdata['TBIN'    ] = self.tbin
         statusdata['TFOLD'   ] = self.tfold
 
+        self.set_status(**self.mode.shmkvpairs)
         self.set_status(**statusdata)
 
     def _set_registers(self):

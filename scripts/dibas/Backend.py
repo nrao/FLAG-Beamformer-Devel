@@ -915,6 +915,13 @@ class Backend(object):
         self.roach_registers_local = {}
         self.status_mem_local = {}
 
+        if self.mode.roach_kvpairs:
+            self.set_registers(**self.mode.roach_kvpairs)
+
+        if self.mode.shmkvpairs:
+            self.set_status(**self.mode.shmkvpairs)
+
+
     def reset_roach(self):
         """reset_roach(self):
 

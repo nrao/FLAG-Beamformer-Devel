@@ -587,9 +587,8 @@ class VegasBackend(Backend):
         self.set_status(SWVER    = DEFAULT_VALUE)
         self.set_status(TELESCOP = DEFAULT_VALUE)
 
-        # add in the config file default keywords; being defaults they
-        # may be overridden below.
-        self.set_status(**self.mode.shmkvpairs)
+        if self.mode.shmkvpairs:
+            self.set_status(**self.shmkvpairs)
 
         # set the switching signal stuff:
         self.set_status(**self._setSSKeys())
