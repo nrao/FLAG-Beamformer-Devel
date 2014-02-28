@@ -17,14 +17,14 @@ who_is_master = BANKA
 player_port = 6667
 
 [HPCMACS]
-vegas-hpc1 = 0x000F530CA600
-vegas-hpc2 = 0x000F530CC108
-vegas-hpc3 = 0x000F530CCA78
-vegas-hpc4 = 0x000F530CB664
-vegas-hpc5 = 0x000F530CCFB8
-vegas-hpc6 = 0x000F530CBF1C
-vegas-hpc7 = 0x000F530CCADC
-vegas-hpc8 = 0x000F530CC720
+vegas-hpc1-10 = 0x000F530CA600
+vegas-hpc2-10 = 0x000F530CC108
+vegas-hpc3-10 = 0x000F530CCA78
+vegas-hpc4-10 = 0x000F530CB664
+vegas-hpc5-10 = 0x000F530CCFB8
+vegas-hpc6-10 = 0x000F530CBF1C
+vegas-hpc7-10 = 0x000F530CCADC
+vegas-hpc8-10 = 0x000F530CC720
 
 [DEALER]
 players = BANKA, BANKB, BANKC, BANKD, BANKE, BANKF, BANKG, BANKH
@@ -175,6 +175,7 @@ synth_ref_freq = N/A
 synth_vco_range = N/A
 synth_rf_level = N/A
 synth_options = N/A
+filter_bandwidth_bits = 450, 0x00, 1450, 0x08, 1900, 0x18
 
 [BANKE]
 # HPC / Player host & port
