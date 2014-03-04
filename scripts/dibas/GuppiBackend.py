@@ -69,7 +69,7 @@ class GuppiBackend(Backend):
         # This needs to happen on construct so that status monitors can
         # switch their data buffer format
         self.progdev()
-        self.net_config(
+        self.net_config()
 
         if self.mode.roach_kvpairs:
             self.write_registers(**self.mode.roach_kvpairs)

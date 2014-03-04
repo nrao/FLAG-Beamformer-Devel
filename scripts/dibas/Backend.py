@@ -916,7 +916,7 @@ class Backend(object):
         self.status_mem_local = {}
 
         if self.mode.roach_kvpairs:
-            self.set_registers(**self.mode.roach_kvpairs)
+            self.set_register(**self.mode.roach_kvpairs)
 
         if self.mode.shmkvpairs:
             self.set_status(**self.mode.shmkvpairs)

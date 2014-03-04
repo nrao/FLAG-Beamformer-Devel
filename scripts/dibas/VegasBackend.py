@@ -588,7 +588,7 @@ class VegasBackend(Backend):
         self.set_status(TELESCOP = DEFAULT_VALUE)
 
         if self.mode.shmkvpairs:
-            self.set_status(**self.shmkvpairs)
+            self.set_status(**self.mode.shmkvpairs)
 
         # set the switching signal stuff:
         self.set_status(**self._setSSKeys())
