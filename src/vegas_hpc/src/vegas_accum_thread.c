@@ -315,7 +315,7 @@ void vegas_accum_thread(void *_args) {
     pthread_cleanup_push((void *)destroy_accumulators, accumulator);    
     spectra_per_exposure = sf.data_columns.exposure/sf.hdr.hwexposr;
     
-    if ((is_hbw && spectra_per_exposure < 2) || (!is_hbw && clocks_per_exposure < 1000))
+    if ((is_hbw && spectra_per_exposure < 1) || (!is_hbw && clocks_per_exposure < 1000))
     {
         vegas_error("vegas_accum thread", "exposure/hwposure/clocks_per_exposure is too small exiting...");
         pthread_exit(0);
