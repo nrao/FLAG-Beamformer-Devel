@@ -7,7 +7,10 @@ struct _SwitchingStateMachine
     int64_t cur_count;
     int64_t end_exposure_count;
     int64_t counts_per_exposure;
-    int32_t current_state;
+    int64_t last_sw_transition_count;
+    int64_t last_exposure_count;
+    int32_t prior_phase_idx;
+    int32_t prior_accum_id;
     int32_t nphases;
     int32_t sig_ref_table[MAX_PHASES];
     int32_t cal_table[MAX_PHASES];
@@ -16,7 +19,6 @@ struct _SwitchingStateMachine
     int32_t cur_accumid;
     int32_t cur_phase_idx;
     int32_t cur_sw_cycle_number;
-    int32_t approximate_counts_per_exposure;
     int32_t approximate_counts_per_cycle;
 };
 

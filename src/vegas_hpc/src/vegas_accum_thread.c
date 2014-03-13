@@ -25,6 +25,7 @@
 #include "vegas_status.h"
 #include "vegas_databuf.h"
 #include "spead_heap.h"
+#include "SwitchingStateMachine.h"
 
 #define STATUS_KEY "ACCSTAT"
 #include "vegas_threads.h"
@@ -161,6 +162,41 @@ void reset_accumulators(float **accumulator, struct sdfits_data_columns* data_co
     } 
 }
 
+// returns number of phases or zero if required keywords are not present.
+int32_t read_phase_table_info(char *statbuf, int32_t *sigref, int32_t *calnoc, 
+                              int32_t *ncycles)
+{
+    int32_t i;
+    int32_t nphases = 0;
+    if (hgeti4(statbuf, "_SNPH", &nphases) == 0)
+    {
+        vegas_warn("vegas_accum_thread", "_SNPH not found");
+        return 0;
+    }
+    for (i=0; i<nphases; ++i)
+    {
+        char name[32];
+        snprintf(name, sizeof(name), "_SSRF_%02d", i+1);
+        if (hgeti4(statbuf, name, &sigref[i])==0)
+        {
+            vegas_warn("vegas_accum_thread", "Sig ref state (_SSRF_xx) not found");
+            return 0;
+        }
+        snprintf(name, sizeof(name), "_SCAL_%02d", i+1);
+        if (hgeti4(statbuf, name, &calnoc[i])==0)
+        {
+            vegas_warn("vegas_accum_thread", "Cal nocal state (_SCAL_xx) not found");
+            return 0;
+        }        
+    }
+    if (hgeti4(statbuf, "SWPERINT", ncycles)==0)
+    {
+        vegas_warn("vegas_accum_thread", "SWPERINT not found using 1");
+        *ncycles = 1;
+    }
+    return(nphases);
+}
+
 
 /* The main CPU accumulator thread */
 void vegas_accum_thread(void *_args) {
@@ -177,10 +213,15 @@ void vegas_accum_thread(void *_args) {
     uint64_t spectra_per_exposure;
     uint64_t end_exposure_clock_number = 0;
     uint64_t clocks_per_exposure;
+    SwitchingStateMachine *ssm = 0;
     struct Clock clock;
     int is_hbw = 1;
     int exposure_complete = 0;
-
+    int32_t ncycles;
+    int32_t sigref[MAX_PHASES];
+    int32_t calnoc[MAX_PHASES];
+    int32_t nphases;
+    int64_t counts_per_exposure = 0;
 
     /* Get arguments */
     struct vegas_thread_args *args = (struct vegas_thread_args *)_args;
@@ -292,8 +333,7 @@ void vegas_accum_thread(void *_args) {
             end_exposure_clock_number = clocks_per_exposure;
         }
         else
-            vegas_error("vegas_accum_thread", "LBW specified and EXPOCLKS not set");
-            
+            vegas_error("vegas_accum_thread", "LBW specified and EXPOCLKS not set");            
     }
     vegas_status_unlock_safe(&st);
 
@@ -321,7 +361,33 @@ void vegas_accum_thread(void *_args) {
         pthread_exit(0);
     }
     end_exposure_spectrum_number = spectra_per_exposure;
-
+    
+    if (is_hbw)
+        counts_per_exposure = spectra_per_exposure;
+    else
+        counts_per_exposure = clocks_per_exposure;
+    // get the phase table configuration    
+    vegas_status_lock_safe(&st);
+    nphases = read_phase_table_info(st.buf, sigref, calnoc, &ncycles);
+    vegas_status_unlock_safe(&st);
+    
+    if (nphases == 0)
+    {
+        vegas_warn("vegas_accum_thread", 
+        "phase table info not complete -- falling back to time based algorithm");
+        // set nphases to 1 to trigger exposure by count method
+        nphases=1;
+    }    
+    // create the switching state machine
+    ssm = create_switching_state_machine(nphases, sigref, calnoc, ncycles, 
+                                         counts_per_exposure);
+    if (ssm == 0)
+    {
+        vegas_error("vegas_accum_thread", "error creating switching state machine");
+        pthread_exit(0);
+    }
+    pthread_cleanup_push((void *)destroy_switching_state_machine, ssm);
+    
     /* Clear the vector accumulators */
     for(i = 0; i < NUM_SW_STATES; i++) accum_dirty[i] = 1;
     reset_accumulators(accumulator, data_cols, accum_dirty, sf.hdr.nsubband, sf.hdr.nchan);
@@ -470,7 +536,6 @@ void vegas_accum_thread(void *_args) {
                Thus the LBW case uses FPGA clocks per exposure provided by the manager to
                estimate when exposures should end.
             */
-
             if (is_hbw)
             {
                 if (freq_heap->spectrum_cntr >= end_exposure_spectrum_number)
@@ -481,6 +546,7 @@ void vegas_accum_thread(void *_args) {
                         end_exposure_spectrum_number += spectra_per_exposure;
                     } while (freq_heap->spectrum_cntr > end_exposure_spectrum_number);
                 }
+                exposure_complete = new_state_input(ssm, accumid, freq_heap->spectrum_cntr);
             }
             else  // lbw
             {
@@ -492,8 +558,8 @@ void vegas_accum_thread(void *_args) {
                         end_exposure_clock_number += clocks_per_exposure;
                     } while (full_time_counter > end_exposure_clock_number);
                 }
+                exposure_complete = new_state_input(ssm, accumid, full_time_counter);
             }
-
             if (exposure_complete)
             {
 #if 0            
@@ -635,6 +701,7 @@ void vegas_accum_thread(void *_args) {
     pthread_cleanup_pop(0); /* Closes set_finished */
     pthread_cleanup_pop(0); /* Closes vegas_free_sdfits */
     pthread_cleanup_pop(0); /* Closes ? */
+    pthread_cleanup_pop(0); /* frees switching_state_machine */
     pthread_cleanup_pop(0); /* Closes destroy_accumulators */
     pthread_cleanup_pop(0); /* Closes vegas_status_detach */
     pthread_cleanup_pop(0); /* Closes vegas_databuf_detach */

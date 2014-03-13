@@ -35,15 +35,26 @@ create_switching_state_machine(int32_t nphases, int32_t *sref, int32_t *cal,
         return 0;
     }
     p = (SwitchingStateMachine *)malloc(sizeof(SwitchingStateMachine));
-    memcpy(p->sig_ref_table, sref, sizeof(int)*nphases);
-    memcpy(p->cal_table, cal, sizeof(int)*nphases);
+    if (sref)
+        memcpy(p->sig_ref_table, sref, sizeof(int)*nphases);
+    else
+        memset(p->sig_ref_table, 0, sizeof(int)*nphases);
+    if (cal)
+        memcpy(p->cal_table, cal, sizeof(int)*nphases);
+    else
+        memset(p->cal_table, 0, sizeof(int)*nphases);
     
     p->cur_sw_cycle_number=1;
     p->switch_periods_per_exposure = num_swperiods_per_exp;
     p->nphases = nphases;
     p->cur_phase_idx=0;
+    p->prior_phase_idx=0;
     p->counts_per_exposure = counts_per_exp;
     p->end_exposure_count = counts_per_exp;
+    p->last_sw_transition_count = -1;
+    p->last_exposure_count = -1;
+    p->approximate_counts_per_cycle = 
+                       p->counts_per_exposure/p->switch_periods_per_exposure;
     
     for (i=0; i<nphases; ++i)
     {
@@ -77,16 +88,9 @@ int32_t exposure_by_counts(SwitchingStateMachine *p, int64_t count)
     return exposure_complete;
 }
 
-
-int32_t new_input_state(SwitchingStateMachine *p, int accumid, int64_t count)
+int32_t exposure_by_phases_v1(SwitchingStateMachine *p, int32_t accumid, int64_t count)
 {
-    p->cur_count = count;
-    // If there is no switching, fall back to a count/clock-based method
-    if (p->nphases < 2)
-    {
-        return exposure_by_counts(p, count);
-    }
-    if (p->cur_accumid == accumid)
+    if (p->cur_accumid == (accumid & SIG_REF_CAL_MASK))
     {
         return 0;
     }
@@ -110,3 +114,76 @@ int32_t new_input_state(SwitchingStateMachine *p, int accumid, int64_t count)
     }
     return 0;
 }
+
+int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int64_t count)
+{
+    int32_t i;
+    int32_t in_phase_idx;
+    // mask out blanking bits
+    int32_t accumid = in_accumid & SIG_REF_CAL_MASK;
+    // being used???
+    p->cur_accumid = accumid;
+    p->cur_count = count; // record the clock/count
+    
+    // search the accumid table to determine which phase we are in
+    for (i=0; i<p->nphases; ++i)
+    {
+        if (p->accumid_table[i] == accumid)
+        {
+            in_phase_idx = i;
+            break;            
+        }
+    }
+    if (i == p->nphases)
+    {
+        printf("Unknown accumid state: %d \n", i);
+        return 0; // PUNT ???
+    }
+    // check to see if we are already in that phase (naive)
+    if (p->cur_phase_idx == in_phase_idx)
+    {
+        return 0;
+    }
+    printf("new phase %d count=%ld\n", in_phase_idx, count);
+    if ((p->cur_phase_idx+1)%p->nphases != in_phase_idx)
+    {
+        printf("Looks like we missed a phase: in=%d cur=%d\n", 
+                in_phase_idx, (p->cur_phase_idx+1)%p->nphases);
+    }
+    // update current phase index
+    p->cur_phase_idx = in_phase_idx;
+
+    // Is this the last phase of the sw cycle?
+    if (p->cur_phase_idx == 0)
+    {
+        // increment the sw cycle count
+        p->cur_sw_cycle_number++;
+        p->last_sw_transition_count = count;
+        // p->cur_phase_idx = 0;
+        // Have we seen enough sw cycles?
+        // printf("cursw=%d, need=%d\n", p->cur_sw_cycle_number , p->switch_periods_per_exposure);
+        if (p->cur_sw_cycle_number > p->switch_periods_per_exposure)
+        {
+            p->cur_sw_cycle_number=1;
+            p->last_exposure_count = count;
+            // exposure is complete
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int32_t new_input_state(SwitchingStateMachine *p, int accumid, int64_t count)
+{
+    p->cur_count = count;
+    // If there is no switching, fall back to a count/clock-based method
+    if (p->nphases < 2)
+    {
+        return exposure_by_counts(p, count);
+    }
+    else
+    {
+        return exposure_by_phases_v2(p, accumid, count);
+    }
+}
+    
