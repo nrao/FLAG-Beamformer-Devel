@@ -33,7 +33,7 @@ PROGS = check_vegas_databuf check_vegas_status clean_vegas_shmem
 OBJS  = vegas_status.o vegas_databuf.o vegas_udp.o vegas_error.o \
 	vegas_params.o vegas_time.o vegas_thread_args.o \
 	write_sdfits.o misc_utils.o \
-	hget.o hput.o sla.o privilege_management.o
+	hget.o hput.o sla.o privilege_management.o SwitchingStateMachine.o
 THREAD_PROGS = test_net_thread vegas_hpc_hbw
 THREAD_OBJS  = vegas_net_thread.o vegas_rawdisk_thread.o \
 	        vegas_sdfits_thread.o vegas_accum_thread.o \

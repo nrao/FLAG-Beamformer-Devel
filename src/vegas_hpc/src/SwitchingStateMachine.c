@@ -118,7 +118,7 @@ int32_t exposure_by_phases_v1(SwitchingStateMachine *p, int32_t accumid, int64_t
 int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int64_t count)
 {
     int32_t i;
-    int32_t in_phase_idx;
+    int32_t in_phase_idx=-1;
     // mask out blanking bits
     int32_t accumid = in_accumid & SIG_REF_CAL_MASK;
     // being used???

@@ -546,7 +546,7 @@ void vegas_accum_thread(void *_args) {
                         end_exposure_spectrum_number += spectra_per_exposure;
                     } while (freq_heap->spectrum_cntr > end_exposure_spectrum_number);
                 }
-                exposure_complete = new_state_input(ssm, accumid, freq_heap->spectrum_cntr);
+                exposure_complete = new_input_state(ssm, accumid, freq_heap->spectrum_cntr);
             }
             else  // lbw
             {
@@ -558,7 +558,7 @@ void vegas_accum_thread(void *_args) {
                         end_exposure_clock_number += clocks_per_exposure;
                     } while (full_time_counter > end_exposure_clock_number);
                 }
-                exposure_complete = new_state_input(ssm, accumid, full_time_counter);
+                exposure_complete = new_input_state(ssm, accumid, full_time_counter);
             }
             if (exposure_complete)
             {
