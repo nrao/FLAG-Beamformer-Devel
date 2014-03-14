@@ -60,7 +60,7 @@ int test_exposures_with_skipped_phases()
             for (j=0; j<1; ++j)
             {
                 // printf("i=%d,j=%d,z=%d\n", i,j,z);
-                if (i==2 && z==2)
+                if ((i==2 || i==0) && (z==2 || z==3))
                 {
                     counts += 1000;
                     continue;

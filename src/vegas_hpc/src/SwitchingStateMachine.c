@@ -3,15 +3,14 @@
 #include <stdlib.h>
 #include <memory.h>
 
-#define CAL_BIT (1)
-#define SR_BIT_MASK (0x1)
-#define CAL_BIT_MASK (0x2)
+#define SR_BIT_MASK (0x2)
+#define CAL_BIT_MASK (0x1)
 #define SIG_REF_CAL_MASK (SR_BIT_MASK|CAL_BIT_MASK)
 #define ACCUMID_XOR_MASK 0x3
 
 int32_t sigref_cal_to_accumid(int32_t sr, int32_t cal)
 {
-    return (sr | (cal << 1)) ^ ACCUMID_XOR_MASK;
+    return (cal | (sr << 1)) ^ ACCUMID_XOR_MASK;
 }
 
 void accumid_to_sigref_cal(int32_t accumid, int32_t *sr, int32_t *cal)
@@ -115,6 +114,18 @@ int32_t exposure_by_phases_v1(SwitchingStateMachine *p, int32_t accumid, int64_t
     return 0;
 }
 
+/* Smarter routine below
+
+    Missed phase analsis:
+        if cur_phase is equal to new_phase, then verify time didn't jump by an entire
+        switching cycle. If it did, calculate the number of cycles + add to cycle count.
+        
+        if new_phase is 'behind' e.g not greater than the cur_phase, then we must have
+        crossed a switching boundry. Increament cycle count and see if more than
+        one cycle has been lost.
+        
+        if new_phase is 'ahead', and clock diff is < 1 cycle, all is good.
+*/
 int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int64_t count)
 {
     int32_t i;
@@ -140,16 +151,38 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
         return 0; // PUNT ???
     }
     // check to see if we are already in that phase (naive)
+#if 1
     if (p->cur_phase_idx == in_phase_idx)
     {
         return 0;
     }
-    printf("new phase %d count=%ld\n", in_phase_idx, count);
+    // printf("new phase %d count=%ld\n", in_phase_idx, count);
     if ((p->cur_phase_idx+1)%p->nphases != in_phase_idx)
     {
-        printf("Looks like we missed a phase: in=%d cur=%d\n", 
-                in_phase_idx, (p->cur_phase_idx+1)%p->nphases);
+        printf("Looks like we missed a phase: in=%d cur=%d accumid=%d expected accumid=%d\n", 
+                in_phase_idx, (p->cur_phase_idx+1)%p->nphases, accumid,
+                p->accumid_table[(p->cur_phase_idx+1)%p->nphases]);
     }
+#else
+    ncount_diff = p->last_count - count;
+    if (ncount_diff == 0)
+    {
+        printf("ncount_diff is zero - counter stuck???\n");
+        ncycles_skipped = 0; // PUNT
+    }
+    else
+    {
+        ncycles_quot = (double)ncount_diff/(double)p->approximate_counts_per_cycle;
+        while (ncycles_skipped = 0)
+        {
+            if (ncycles_quot > 0.90 * p->approximate_counts_per_cycle;
+        
+    }
+    if (p->cur_phase_idx == in_phase_idx && ncycles_skipped < 1)
+    {
+        return 0;
+    }
+#endif
     // update current phase index
     p->cur_phase_idx = in_phase_idx;
 
