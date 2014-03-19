@@ -2,6 +2,9 @@
 #define SwitchingStateMachine_h
 #include <stdint.h>
 #define MAX_PHASES 8
+// Window to average switch_period_counts
+#define NAVG_WINDOW 8
+
 struct _SwitchingStateMachine
 {
     int64_t cur_count;
@@ -9,6 +12,8 @@ struct _SwitchingStateMachine
     int64_t counts_per_exposure;
     int64_t last_sw_transition_count;
     int64_t last_exposure_count;
+    int64_t last_count;
+    int64_t approximate_counts_per_cycle;
     int32_t prior_phase_idx;
     int32_t prior_accum_id;
     int32_t nphases;
@@ -19,7 +24,8 @@ struct _SwitchingStateMachine
     int32_t cur_accumid;
     int32_t cur_phase_idx;
     int32_t cur_sw_cycle_number;
-    int32_t approximate_counts_per_cycle;
+    int32_t lower_counts_per_cycle;
+    int32_t upper_counts_per_cycle;
 };
 
 typedef struct _SwitchingStateMachine SwitchingStateMachine;
