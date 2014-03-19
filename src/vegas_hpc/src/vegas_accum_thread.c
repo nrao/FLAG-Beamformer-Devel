@@ -168,10 +168,14 @@ int32_t read_phase_table_info(char *statbuf, int32_t *sigref, int32_t *calnoc,
 {
     int32_t i;
     int32_t nphases = 0;
+    
+    // Get the number of phases. If _SNPH does not exist, we fall back
+    // to the 'old' method of counting clocks or spectra. This should
+    // provide backward compatibility with DIBAS
     if (hgeti4(statbuf, "_SNPH", &nphases) == 0)
     {
         vegas_warn("vegas_accum_thread", "_SNPH not found");
-        return 0;
+        nphases = 1;
     }
     for (i=0; i<nphases; ++i)
     {
