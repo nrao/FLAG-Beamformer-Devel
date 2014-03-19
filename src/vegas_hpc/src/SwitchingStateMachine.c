@@ -107,7 +107,6 @@ int32_t exposure_by_phases_v1(SwitchingStateMachine *p, int32_t accumid, int64_t
         p->cur_sw_cycle_number++;
         p->cur_phase_idx = 0;
         // Have we seen enough sw cycles?
-        // printf("cursw=%d, need=%d\n", p->cur_sw_cycle_number , p->switch_periods_per_exposure);
         if (p->cur_sw_cycle_number >= p->switch_periods_per_exposure)
         {
             p->cur_sw_cycle_number=0;
@@ -116,26 +115,6 @@ int32_t exposure_by_phases_v1(SwitchingStateMachine *p, int32_t accumid, int64_t
         }
     }
     return 0;
-}
-
-// Step the switching cycle state machine to the next/prior state
-int step_sw_phase(SwitchingStateMachine *p, int32_t direction)
-{        
-    int32_t cur_phase_idx;
-    cur_phase_idx = (cur_phase_idx+direction+p->nphases)%p->nphases;
-    // has a sw_cycle boundary been crossed?
-    if (cur_phase_idx == 0 && direction > 0) 
-    {
-        p->cur_sw_cycle_number++;
-        printf("mode1 correction to swcycle count\n");
-    }
-    else if (cur_phase_idx == p->nphases-1 && direction < 0)
-    {
-        p->cur_sw_cycle_number--;
-        printf("mode3 correction to swcycle count\n");        
-    }
-    p->cur_phase_idx = cur_phase_idx;
-    return p->cur_sw_cycle_number >= p->switch_periods_per_exposure;
 }
 
 /* Smarter routine below
@@ -156,7 +135,7 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
     int32_t in_phase_idx=-1;
     int64_t ncount_diff;
     double ncycles_quot;
-    int32_t ncycles_skipped;
+    int32_t nphases = p->nphases;
     
     // mask out blanking bits
     int32_t accumid = in_accumid & SIG_REF_CAL_MASK;
@@ -165,7 +144,7 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
     p->cur_count = count; // record the clock/count
     
     // search the accumid table to determine which phase we are in
-    for (i=0; i<p->nphases; ++i)
+    for (i=0; i<nphases; ++i)
     {
         if (p->accumid_table[i] == accumid)
         {
@@ -173,71 +152,43 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
             break;            
         }
     }
-    if (i >= p->nphases)
+    // How long has it been since the last input?
+    ncount_diff = count - p->last_count;
+    p->last_count = count;
+    
+    if (i >= nphases)
     {
         printf("Unknown accumid state: %d \n", i);
         return 0; // PUNT ???
     }
-    // How long has it been since the last input?
-    ncount_diff = count - p->last_count;
-    p->last_count = count;
-
-    ncycles_skipped = 0;
     if (ncount_diff == 0)
     {
         printf("ncount_diff is zero - counter stuck???\n");
         p->cur_phase_idx = in_phase_idx;
         return 0; // PUNT
     }
-#if 0
-/*
-    // How many full switching cycle have we missed?
-    ncycles_quot = (double)ncount_diff/(double)p->approximate_counts_per_cycle;
-    // printf("quot = %f\n", ncycles_quot);
-    // Is the number of cycles greater than the approximate cycle length
-    while (ncycles_quot > 0.90)
-    {
-        p->cur_sw_cycle_number = (p->cur_sw_cycle_number + 1);
-        ncycles_quot -= 1;
-        ncycles_skipped++;
-        printf("corrected for lost cycle\n");
-    }
 
-    // If we see an identical state, but the elapsed time is greater than a single phase, then
-    // count it as a partial dropout (i.e less than one phase, but still significant)
-    if (p->cur_phase_idx == in_phase_idx && ncycles_skipped < 1 && (ncycles_quot < 0.8/p->nphases))
-    {
-        p->cur_phase_idx = in_phase_idx;
-        return 0;
-    }
-    else if (ncycles_quot > 0.8/p->nphases)
-    {
-        printf("partial phase drop cphase=%d input_ph=%d ncycles_quot=%f\n", 
-               p->cur_phase_idx, in_phase_idx, ncycles_quot); 
-        p->cur_sw_cycle_number++; 
-    }
-    */
-#endif
     int64_t counts_per_phase = p->approximate_counts_per_cycle/p->nphases;    
     int64_t missed_phases = ncount_diff/counts_per_phase; 
     int32_t correction_made = 0;
     int32_t exposures_complete = 0;
+
     // has more than one phase time elapsed since the last input?
     // If so, sequence through the phases as we normally would, and
     // count switching cycle last->first phase transitions, beginning with
     // the last phase state seen.
     while (missed_phases)
     {
-        p->cur_phase_idx = (p->cur_phase_idx+1)%p->nphases;
+        p->cur_phase_idx = (p->cur_phase_idx+1)%nphases;
         // has a sw_cycle boundary been crossed?
         if (p->cur_phase_idx == 0) 
         {
             p->cur_sw_cycle_number++;
-            printf("mode1 correction to swcycle count\n");
         }
         if (p->cur_sw_cycle_number >= p->switch_periods_per_exposure)
         {
             exposures_complete++;
+            // Keep the cycle numbers modulo n_cycles needed per exposure
             p->cur_sw_cycle_number=p->cur_sw_cycle_number%p->switch_periods_per_exposure;
         }
         missed_phases--;
@@ -245,18 +196,50 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
     }
     if (correction_made && p->cur_phase_idx != in_phase_idx)
     {
-        printf("phase correction didn't seem to work: %d != %d\n",p->cur_phase_idx, in_phase_idx);
-        
-        
+        // This should only be an issue if we under corrected across a cycle boundry
+        // In the over-correction case, cur_phase_idx is 0 (first phase) and the
+        // in_phase_idx is the last phase.
+        // In the under-correction case, in_phase_idx is 0, and the cur_phase_idx is
+        // the last phase.
+        // If we over-corrected we need to decrement the cycle count, and possibly
+        // undo exposure_complete if cur_sw_cycle is 0.
+        // If we under-corrected, we need to increment the cycle count and check
+        // to see if we need to increment exposure_complete. Tedious.
+        int32_t end_phase = nphases-1;        
+        int32_t over_corrected = 0;
+        int32_t under_corrected = 0;
+        if (p->cur_phase_idx == 0 && in_phase_idx == end_phase)
+        {
+            over_corrected = 1;
+            p->cur_sw_cycle_number--; 
+            
+        }
+        else if (p->cur_phase_idx == end_phase && in_phase_idx == 0)
+        {
+            under_corrected = 1;
+            p->cur_sw_cycle_number++;
+        }
+        if (over_corrected && exposures_complete && p->cur_sw_cycle_number < 0)
+        {
+            // We over-corrected across an exposure boundary
+            p->cur_sw_cycle_number = p->switch_periods_per_exposure=0;
+            exposures_complete--;
+        }
+        if (under_corrected && p->cur_sw_cycle_number >= p->switch_periods_per_exposure)
+        {
+            // We under-corrected across an exposure boundary
+            exposures_complete++;
+            p->cur_sw_cycle_number=p->cur_sw_cycle_number%p->switch_periods_per_exposure;
+        } 
     }
 
     // Did we finish the the last phase of the sw cycle (and are starting the next)?
     if (!correction_made && in_phase_idx == 0 && (p->cur_phase_idx != in_phase_idx))
     {
         // increment the sw cycle count
-        // printf("mode2 increament of swcycle\n");
         p->cur_sw_cycle_number++;
     }
+    
     // update current phase index
     p->cur_phase_idx = in_phase_idx;
 
@@ -267,7 +250,6 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
     {
         p->cur_sw_cycle_number=p->cur_sw_cycle_number%p->switch_periods_per_exposure;
         p->last_exposure_count = count;
-        printf("Exposure complete count=%ld, swcnt = %d\n", count, p->cur_sw_cycle_number);
         // exposure is complete
         return 1;
     }
