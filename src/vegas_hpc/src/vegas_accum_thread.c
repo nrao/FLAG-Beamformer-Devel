@@ -629,7 +629,7 @@ void vegas_accum_thread(void *_args) {
                 }
 
                 data_cols[accumid].exposure += (float)(freq_heap->integ_size)/pfb_rate;
-                data_cols[accumid].stpspec = freq_heap->spectrum_cntr;
+                // data_cols[accumid].stpspec = freq_heap->spectrum_cntr;
 
                 /* Add spectrum to appropriate vector accumulator (high-bw mode) */
                 if(payload_type == INT_PAYLOAD)
@@ -666,7 +666,7 @@ void vegas_accum_thread(void *_args) {
                 }
 
             }
-            
+            data_cols[accumid].stpspec = freq_heap->spectrum_cntr;
             accum_time += (double)freq_heap->integ_size / pfb_rate;
         }
 
