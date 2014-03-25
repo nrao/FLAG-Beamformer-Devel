@@ -603,8 +603,6 @@ void vegas_accum_thread(void *_args) {
                 {
                     /*Record SPEAD header fields*/
                     data_cols[accumid].time = index_in->cpu_gpu_buf[heap].heap_rcvd_mjd;
-                    // data_cols[accumid].time_counter = (((uint64_t)freq_heap->time_cntr_top8) << 32)
-                    //                                    + (uint64_t)freq_heap->time_cntr;
                     data_cols[accumid].time_counter = full_time_counter;
                     data_cols[accumid].integ_num = integ_num;
                     data_cols[accumid].sttspec = freq_heap->spectrum_cntr;
@@ -629,6 +627,7 @@ void vegas_accum_thread(void *_args) {
                 }
 
                 data_cols[accumid].exposure += (float)(freq_heap->integ_size)/pfb_rate;
+                accum_time += (double)freq_heap->integ_size / pfb_rate;
                 // data_cols[accumid].stpspec = freq_heap->spectrum_cntr;
 
                 /* Add spectrum to appropriate vector accumulator (high-bw mode) */
@@ -664,10 +663,8 @@ void vegas_accum_thread(void *_args) {
                         }
                     }
                 }
-
             }
             data_cols[accumid].stpspec = freq_heap->spectrum_cntr;
-            accum_time += (double)freq_heap->integ_size / pfb_rate;
         }
 
         /* Update packet count and loss fields from input header */
