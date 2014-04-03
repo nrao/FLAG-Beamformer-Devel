@@ -31,7 +31,7 @@ create_switching_state_machine(int32_t nphases, int32_t *sref, int32_t *cal,
     
     if (nphases <1)
     {
-        printf("SwitchingStateMachine: nphases must be between two and MAX_PHASES\n");
+        printf("SwitchingStateMachine: nphases must be between one and MAX_PHASES\n");
         return 0;
     }
     p = (SwitchingStateMachine *)malloc(sizeof(SwitchingStateMachine));
@@ -53,6 +53,7 @@ create_switching_state_machine(int32_t nphases, int32_t *sref, int32_t *cal,
     p->end_exposure_count = counts_per_exp;
     p->last_sw_transition_count = -1;
     p->last_exposure_count = -1;
+    p->last_count = 0;
     
     approximate_counts_per_cycle = counts_per_exp/num_swperiods_per_exp;
     p->approximate_counts_per_cycle = approximate_counts_per_cycle;
@@ -134,7 +135,6 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
     int32_t i;
     int32_t in_phase_idx=-1;
     int64_t ncount_diff;
-    double ncycles_quot;
     int32_t nphases = p->nphases;
     
     // mask out blanking bits
@@ -173,11 +173,15 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
     int32_t correction_made = 0;
     int32_t exposures_complete = 0;
 
+    if (missed_phases < 0)
+    {
+        printf("very odd missed phases < 0 case - this should never happen %ld\n", missed_phases);
+    }
     // has more than one phase time elapsed since the last input?
     // If so, sequence through the phases as we normally would, and
     // count switching cycle last->first phase transitions, beginning with
     // the last phase state seen.
-    while (missed_phases)
+    while (missed_phases>0LL)
     {
         p->cur_phase_idx = (p->cur_phase_idx+1)%nphases;
         // has a sw_cycle boundary been crossed?
