@@ -313,7 +313,7 @@ void vegas_accum_thread(void *_args) {
     /* Allocate memory for vector accumulators */
     create_accumulators(&accumulator, sf.hdr.nchan, sf.hdr.nsubband);
     pthread_cleanup_push((void *)destroy_accumulators, accumulator);    
-    spectra_per_exposure = sf.data_columns.exposure/sf.hdr.hwexposr;
+    spectra_per_exposure = (int64_t)(sf.data_columns.exposure/sf.hdr.hwexposr + 10E-4);
     
     if ((is_hbw && spectra_per_exposure < 1) || (!is_hbw && clocks_per_exposure < 1000))
     {
