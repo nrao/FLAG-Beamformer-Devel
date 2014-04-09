@@ -651,6 +651,7 @@ class GuppiCODDBackend(Backend):
         statusdata['BLOCSIZE' ] = self.blocsize
         statusdata['BANKNUM'  ] = self.node_number
         statusdata["BANKNAM"  ] = self.bank.name if self.bank else 'NOTSET'
+        statusdata["CAL_MODE" ] = 'ON' if 'CAL' in self.obs_mode else 'OFF'
         statusdata['CHAN_DM'  ] = self.dm
         statusdata['CHAN_BW'  ] = self.chan_bw
         statusdata["DATAHOST" ] = self.datahost;

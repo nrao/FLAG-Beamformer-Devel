@@ -586,6 +586,7 @@ class GuppiBackend(Backend):
         statusdata['BLOCSIZE'] = self.blocsize
         statusdata['CHAN_DM' ] = self.dm
         statusdata['CHAN_BW' ] = self.chan_bw
+        statusdata['CAL_MODE'] = 'ON' if 'CAL' in self.obs_mode else 'OFF'
         statusdata['DATADIR' ] = self.dataroot
         statusdata['DATAHOST'] = self.datahost
         statusdata['DATAPORT'] = self.dataport
