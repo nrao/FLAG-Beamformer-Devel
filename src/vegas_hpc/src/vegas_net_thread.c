@@ -39,6 +39,17 @@
 
 #define DEBUG_NET
 
+#undef TEST_DROP_PKTS
+#ifdef TEST_DROP_PKTS
+int ___test_have_tossed = 0;
+int ___test_toss_packets = 0;
+void test_loose_packets(char *howmany)
+{
+    ___test_have_tossed = 0;
+    ___test_toss_packets = (int)strtol(howmany, 0, 0);
+}
+#endif
+
 /// Read a status buffer all of the key observation paramters
 extern void vegas_read_obs_params(char *buf, 
                                   struct vegas_params *g, 
@@ -426,6 +437,16 @@ void *vegas_net_thread(void *_args) {
 	
         /* Read packet */
         rv = vegas_udp_recv(&up, &p, bw_mode);
+#ifdef TEST_DROP_PKTS
+        if (___test_toss_packets)
+        {
+            ___test_toss_packets--;
+            ___test_have_tossed++;
+            if (!___test_toss_packets)
+                printf("Tossed %d packets\n", ___test_have_tossed);
+            continue;
+        }
+#endif
         if (rv!=VEGAS_OK) {
             if (rv==VEGAS_ERR_PACKET) {
                 #ifdef DEBUG_NET

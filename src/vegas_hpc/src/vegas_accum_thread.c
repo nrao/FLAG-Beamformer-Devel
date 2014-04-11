@@ -172,6 +172,7 @@ int32_t read_phase_table_info(char *statbuf, int32_t *sigref, int32_t *calnoc,
     // Get the number of phases. If _SNPH does not exist, we fall back
     // to the 'old' method of counting clocks or spectra. This should
     // provide backward compatibility with DIBAS
+    *ncycles = 1;
     if (hgeti4(statbuf, "_SNPH", &nphases) == 0)
     {
         vegas_warn("vegas_accum_thread", "_SNPH not found");
@@ -200,7 +201,6 @@ int32_t read_phase_table_info(char *statbuf, int32_t *sigref, int32_t *calnoc,
     }
     return(nphases);
 }
-
 
 /* The main CPU accumulator thread */
 void vegas_accum_thread(void *_args) {
@@ -506,7 +506,7 @@ void vegas_accum_thread(void *_args) {
              * 0x1 - inverts cal
              * The bits above 0x8 are cleared.
              */
-
+             
             freq_heap->status_bits = (freq_heap->status_bits ^ accumid_xor_mask) & (CAL_SR_MASK|BLANKING_MASK);
             /* for accumid we only care for the lower bits */
             accumid = freq_heap->status_bits & CAL_SR_MASK;

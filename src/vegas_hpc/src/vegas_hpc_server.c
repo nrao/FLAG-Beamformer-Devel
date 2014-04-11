@@ -29,6 +29,8 @@
 
 #include "vegas_thread_main.h"
 
+#define Version_string "2.1-exp_by_ssm"
+
 extern int g_debug_accumulator_thread; // For debugging REMOVE THIS before official release
 
 #define vegas_DAQ_CONTROL "/tmp/vegas_daq_control"
@@ -86,6 +88,7 @@ struct KeywordValues keywords[] =
     { "psrfits_thread_priority", 0x0 },
     { "rawdisk_thread_priority", 0x0 },
     { "null_thread_priority", 0x0 },
+    { "accum_debug_flag", 0x0 },
     { NULL, 0x0 },
 };
 
@@ -274,6 +277,10 @@ int main(int argc, char *argv[]) {
     int do_dbuf_resize = 0;
     int initialize_gpu_at_startup = 0;
     
+    read_thread_configuration(keywords);
+
+    g_debug_accumulator_thread=get_config_key_value("accum_debug_flag", keywords);
+    
     while ((opt=getopt_long(argc,argv,"hrdg",long_opts,&opti))!=-1) {
         switch (opt) {
             default:
@@ -369,7 +376,6 @@ int main(int argc, char *argv[]) {
     printf("\nvegas_daq_server started at %s", ctime_r(&curtime,tmp));
     fflush(stdout);
 
-    read_thread_configuration(keywords);
     /* hmm.. keep this old signal stuff?? */
     run=1;
     srv_run=1;
@@ -523,7 +529,7 @@ int main(int argc, char *argv[]) {
                 if (strncasecmp(obs_mode, "HBW", 4)==0) {
                     vegas_status_lock(&stat);
                     hputs(stat.buf, "BW_MODE", "high");
-                    hputs(stat.buf, "SWVER", "1.4");
+                    hputs(stat.buf, "SWVER", Version_string);
                     hputs(stat.buf, "SCANSTAT", "running");
                     vegas_status_unlock(&stat);
                     init_hbw_mode(args, &nthread_cur);
@@ -532,7 +538,7 @@ int main(int argc, char *argv[]) {
                 } else if (strncasecmp(obs_mode, "LBW", 4)==0) {                
                     vegas_status_lock(&stat);
                     hputs(stat.buf, "BW_MODE", "low");
-                    hputs(stat.buf, "SWVER", "1.4");
+                    hputs(stat.buf, "SWVER", Version_string);
                     hputs(stat.buf, "SCANSTAT", "running");
                     vegas_status_unlock(&stat);
                     init_lbw_mode(args, &nthread_cur);
@@ -577,7 +583,8 @@ int main(int argc, char *argv[]) {
             hputs(stat.buf, "GPUCTXIN", "TRUE");
             vegas_status_unlock(&stat);            
         }
-        else {
+        else 
+        {
             // Unknown command
             printf("Unrecognized command '%s'\n", cmd);
         }
