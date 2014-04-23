@@ -368,14 +368,14 @@ def check_l1lbw1_mode(mode, expo):
     assert_equal(be.get_status("NCHAN")   , str(nchan))
     assert_equal(be.get_status("NPOL")    , '2')
     assert_equal(be.get_status("NSUBBAND"), '1')
-    assert_equal(be.get_status("SUB0FREQ"), str(efsampfr / 4))
-    assert_equal(be.get_status("SUB1FREQ"), str(efsampfr / 4))
-    assert_equal(be.get_status("SUB2FREQ"), str(efsampfr / 4))
-    assert_equal(be.get_status("SUB3FREQ"), str(efsampfr / 4))
-    assert_equal(be.get_status("SUB4FREQ"), str(efsampfr / 4))
-    assert_equal(be.get_status("SUB5FREQ"), str(efsampfr / 4))
-    assert_equal(be.get_status("SUB6FREQ"), str(efsampfr / 4))
-    assert_equal(be.get_status("SUB7FREQ"), str(efsampfr / 4))
+    assert_equal(be.get_status("SUB0FREQ"), str(frequency / 2))
+    assert_equal(be.get_status("SUB1FREQ"), str(frequency / 2))
+    assert_equal(be.get_status("SUB2FREQ"), str(frequency / 2))
+    assert_equal(be.get_status("SUB3FREQ"), str(frequency / 2))
+    assert_equal(be.get_status("SUB4FREQ"), str(frequency / 2))
+    assert_equal(be.get_status("SUB5FREQ"), str(frequency / 2))
+    assert_equal(be.get_status("SUB6FREQ"), str(frequency / 2))
+    assert_equal(be.get_status("SUB7FREQ"), str(frequency / 2))
 
     assert_equal(be.get_status("BASE_BW"), str(m.filter_bw)) # from config file
     assert_equal(be.get_status("NOISESRC"), 'OFF')
@@ -531,7 +531,7 @@ def check_l8lbw1_mode(mode, expo):
     # decimal places.
     for i in range(0, 8):
         asb = float(be.get_status("SUB%iFREQ" % i))
-        assert_almost_equal(asb / 300e6, 1.0, 5)
+        assert_almost_equal(asb / 300e6, 1.0, 3)
 
     assert_equal(be.get_status("BASE_BW"), str(m.filter_bw)) # from config file
     assert_equal(be.get_status("NOISESRC"), 'OFF')
@@ -628,7 +628,7 @@ def check_l8lbw8_mode(mode, expo):
     # decimal places.
     for i in range(0, 8):
         asb = float(be.get_status("SUB%iFREQ" % i))
-        assert_almost_equal(asb / sbfreqs[i], 1.0, 5)
+        assert_almost_equal(asb / sbfreqs[i], 1.0, 3)
 
     for i in range(16):
         assert_true("s0_lo_%i_lo_ram" % (i) in regs.keys())
@@ -840,7 +840,6 @@ def test_GUPPI_INCO_64_backend():
     m.frequency=800.0
     be = GuppiBackend(b, m, None, None, None, unit_test = True)
     be.set_obs_frequency(1500.0)
-
     be.prepare()
 
     print "Status memory:", be.status_mem_local
@@ -882,6 +881,11 @@ def test_GUPPI_INCO_64_backend():
     assert_almost_equal(float(be.get_status('SCALE3')), 1.0)
     assert_almost_equal(float(be.get_status('TBIN')), 4.096e-05)
     assert_almost_equal(float(be.get_status('TFOLD')), 1.0)
+
+    be.set_param("only_i", 1)
+    be.prepare()
+    assert_equal(be.get_status('ONLY_I'), '1')
+    assert_equal(be.get_status('NPOL'), '4')
 
 
 def test_GUPPI_CODD_64_backend():
@@ -934,3 +938,8 @@ def test_GUPPI_CODD_64_backend():
     assert_equal(be.get_status('PKTFMT'), '1SFA')
     assert_equal(be.get_status('TBIN'), '8e-08')
     assert_equal(be.get_status('CHAN_DM'), '0.0')
+
+    be.set_param("only_i", 1)
+    be.prepare()
+    assert_equal(be.get_status('ONLY_I'), '1')
+    assert_equal(be.get_status('NPOL'), '4')

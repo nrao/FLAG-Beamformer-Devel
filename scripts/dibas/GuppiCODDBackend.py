@@ -535,11 +535,7 @@ class GuppiCODDBackend(Backend):
         Most cases it is all four, except in FAST4K, or when the user
         has indicated they only want 1 stokes product)
         """
-        self.npol = 4
-        if 'FAST4K' in self.mode.name.upper():
-            self.npol   = 1
-        elif self.only_i:
-            self.npol = 1
+        self.npol = 1 if 'FAST4K' in self.mode.name.upper() else 4
 
     def _node_bandwidth_dep(self):
         """
