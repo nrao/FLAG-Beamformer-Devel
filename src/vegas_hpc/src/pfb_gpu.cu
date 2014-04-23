@@ -24,6 +24,8 @@ extern "C" {
 #include "pfb_gpu_kernels.h"
 #include "spead_heap.h"
 
+#include "BlankingStateMachine.h"
+
 #define STATUS_KEY "GPUSTAT"
 
 /* ASSUMPTIONS: 1. All blocks contain the same number of heaps. */
@@ -60,6 +62,8 @@ public:
     int     _out_block_size;
     int     _init_status;
     
+    BlankingStateMachine _blanker;
+    
     int fft_in_stride()  { return 2*_nsubband; };
     int fft_out_stride() { return 2*_nsubband; };
     int fft_batch()      { return 2*_nsubband; };
@@ -72,6 +76,11 @@ public:
     int init_status()    { return _init_status; }
     bool verify_setup(int num_subbands, int num_chans, 
                       int input_block_sz, int output_block_sz);
+    void blanking_inputs(int);
+    int  blank_current_fft();
+    int  needs_flush();
+    int  sw_status_changed(int swstat) { return _blanker.sw_status_changed(swstat); }
+
 
 };
 
@@ -89,14 +98,15 @@ GpuContext::GpuContext() :
         _pfPFBCoeff_d(0),
         _pf4SumStokes_d(0),
         _nchan(0),
-        _nsubband(0)
+        _nsubband(0),
+        _blanker()
 {
     memset(&_stPlan, 0, sizeof(_stPlan));    
 }
 
 GpuContext::GpuContext(GpuContext *p, int nsubband, int nchan, int in_blok_siz, int out_blok_siz)
 {
-
+    _blanker.reset();
     if (p != 0)
     {
         // Move resources from p into this object and null out p's reference
@@ -152,6 +162,7 @@ GpuContext::GpuContext(GpuContext *p, int nsubband, int nchan, int in_blok_siz, 
 bool
 GpuContext::verify_setup(int nsubband, int nchan, int in_block_size, int out_block_size)
 {
+    _blanker.reset();
     // Does the setup match?
     if (_nsubband == nsubband &&
         _nchan    == nchan &&
@@ -161,13 +172,28 @@ GpuContext::verify_setup(int nsubband, int nchan, int in_block_size, int out_blo
     return false;
 }
 
+void
+GpuContext::blanking_inputs(int status)
+{
+    _blanker.new_input(status);
+}
 
+int
+GpuContext::blank_current_fft()
+{
+    return _blanker.blank_current_fft();
+}
+
+int
+GpuContext::needs_flush()
+{
+    return _blanker.needs_flush();
+}
 
 // Make the damn object global until we complete refactoring ...
 GpuContext *gpuCtx = 0;
 
 static size_t g_buf_out_block_size;
-static unsigned int g_iPrevBlankingState = FALSE;
 static int g_iTotHeapOut = 0;
 static int g_iMaxNumHeapOut = 0;
 static int g_iHeapOut = 0;
@@ -243,7 +269,6 @@ int init_cuda_context(int subbands, int chans, int inBlokSz, int outBlokSz)
 extern "C" 
 int reset_state(size_t input_block_sz, size_t output_block_sz, int num_subbands, int num_chans)
 {
-    g_iPrevBlankingState = TRUE;
     g_iTotHeapOut = 0;
     g_iHeapOut = 0;
     g_iSpecPerAcc = 0;
@@ -508,7 +533,8 @@ int dump_to_buffer(struct vegas_databuf *db_out,         // Output databuffer
                    struct time_spead_heap *firsttimeheap,// first time sample of input 
                    int iTotHeapOut,                      // spectrum number/counter
                    int iSpecPerAcc,                      // GPU accumulations in this heap
-                   double heap_mjd )                     // MJD from index_input
+                   double heap_mjd,                      // MJD from index_input
+                   int first_t_series_status)            // switch state of first accumulation
 {
     struct freq_spead_heap *freq_heap_out;
     char * payload_addr_out;
@@ -533,7 +559,7 @@ int dump_to_buffer(struct vegas_databuf *db_out,         // Output databuffer
     freq_heap_out->mode_id = 0x23;
     freq_heap_out->mode = firsttimeheap->mode;
     freq_heap_out->status_bits_id = 0x24;
-    freq_heap_out->status_bits = firsttimeheap->status_bits;
+    freq_heap_out->status_bits = first_t_series_status;
     freq_heap_out->payload_data_off_addr_mode = 0;
     freq_heap_out->payload_data_off_id = 0x25;
     freq_heap_out->payload_data_off = 0;
@@ -580,6 +606,7 @@ void do_pfb(struct vegas_databuf *db_in,
     int i = 0;
     int iBlockInDataSize;
     double first_time_heap_mjd;
+    int first_time_heap_in_accum_status_bits;
 
     /* Setup input and first output data block stuff */
     index_in = (struct databuf_index*)vegas_databuf_index(db_in, curblock_in);
@@ -684,7 +711,7 @@ ents at the end for
         struct time_spead_heap* time_heap = (struct time_spead_heap*) vegas_databuf_data(db_in, curblock_in);
         for ( ; i < num_in_heaps_tail + index_in->num_heaps; ++i)
         {
-            g_auiStatusBits[i] = time_heap->status_bits;
+            g_auiStatusBits[i] = time_heap->status_bits;           
             g_auiHeapValid[i] = index_in->cpu_gpu_buf[i-num_in_heaps_tail].heap_valid;
             ++time_heap;
         }
@@ -692,6 +719,7 @@ ents at the end for
 
     gpuCtx->_pc4DataRead_d = gpuCtx->_pc4Data_d;
     iProcData = 0;
+    first_time_heap_in_accum_status_bits = g_auiStatusBits[heap_in];
     while (iBlockInDataSize > iProcData)  /* loop till (num_heaps * heap_size) of data is processed */
     {
         if (0 == pfb_count)
@@ -721,17 +749,13 @@ ents at the end for
                 }
                 heap_addr_in = (char*)(vegas_databuf_data(db_in, curblock_in) +
                                     sizeof(struct time_spead_heap) * heap_in);
-                // The check above indicates this is an invalid heap, therefore we don't treat
-                // it as the 'first heap'                    
-                // memcpy(&first_time_heap_in_accum, heap_addr_in, sizeof(first_time_heap_in_accum));
                 continue;
             }
         }
-
         /* Perform polyphase filtering */
         DoPFB<<<gpuCtx->_dimGPFB, gpuCtx->_dimBPFB>>>(gpuCtx->_pc4DataRead_d,
-                                                    gpuCtx->_pf4FFTIn_d,
-                                                    gpuCtx->_pfPFBCoeff_d);
+                                                      gpuCtx->_pf4FFTIn_d,
+                                                      gpuCtx->_pfPFBCoeff_d);
         CUDA_SAFE_CALL(cudaThreadSynchronize());
         iCUDARet = cudaGetLastError();
         if (iCUDARet != cudaSuccess)
@@ -753,9 +777,11 @@ ents at the end for
             break;
         }
 
+        gpuCtx->blanking_inputs(is_blanked(heap_in, num_in_heaps_per_proc));
+                                
         /* Accumulate power x, power y, stokes real and imag, if the blanking
            bit is not set */
-        if (!(is_blanked(heap_in, num_in_heaps_per_proc)))
+        if (!(gpuCtx->blank_current_fft()))
         {
             iRet = gpuCtx->accumulate();
             if (iRet != VEGAS_OK)
@@ -765,40 +791,14 @@ ents at the end for
                 break;
             }
             ++g_iSpecPerAcc;
-            g_iPrevBlankingState = FALSE;
-        }
-        else
-        {
-            /* state just changed */
-            if (FALSE == g_iPrevBlankingState)
+            // record the first unblanked state in this accumulation sequence
+            if (1 == g_iSpecPerAcc)
             {
-                /* dump to buffer */
-                iRet = dump_to_buffer(db_out,             // Output databuffer
-                                      *curblock_out,                       // Current output block
-                                      g_iHeapOut,                         // output frequency heap number in current block
-                                      &first_time_heap_in_accum,// first time sample of input 
-                                      g_iTotHeapOut,                      // spectrum number/counter
-                                      g_iSpecPerAcc,                      // GPU accumulations in this heap
-                                      first_time_heap_mjd); // MJD from index_input
-                                                                       
-                if (iRet != VEGAS_OK)
-                {
-                    (void) fprintf(stdout, "ERROR: Getting accumulated spectrum failed (blank state changed)!\n");
-                    run = 0;
-                    break;
-                }
-
-                ++g_iHeapOut;
-                ++g_iTotHeapOut;
-
-                /* zero accumulators */
-                gpuCtx->zero_accumulator();
-                /* reset time */
-                g_iSpecPerAcc = 0;
-                g_iPrevBlankingState = TRUE;
-            }
+                first_time_heap_in_accum_status_bits = g_auiStatusBits[heap_in];
+            }                    
         }
-        if (g_iSpecPerAcc == acc_len)
+        
+        if (g_iSpecPerAcc == acc_len || gpuCtx->needs_flush())
         {
             /* dump to buffer */
             iRet = dump_to_buffer(db_out,             
@@ -807,8 +807,9 @@ ents at the end for
                                   &first_time_heap_in_accum,
                                   g_iTotHeapOut,
                                   g_iSpecPerAcc,
-                                  first_time_heap_mjd);
-                                  
+                                  first_time_heap_mjd,
+                                  first_time_heap_in_accum_status_bits);                              
+            
             if (iRet != VEGAS_OK)
             {
                 (void) fprintf(stdout, "ERROR: Getting accumulated spectrum failed!\n");
@@ -832,6 +833,7 @@ ents at the end for
         heap_in += num_in_heaps_per_proc;
         heap_addr_in = (char*)(vegas_databuf_data(db_in, curblock_in) +
                             sizeof(struct time_spead_heap) * heap_in);
+        
         if (0 == g_iSpecPerAcc)
         {
             // first_time_heap_in_accum = (struct time_spead_heap*)(heap_addr_in);
@@ -843,9 +845,6 @@ ents at the end for
         if (g_iHeapOut == g_iMaxNumHeapOut)
         {
             /* Set the number of heaps written to this block */
-            // JJB index_out->num_heaps = g_iHeapOut;
-            // printf("gpu filled num_heaps=%d snum=%d\n", index_out->num_heaps, g_iTotHeapOut);
-
             /* Mark output buffer as filled */
             vegas_databuf_set_filled(db_out, *curblock_out);
 
@@ -981,20 +980,47 @@ int is_valid(int heap_start, int num_heaps)
 }
 
 /*
- * function that checks if blanking has started within this accumulation.
- * ASSUMPTION: the blanking bit does not toggle within this time interval.
+A note about blanking:
+The blanking status is copied from the time series input into the array
+g_auiStatusBits, with time acending with index, like so:
+    g_auiStatusBits[32] = t0
+    g_auiStatusBits[33] = t0 + dt
+    g_auiStatusBits[34] = t0 + dt + dt
+    
+So when we think about labeling the frequency heap outputs, the convention
+is to use the '1st' non-blanked time-series (e.g. index 32 above) to fill 
+in the timestamp, counter, mjd etc.
+
+However, when we think about how to process blanking, we need to use the
+most recent(e.g index 34 above), status to drive the blanking state machine.
+Below, the check which sets 0x2 is taken from the most current time-series status.
+
+ is_blanked(tail, length)
+ * Check the input time series for blanking and encode
+ * the result.
+ * Return value: 
+ *  - bit 0x4 -- indicates cal or sig/ref state changed during input
+ *  - bit 0x2 -- indicates if the most recent time sample had blanking asserted
+ *  - bit 0x1 -- indicates if any of the time samples had blanking asserted
  */
 int is_blanked(int heap_start, int num_heaps)
 {
-    for (int i = heap_start; i < (heap_start + num_heaps); ++i)
+    int state_changed = 0;
+    int banked_at_start = (g_auiStatusBits[heap_start + num_heaps- 1] & 0x8)  ? 0x2 : 0x0;
+    int is_blanked = (banked_at_start || (g_auiStatusBits[heap_start] & 0x8)) ? 0x1 : 0x0;
+   
+    for (int i = heap_start + 1; i < (heap_start + num_heaps); ++i)
     {
+        if ((g_auiStatusBits[i] & 0x3) != (g_auiStatusBits[i-1] & 0x3))
+        {
+            state_changed = 0x4;
+        }
         if (g_auiStatusBits[i] & 0x08)
         {
-            return TRUE;
+            is_blanked = 0x1;
         }
     }
-
-    return FALSE;
+    return (banked_at_start | state_changed | is_blanked);
 }
 
 void __CUDASafeCall(cudaError_t iCUDARet,
