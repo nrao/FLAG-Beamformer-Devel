@@ -117,11 +117,17 @@ void vegas_pfb_thread(void *_args) {
     index_out->num_heaps = 0;
 
     vegas_status_lock_safe(&st);
-    if (hgeti4(st.buf, "NCHAN", &nchan)==0) {
+    if (hgeti4(st.buf, "NCHAN", &nchan)==0) 
+    {
         fprintf(stderr, "ERROR: %s not in status shm!\n", "NCHAN");
     }
-    if (hgeti4(st.buf, "NSUBBAND", &nsubband)==0) {
+    if (hgeti4(st.buf, "NSUBBAND", &nsubband)==0) 
+    {
         fprintf(stderr, "ERROR: %s not in status shm!\n", "NSUBBAND");
+    }
+    if (hgeti4(st.buf, "ACC_LEN", &acc_len)==0) 
+    {
+        fprintf(stderr, "WARNING: %s not in status shm! Using computed value\n", "ACC_LEN");
     }
     vegas_status_unlock_safe(&st);
     if (EXIT_SUCCESS != reset_state(db_in->block_size,
@@ -156,9 +162,11 @@ void vegas_pfb_thread(void *_args) {
         if (first)
         {
             vegas_read_obs_params(hdr_in, &gp, &sf);
-            /* Read required exposure from status shared memory, and calculate
-               corresponding accumulation length */
-            acc_len = (int)round(fabs(sf.hdr.chan_bw) * sf.hdr.hwexposr);
+            /* Check the value of ACC_LEN. If not in shmem, use a computed value. */
+            if (acc_len == 0)
+            {
+                acc_len = (int)round(fabs(sf.hdr.chan_bw) * sf.hdr.hwexposr);
+            }
         }
         vegas_read_subint_params(hdr_in, &gp, &sf);
 

@@ -778,6 +778,7 @@ ents at the end for
         }
 
         gpuCtx->blanking_inputs(is_blanked(heap_in, num_in_heaps_per_proc));
+        ++g_iTotHeapOut;
                                 
         /* Accumulate power x, power y, stokes real and imag, if the blanking
            bit is not set */
@@ -817,7 +818,6 @@ ents at the end for
                 break;
             }                                  
             ++g_iHeapOut;
-            ++g_iTotHeapOut;
 
             /* zero accumulators */
             gpuCtx->zero_accumulator();
