@@ -226,7 +226,7 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
         if (over_corrected && exposures_complete && p->cur_sw_cycle_number < 0)
         {
             // We over-corrected across an exposure boundary
-            p->cur_sw_cycle_number = p->switch_periods_per_exposure=0;
+            p->cur_sw_cycle_number =0;
             exposures_complete--;
         }
         if (under_corrected && p->cur_sw_cycle_number >= p->switch_periods_per_exposure)
