@@ -61,6 +61,7 @@ public:
     int     _in_block_size;
     int     _out_block_size;
     int     _init_status;
+    int     _first_time_heap_in_accum_status_bits;
     
     BlankingStateMachine _blanker;
     
@@ -80,6 +81,7 @@ public:
     int  blank_current_fft();
     int  needs_flush();
     int  sw_status_changed(int swstat) { return _blanker.sw_status_changed(swstat); }
+    BlankingStateMachine * blanker() { return &_blanker; } // for debug only!!
 
 
 };
@@ -299,6 +301,7 @@ int GpuContext::init_resources()
     
     buf_in_block_size    = _in_block_size;
     g_buf_out_block_size = _out_block_size;
+    _first_time_heap_in_accum_status_bits = 0;
 
     /* since CUDASafeCall() calls cudaGetErrorString(),
        it should not be used here - will cause crash if no CUDA device is
@@ -606,7 +609,6 @@ void do_pfb(struct vegas_databuf *db_in,
     int i = 0;
     int iBlockInDataSize;
     double first_time_heap_mjd;
-    int first_time_heap_in_accum_status_bits;
 
     /* Setup input and first output data block stuff */
     index_in = (struct databuf_index*)vegas_databuf_index(db_in, curblock_in);
@@ -719,7 +721,6 @@ ents at the end for
 
     gpuCtx->_pc4DataRead_d = gpuCtx->_pc4Data_d;
     iProcData = 0;
-    first_time_heap_in_accum_status_bits = g_auiStatusBits[heap_in];
     while (iBlockInDataSize > iProcData)  /* loop till (num_heaps * heap_size) of data is processed */
     {
         if (0 == pfb_count)
@@ -778,7 +779,7 @@ ents at the end for
         }
 
         gpuCtx->blanking_inputs(is_blanked(heap_in, num_in_heaps_per_proc));
-        ++g_iTotHeapOut;
+        ++g_iTotHeapOut; // unconditional spectrum counter
                                 
         /* Accumulate power x, power y, stokes real and imag, if the blanking
            bit is not set */
@@ -795,7 +796,7 @@ ents at the end for
             // record the first unblanked state in this accumulation sequence
             if (1 == g_iSpecPerAcc)
             {
-                first_time_heap_in_accum_status_bits = g_auiStatusBits[heap_in];
+                gpuCtx->_first_time_heap_in_accum_status_bits = g_auiStatusBits[heap_in];
             }                    
         }
         
@@ -809,7 +810,7 @@ ents at the end for
                                   g_iTotHeapOut,
                                   g_iSpecPerAcc,
                                   first_time_heap_mjd,
-                                  first_time_heap_in_accum_status_bits);                              
+                                  gpuCtx->_first_time_heap_in_accum_status_bits);
             
             if (iRet != VEGAS_OK)
             {
