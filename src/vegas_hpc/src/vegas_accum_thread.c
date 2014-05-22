@@ -811,7 +811,29 @@ void write_full_integration(struct vegas_databuf *db_out, int *cur_block_out,
             /*Copy sdfits_data_columns struct to disk buffer */
             memcpy(vegas_databuf_data(db_out, curblock_out) + struct_offset,
                     &data_cols[i], sizeof(struct sdfits_data_columns));
-
+                    
+#ifdef DEBUG_ZERO_CHANNELS                    
+            // DEBUG Missing channels
+            int zero_ch = 0;
+            int ii;
+            int first_ch = 0;
+            // check the first two products XX & YY
+            for (ii=0; ii<index_out->array_size/sizeof(float); ii+=4)
+            {
+                if (accumulator[i][ii] < 0.1 || accumulator[i][ii+1] < 0.1)
+                {
+                    zero_ch++;
+                    first_ch = first_ch == 0 ? ii : first_ch;
+                }
+            }
+            if (zero_ch)
+            {
+                printf("accumulator[%d] has %d zeroed channels out of %lu total channels starting at %d\n", 
+                       i, zero_ch,index_out->array_size/sizeof(float)/4, first_ch);
+                printf("first channel values=%f %f\n", accumulator[i][first_ch], accumulator[i][first_ch+1]);
+            }
+            // END DEBUG
+#endif
             /*Copy data array to disk buffer */
             memcpy(vegas_databuf_data(db_out, curblock_out) + array_offset,
                     accumulator[i], index_out->array_size);

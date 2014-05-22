@@ -146,6 +146,7 @@ GpuContext::GpuContext(GpuContext *p, int nsubband, int nchan, int in_blok_siz, 
         _out_block_size == out_blok_siz)
     {
         // We should be done
+        printf("### No GPU reallocations (%d %d  %d %d)\n", _nsubband, _nchan, nsubband, nchan);
         return;
     }
     else
@@ -650,7 +651,9 @@ void do_pfb(struct vegas_databuf *db_in,
         // in the presence of dropped packets. We used the blocksize from the data buffer
         // instead here to get things going. Not sure how dropped data at start of
         // scan should be treated.
-        int bloksz = db_in->block_size;
+        int bloksz;
+        bloksz = db_in->block_size;
+        // bloksz = (index_in->num_heaps * index_in->heap_size) - (index_in->num_heaps * sizeof(struct time_spead_heap));
         /* Sanity check for the first iteration */
         if ((bloksz % (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4))) != 0)
         {
@@ -659,19 +662,30 @@ void do_pfb(struct vegas_databuf *db_in,
             run = 0;
             return;
         }
+        // Cuda Note: cudaMemcpy host to device is asynchronous, be supposedly safe.
         CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d,
                                 payload_addr_in,
                                 bloksz,
                                 cudaMemcpyHostToDevice));
-        /* duplicate the last (VEGAS_NUM_TAPS - 1) segm                payload_addr_out = (char*)(vegas_databuf_data(db_out, g_iPFBCurBlockOut) +
-                                sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK +
-                                (index_out->heap_size - sizeof(struct freq_spead_heap)) * g_iHeapOut);
-ents at the end for
+        CUDA_SAFE_CALL(cudaThreadSynchronize());
+        iCUDARet = cudaGetLastError();
+        if (iCUDARet != cudaSuccess)
+        {
+            (void) fprintf(stderr, cudaGetErrorString(iCUDARet));
+        }
+                                
+        /* duplicate the last (VEGAS_NUM_TAPS - 1) segments at the end for 
            the next iteration */
         CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + (bloksz / sizeof(char4)),
                                 gpuCtx->_pc4Data_d + (bloksz / sizeof(char4)) - ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan),
                                 ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4)),
                                 cudaMemcpyDeviceToDevice));
+        CUDA_SAFE_CALL(cudaThreadSynchronize());
+        iCUDARet = cudaGetLastError();
+        if (iCUDARet != cudaSuccess)
+        {
+            (void) fprintf(stderr, cudaGetErrorString(iCUDARet));
+        }
 
         /* copy the status bits and valid flags for all heaps to arrays separate
            from the index, so that it can be combined with the corresponding
@@ -698,10 +712,25 @@ ents at the end for
                                 gpuCtx->_pc4Data_d + (iBlockInDataSize / sizeof(char4)),
                                 ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4)),
                                 cudaMemcpyDeviceToDevice));
+        CUDA_SAFE_CALL(cudaThreadSynchronize());
+        iCUDARet = cudaGetLastError();
+        if (iCUDARet != cudaSuccess)
+        {
+            (void) fprintf(stderr, cudaGetErrorString(iCUDARet));
+        }
+                                
+        // Cuda Note: cudaMemcpy host to device is asynchronous, be supposedly safe.                                
         CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan),
                                 payload_addr_in,
                                 iBlockInDataSize,
                                 cudaMemcpyHostToDevice));
+        CUDA_SAFE_CALL(cudaThreadSynchronize());
+        iCUDARet = cudaGetLastError();
+        if (iCUDARet != cudaSuccess)
+        {
+            (void) fprintf(stderr, cudaGetErrorString(iCUDARet));
+        }
+                                
         /* copy the status bits and valid flags for all heaps to arrays separate
            from the index, so that it can be combined with the corresponding
            values from the previous block */
@@ -897,6 +926,7 @@ ents at the end for
 int GpuContext::do_fft()
 {
     cufftResult iCUFFTRet = CUFFT_SUCCESS;
+    cudaError_t iCUDARet = cudaSuccess;
 
     /* execute plan */
     iCUFFTRet = cufftExecC2C(_stPlan,
@@ -906,6 +936,19 @@ int GpuContext::do_fft()
     if (iCUFFTRet != CUFFT_SUCCESS)
     {
         (void) fprintf(stderr, "ERROR: FFT failed!");
+        iCUDARet = cudaGetLastError();
+        if (iCUDARet != cudaSuccess)
+        {
+            (void) fprintf(stderr, cudaGetErrorString(iCUDARet));
+            run = 0;
+            return VEGAS_ERR_GEN;
+        }
+    }
+    CUDA_SAFE_CALL(cudaThreadSynchronize());
+    iCUDARet = cudaGetLastError();
+    if (iCUDARet != cudaSuccess)
+    {
+        (void) fprintf(stderr, cudaGetErrorString(iCUDARet));
         run = 0;
         return VEGAS_ERR_GEN;
     }
@@ -933,17 +976,25 @@ int GpuContext::accumulate()
 
 void GpuContext::zero_accumulator()
 {
+    cudaError_t iCUDARet = cudaSuccess;
     CUDA_SAFE_CALL(cudaMemset(_pf4SumStokes_d,
                                        '\0',
                                        (_nsubband
                                        * _nchan
                                        * sizeof(float4))));
+    CUDA_SAFE_CALL(cudaThreadSynchronize());                                       
+    if (iCUDARet != cudaSuccess)
+    {
+        (void) fprintf(stderr, cudaGetErrorString(iCUDARet));
+    }
 
     return;
 }
 
 int GpuContext::get_accumulated_spectrum_from_device(char *out)
 {
+    cudaError_t iCUDARet = cudaSuccess;
+    // Cuda note: Device to host memcpy is always synchronous
     /* copy the negative frequencies out first */
     CUDASafeCall(cudaMemcpy(out,
                             _pf4SumStokes_d + (_nsubband * _nchan / 2),
@@ -958,6 +1009,32 @@ int GpuContext::get_accumulated_spectrum_from_device(char *out)
                              * (_nchan / 2)
                              * sizeof(float4)),
                             cudaMemcpyDeviceToHost));
+    iCUDARet = cudaGetLastError();
+    if (iCUDARet != cudaSuccess)
+    {
+        (void) fprintf(stderr, cudaGetErrorString(iCUDARet));
+    }
+
+#ifdef DEBUG_ZERO_CHANNELS    
+    // DEBUG check for near or zero channels X*X and Y*Y should never be =< 0.0                            
+    int i, ndata, n_null = 0;
+    ndata = _nsubband*_nchan;
+    float4 *data = (float4 *)out;
+    int first_bad = 0;
+    
+    for (i=0; i<ndata; ++i)
+    {
+        if (data[i].x <= 0.0 || data[i].y <= 0.0)
+        {
+            n_null++;
+            first_bad=first_bad == 0 ? i : first_bad;
+        }
+    }
+    if (n_null != 0)
+    {
+        printf("GPU: %d nil channels starting at %d\n", n_null, first_bad);
+    }
+#endif
     return VEGAS_OK;
 }
 

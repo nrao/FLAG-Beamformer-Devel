@@ -29,7 +29,7 @@
 
 #include "vegas_thread_main.h"
 
-#define Version_string "2.1-exp_by_ssm"
+#include "Version.h"
 
 extern int g_debug_accumulator_thread; // For debugging REMOVE THIS before official release
 
