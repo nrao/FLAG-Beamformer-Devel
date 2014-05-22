@@ -123,10 +123,13 @@ GpuContext::GpuContext(GpuContext *p, int nsubband, int nchan, int in_blok_siz, 
         _pfPFBCoeff    = p->_pfPFBCoeff;     p->_pfPFBCoeff = 0;
         _pfPFBCoeff_d  = p->_pfPFBCoeff_d;   p->_pfPFBCoeff_d = 0;
         _pf4SumStokes_d= p->_pf4SumStokes_d; p->_pf4SumStokes_d = 0;
-        _stPlan        = p->_stPlan;         p->_stPlan = 0;    
+        _stPlan        = p->_stPlan;         p->_stPlan = 0;
+        _nsubband      = p->_nsubband;       p->_nsubband = 0;
+        _nchan         = p->_nchan;          p->_nchan   = 0;    
     }
     else
     {
+        // If we have no object to consume, initialize everything to nil
         _pf4FFTIn_d    = 0;
         _pf4FFTOut_d   = 0;
         _pc4InBuf      = 0;
@@ -140,24 +143,25 @@ GpuContext::GpuContext(GpuContext *p, int nsubband, int nchan, int in_blok_siz, 
         _nsubband      = 0;    
     }
     
+    // Do we have new buffer geometry?
     if (_nsubband == nsubband &&
         _nchan    == nchan &&
         _in_block_size == in_blok_siz &&
         _out_block_size == out_blok_siz)
     {
-        // We should be done
-        printf("### No GPU reallocations (%d %d  %d %d)\n", _nsubband, _nchan, nsubband, nchan);
+        // Nothing changed, so we should be done
+        printf("### No GPU reallocations necessary\n");
         return;
     }
     else
     {
-        release_resources();
-       
-        // Now allocate new resources for the new configuration
+        release_resources();       
+        // setup the new configuration
         _nsubband = nsubband;
         _nchan = nchan;
         _in_block_size = in_blok_siz;
         _out_block_size = out_blok_siz;
+        // Now allocate new resources for the new configuration
         init_resources();
     }
 }
