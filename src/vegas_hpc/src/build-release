@@ -1,0 +1,4 @@
+#/bin/bash
+githash=`git rev-parse HEAD | cut -c1-8`
+datever=`date +%-m.%d`
+echo "#define Version_string \"$datever-$githash\" " > Version.h
