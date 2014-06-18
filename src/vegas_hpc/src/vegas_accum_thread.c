@@ -410,6 +410,7 @@ void vegas_accum_thread(void *_args) {
     uint64_t full_time_counter=0;
     struct BlockStats blkstats;
     int do_once=1;
+    int end_of_scan = 0;
 
     // int nblock_int=0, npacket=0, n_pkt_drop=0, n_heap_drop=0;
     // int debug_tick = 0;
@@ -539,7 +540,17 @@ void vegas_accum_thread(void *_args) {
                spectrum number unreliable for keeping exposures in sync with switch periods.
                Thus the LBW case uses FPGA clocks per exposure provided by the manager to
                estimate when exposures should end.
+               The entire scan is ended by the check_scan_length() check, which then causes
+               two blocks to be flushed: the first with the results of the current accumulations,
+               and the second 'dummy' block which acts as an indicator that the scan is complete.
             */
+            if (use_scanlen)
+            {
+                if (check_scan_length(&clock, scan_length_seconds))
+                {
+                    end_of_scan = 1;
+                }
+            }
             if (is_hbw)
             {
                 exposure_complete = new_input_state(ssm, accumid, freq_heap->spectrum_cntr);
@@ -548,7 +559,7 @@ void vegas_accum_thread(void *_args) {
             {
                 exposure_complete = new_input_state(ssm, accumid, full_time_counter);
             }
-            if (exposure_complete)
+            if (exposure_complete || end_of_scan)
             {
 #if 0            
                 // DEBUG status of switching signals
@@ -578,7 +589,7 @@ void vegas_accum_thread(void *_args) {
 
                 if (use_scanlen)
                 {
-                    if (check_scan_length(&clock, scan_length_seconds))
+                    if (end_of_scan)
                     {
                         // set the incomplete block as filled so that the next stage
                         // sees the partial block. num_datasets indicates the amount of 
@@ -588,7 +599,6 @@ void vegas_accum_thread(void *_args) {
                         pthread_exit(0);
                     }
                 }
-                
 
                 reset_accumulators(accumulator, data_cols, accum_dirty,
                                 sf.hdr.nsubband, sf.hdr.nchan);
