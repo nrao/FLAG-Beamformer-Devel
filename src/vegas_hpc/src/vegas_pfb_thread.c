@@ -26,6 +26,11 @@
 #define STATUS_KEY "GPUSTAT"
 #include "vegas_threads.h"
 
+// Define this due to the l8lbw1 mode not working properly.
+// Note that this code will not support the 512k channel modes!
+#define USE_L8_PACKETS_FOR_L1_MODES
+
+#ifdef USE_L8_PACKETS_FOR_L1_MODES
 struct cmplx_sample
 {
     int8_t re;
@@ -55,6 +60,7 @@ struct time_spead_heap_packet_l1
 {
     struct time_sample data[2048];
 };
+#endif
 
 
 /* Parse info from buffer into param struct */
@@ -143,9 +149,10 @@ void vegas_pfb_thread(void *_args) {
     int nchan = 0;
     int nsubband = 0;
     struct databuf_index *index_out;
+#ifdef USE_L8_PACKETS_FOR_L1_MODES
     int packet_compression = 0;
     char mdname[80];
-    char *tempbuf = 0;
+#endif
     
     signal(SIGINT,cc);
     
@@ -165,15 +172,15 @@ void vegas_pfb_thread(void *_args) {
     {
         fprintf(stderr, "WARNING: %s not in status shm! Using computed value\n", "ACC_LEN");
     }
-    
+#ifdef USE_L8_PACKETS_FOR_L1_MODES    
     if (hgets(st.buf, "MODENAME", sizeof(mdname), mdname)) 
     {
         if (!strcmp(mdname, "l8/lbw1"))
         {
             packet_compression = 1;
-            tempbuf = (char *)malloc(32*1024*1024); // 32mb == block size
         }
     }
+#endif
         
     vegas_status_unlock_safe(&st);
     if (EXIT_SUCCESS != reset_state(db_in->block_size,
@@ -205,7 +212,7 @@ void vegas_pfb_thread(void *_args) {
         hdr_in = vegas_databuf_header(db_in, curblock_in);
         struct databuf_index *index_in;
         index_in = (struct databuf_index*)vegas_databuf_index(db_in, curblock_in);
-#if 1
+#ifdef USE_L8_PACKETS_FOR_L1_MODES
         if (packet_compression)
         {
             struct time_spead_heap *l8_hdr;
@@ -215,7 +222,7 @@ void vegas_pfb_thread(void *_args) {
             int i, s, out_heap, out_sample, heap;
             
             l8_hdr = (struct time_spead_heap *)vegas_databuf_data(db_in, curblock_in);
-            l1_hdr = (struct time_spead_heap *)tempbuf;
+            l1_hdr = (struct time_spead_heap *)vegas_databuf_data(db_in, curblock_in); // tempbuf;
             
             l8 = (struct time_spead_heap_packet_l8 *)&l8_hdr[MAX_HEAPS_PER_BLK];
             l1 = (struct time_spead_heap_packet_l1 *)&l1_hdr[MAX_HEAPS_PER_BLK];
@@ -234,16 +241,17 @@ void vegas_pfb_thread(void *_args) {
 
                 if (out_sample >= 2048)
                 {
-                    l1_hdr[out_heap] = l8_hdr[heap];
+                    if (out_heap != heap)
+                    {
+                        l1_hdr[out_heap] = l8_hdr[heap];
+                    }
                     out_heap++;
                     out_sample = 0;
                 }
             }
-            // at this point we have copied all the subband 0 samples into the temporary buffer
-            // This means we have 8 times less data
-            // copy the compressed data back into the data buffer
-            memcpy(l8_hdr, l1_hdr, sizeof(struct time_spead_heap) * MAX_HEAPS_PER_BLK + out_heap * sizeof(struct time_spead_heap_packet_l1));
-            // and update the index to indicate the smaller data
+            // At this point we have copied all the subband 0 samples packed into the 
+            // first eighth of the input buffer.
+            // This means we have 8 times less data, so we invalidate the rest to indicate this.
             for (i=index_in->num_heaps/8; i<index_in->num_heaps; ++i)
             {
                 index_in->cpu_gpu_buf[i].heap_valid = 0;

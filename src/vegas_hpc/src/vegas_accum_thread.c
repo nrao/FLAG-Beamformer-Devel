@@ -38,6 +38,8 @@
 #define INT_PAYLOAD     1
 #define FLOAT_PAYLOAD   2
 
+#define USE_L8_PACKETS_FOR_L1_MODES
+
 int g_debug_accumulator_thread = 0; // flag optionally set by main() 
 
 /*
@@ -327,7 +329,13 @@ void vegas_accum_thread(void *_args) {
         if (hgets(st.buf, "MODENAME", sizeof(expoclkstr), expoclkstr))
         {
             if (strncasecmp(expoclkstr, "l8/lbw1", 7) == 0)
-                clock.fpga_clock_multiplier = 8;    
+            {
+#ifdef USE_L8_PACKETS_FOR_L1_MODES
+                clock.fpga_clock_multiplier = 1;  
+#else  
+                clock.fpga_clock_multiplier = 8;
+#endif
+            }
         }
         memset(expoclkstr, 0, sizeof(expoclkstr));        
         if (hgets(st.buf, "EXPOCLKS", sizeof(expoclkstr), expoclkstr))
