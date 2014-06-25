@@ -9,6 +9,7 @@
 
 #include <sys/ipc.h>
 #include <sys/sem.h>
+#include "spead_heap.h"
 
 struct vegas_databuf {
     char data_type[64]; /**< Type of data in buffer */
@@ -25,15 +26,13 @@ struct vegas_databuf {
 
 #define VEGAS_DATABUF_KEY 0x00C62C70
 
-/* union for semaphore ops.  Is this really needed? */
+/* union for semaphore ops. */
 union semun {
     int val;
     struct semid_ds *buf;
     unsigned short *array;
     struct seminfo *__buf;
 };
-
-#ifdef NEW_GBT
 
 #define GPU_INPUT_BUF       1
 #define CPU_INPUT_BUF       2
@@ -73,12 +72,9 @@ struct databuf_index
     // The actual index
     union {
         struct cpu_gpu_buf_index cpu_gpu_buf[MAX_HEAPS_PER_BLK];
-        struct disk_buf_index disk_buf[2*MAX_HEAPS_PER_BLK];
+        struct disk_buf_index    disk_buf[2*MAX_HEAPS_PER_BLK];
     };
 };
-
-#endif
-
 
 #ifdef __cplusplus /* C++ prototypes */
 extern "C" {
@@ -89,14 +85,9 @@ extern "C" {
  * error if an existing shmem area exists with the given shmid (or
  * if other errors occured trying to allocate it).
  */
-#ifndef NEW_GBT
-struct vegas_databuf *vegas_databuf_create(int n_block, size_t block_size,
-        int databuf_id);
-#else
 struct vegas_databuf *vegas_databuf_create(int n_block, size_t block_size,
         int databuf_id, int buf_type);
 void vegas_conf_databuf_size(struct vegas_databuf *d, size_t new_block_size);
-#endif
 
 /** Return a pointer to a existing shmem segment with given id.
  * Returns error if segment does not exist 
@@ -118,9 +109,29 @@ void vegas_fitsbuf_clear(char *buf);
  */
 char *vegas_databuf_header(struct vegas_databuf *d, int block_id);
 char *vegas_databuf_data(struct vegas_databuf *d, int block_id);
-#ifdef NEW_GBT
 char *vegas_databuf_index(struct vegas_databuf *d, int block_id);
-#endif
+/// Inside a data buffer datablocks there are a number of spead headers
+/// followed by the actual data payload records. The calculates the
+/// address of the header for the Nth heap of block M (i.e block_id and heap_id respectively)
+/// when frequency heaps are used.
+struct time_spead_heap *
+vegas_datablock_time_heap_header(struct vegas_databuf *d, int block_id, int heap_id);
+
+/// This returns a pointer to the data payload of the Nth heap of block M
+/// when time heaps are used.
+struct freq_spead_heap *
+vegas_datablock_freq_heap_header(struct vegas_databuf *d, int block_id, int heap_id);
+
+/// This returns a pointer to the data payload of the Nth heap of block M
+/// when time heaps are used.
+char *vegas_datablock_time_heap_data(struct vegas_databuf *d, int block_id, int heap_id);
+
+/// This returns a pointer to the data payload of the Nth heap of block M
+/// when freq heaps are used.
+char *vegas_datablock_freq_heap_data(struct vegas_databuf *d, int block_id, int heap_id);
+
+size_t time_heap_datasize(struct databuf_index* index);
+size_t freq_heap_datasize(struct databuf_index* index);
 
 /** Returns lock status for given block_id, or total for
  * whole array.

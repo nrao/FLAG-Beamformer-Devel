@@ -182,32 +182,84 @@ void vegas_fitsbuf_clear(char *buf) {
     strncpy(buf, "END", 3);
 }
 
-#ifndef NEW_GBT
+/// Returns a pointer to the 1st FITS header for the given block
 char *vegas_databuf_header(struct vegas_databuf *d, int block_id) {
     return((char *)d + d->struct_size + block_id*d->header_size);
 }
 
-char *vegas_databuf_data(struct vegas_databuf *d, int block_id) {
-    return((char *)d + d->struct_size + d->n_block*d->header_size
-            + block_id*d->block_size);
-}
-
-#else
-
-char *vegas_databuf_header(struct vegas_databuf *d, int block_id) {
-    return((char *)d + d->struct_size + block_id*d->header_size);
-}
-
+/// Returns a pointer to the 1st index for the given block
 char *vegas_databuf_index(struct vegas_databuf *d, int block_id) {
     return((char *)d + d->struct_size + d->n_block*d->header_size
             + block_id*d->index_size);
 }
-
+/// Returns a pointer to the base of the data for the given block
 char *vegas_databuf_data(struct vegas_databuf *d, int block_id) {
     return((char *)d + d->struct_size + d->n_block*d->header_size
             + d->n_block*d->index_size + block_id*d->block_size);
 }
-#endif
+
+size_t time_heap_datasize(struct databuf_index* index)
+{
+    return(index->heap_size - sizeof(struct time_spead_heap));
+}
+
+size_t freq_heap_datasize(struct databuf_index* index)
+{
+    return(index->heap_size - sizeof(struct freq_spead_heap));
+}
+
+// Inside a data buffer datablocks there are a number of spead headers
+// followed by the actual data payload records. The calculates the
+// address of the header for the Nth heap of block M (i.e block_id and heap_id respectively)
+//  when frequency heaps are used.
+struct time_spead_heap *
+vegas_datablock_time_heap_header(struct vegas_databuf *d, int block_id, int heap_id)
+{
+    char *p = vegas_databuf_data(d, block_id);
+    p += sizeof(struct time_spead_heap) * heap_id;
+    return (struct time_spead_heap *)p;
+}
+
+// Inside a data buffer datablocks there are a number of spead headers
+// followed by the actual data payload records. The calculates the
+// address of the header for the Nth heap of block M (i.e block_id and heap_id respectively)
+//  when frequency heaps are used.
+struct freq_spead_heap *
+vegas_datablock_freq_heap_header(struct vegas_databuf *d, int block_id, int heap_id)
+{
+    char *p = vegas_databuf_data(d, block_id);
+    p += sizeof(struct freq_spead_heap) * heap_id;
+    return (struct freq_spead_heap *)p;
+}
+
+// This returns a pointer to the data payload of the Nth heap of block M
+// when time heaps are used.
+char *
+vegas_datablock_time_heap_data(struct vegas_databuf *d, int block_id, int heap_id)
+{
+    char *p;
+    struct databuf_index *index;
+    index = (struct databuf_index *)vegas_databuf_index(d, block_id);
+    
+    p = vegas_databuf_data(d, block_id);
+    p += sizeof(struct time_spead_heap) * MAX_HEAPS_PER_BLK;
+    p += (index->heap_size - sizeof(struct time_spead_heap)) * heap_id;
+    return p;
+}
+
+// This returns a pointer to the data payload of the Nth heap of block M
+// when freq heaps are used.
+char *
+vegas_datablock_freq_heap_data(struct vegas_databuf *d, int block_id, int heap_id)
+{
+    struct databuf_index *index;
+    index = (struct databuf_index *)vegas_databuf_index(d, block_id);
+    
+    char *p = vegas_databuf_data(d, block_id);
+    p += sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK;
+    p += (index->heap_size - sizeof(struct freq_spead_heap)) * heap_id;
+    return p;
+}
 
 /** Attach to the specified data buffer.
  *  Returns the address of the databuffer if successful , or zero on error.

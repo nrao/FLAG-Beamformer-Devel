@@ -549,12 +549,10 @@ int dump_to_buffer(struct vegas_databuf *db_out,         // Output databuffer
     struct databuf_index *index_out;
     int rtn;
     
-    freq_heap_out = frequency_heap(db_out, curblk_out, iHeapOut);
+    freq_heap_out = vegas_datablock_freq_heap_header(db_out, curblk_out, iHeapOut);
     index_out = (struct databuf_index*)vegas_databuf_index(db_out, curblk_out);
     
-    payload_addr_out = (char*)(vegas_databuf_data(db_out, curblk_out) +
-                        sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK +
-                        (index_out->heap_size - sizeof(struct freq_spead_heap)) * iHeapOut);                        
+    payload_addr_out = vegas_datablock_freq_heap_data(db_out, curblk_out, iHeapOut);
 
     /* Write new heap header fields */
     freq_heap_out->time_cntr_id = 0x20;
@@ -614,39 +612,44 @@ void do_pfb(struct vegas_databuf *db_in,
     int i = 0;
     int iBlockInDataSize;
     double first_time_heap_mjd;
+    int nsubband_x_nchan;
+    size_t nsubband_x_nchan_fsize;
+    size_t nsubband_x_nchan_csize;
 
+    nsubband_x_nchan = gpuCtx->_nsubband * gpuCtx->_nchan;
+    nsubband_x_nchan_fsize = nsubband_x_nchan * sizeof(float4);
+    nsubband_x_nchan_csize = nsubband_x_nchan * sizeof(char4);
+    
     /* Setup input and first output data block stuff */
     index_in = (struct databuf_index*)vegas_databuf_index(db_in, curblock_in);
     /* Get the number of heaps per block of data that will be processed by the GPU */
-    num_in_heaps_per_proc = (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4)) / (index_in->heap_size - sizeof(struct time_spead_heap));
-    iBlockInDataSize = (index_in->num_heaps * index_in->heap_size) - (index_in->num_heaps * sizeof(struct time_spead_heap));
+    num_in_heaps_per_proc = nsubband_x_nchan_csize / time_heap_datasize(index_in);
+    iBlockInDataSize = index_in->num_heaps * time_heap_datasize(index_in);
 
-    num_in_heaps_tail = (((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4))
-                         / (index_in->heap_size - sizeof(struct time_spead_heap)));
+    num_in_heaps_tail = ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan_csize)
+                         / time_heap_datasize(index_in);
     num_in_heaps_gpu_buffer = index_in->num_heaps + num_in_heaps_tail;
 
     /* Calculate the maximum number of output heaps per block */
-    g_iMaxNumHeapOut = (g_buf_out_block_size - (sizeof(struct time_spead_heap) * MAX_HEAPS_PER_BLK)) / (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(float4));
+    // Seems like this should have freq_spead_heap not time_spead_heap??
+    g_iMaxNumHeapOut = (g_buf_out_block_size - (sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK)) / nsubband_x_nchan_fsize;
 
     hdr_out = vegas_databuf_header(db_out, *curblock_out);
     index_out = (struct databuf_index*)vegas_databuf_index(db_out, *curblock_out);
     // index_out->num_heaps = 0;
-    memcpy(hdr_out, vegas_databuf_header(db_in, curblock_in),
-            VEGAS_STATUS_SIZE);
+    memcpy(hdr_out, vegas_databuf_header(db_in, curblock_in), VEGAS_STATUS_SIZE);
 
     /* Set basic params in output index */
-    index_out->heap_size = sizeof(struct freq_spead_heap) + (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(float4));
+    index_out->heap_size = sizeof(struct freq_spead_heap) + (nsubband_x_nchan_fsize);
     /* Read in heap from buffer */
-    heap_addr_in = (char*)(vegas_databuf_data(db_in, curblock_in) +
-                        sizeof(struct time_spead_heap) * heap_in);
+    heap_addr_in = (char*)vegas_datablock_time_heap_header(db_in, curblock_in, heap_in);
+
     // first_time_heap_in_accum = (struct time_spead_heap*)(heap_addr_in);
     memcpy(&first_time_heap_in_accum, heap_addr_in, sizeof(first_time_heap_in_accum));
     first_time_heap_mjd = index_in->cpu_gpu_buf[heap_in].heap_rcvd_mjd;
     /* Here, the payload_addr_in is the start of the contiguous block of data that will be
        copied to the GPU (heap_in = 0) */
-    payload_addr_in = (char*)(vegas_databuf_data(db_in, curblock_in) +
-                        sizeof(struct time_spead_heap) * MAX_HEAPS_PER_BLK +
-                        (index_in->heap_size - sizeof(struct time_spead_heap)) * heap_in );
+    payload_addr_in = vegas_datablock_time_heap_data(db_in, curblock_in, heap_in);
 
     /* Copy data block to GPU */
     if (first)
@@ -659,7 +662,7 @@ void do_pfb(struct vegas_databuf *db_in,
         bloksz = db_in->block_size;
         // bloksz = (index_in->num_heaps * index_in->heap_size) - (index_in->num_heaps * sizeof(struct time_spead_heap));
         /* Sanity check for the first iteration */
-        if ((bloksz % (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4))) != 0)
+        if ((bloksz % (nsubband_x_nchan_csize)) != 0)
         {
             (void) fprintf(stderr, "ERROR: Data size mismatch! BlockInDataSize=%d NumSubBands=%d nchan=%d\n",
                                     bloksz, gpuCtx->_nsubband, gpuCtx->_nchan);
@@ -681,9 +684,9 @@ void do_pfb(struct vegas_databuf *db_in,
         /* duplicate the last (VEGAS_NUM_TAPS - 1) segments at the end for 
            the next iteration */
         CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + (bloksz / sizeof(char4)),
-                                gpuCtx->_pc4Data_d + (bloksz / sizeof(char4)) - ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan),
-                                ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4)),
-                                cudaMemcpyDeviceToDevice));
+                                  gpuCtx->_pc4Data_d + (bloksz - ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan_csize))/sizeof(char4),
+                                  ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan_csize),
+                                  cudaMemcpyDeviceToDevice));
         CUDA_SAFE_CALL(cudaThreadSynchronize());
         iCUDARet = cudaGetLastError();
         if (iCUDARet != cudaSuccess)
@@ -714,7 +717,7 @@ void do_pfb(struct vegas_databuf *db_in,
         /* If this is not the first run, need to handle block boundary, while doing the PFB */
         CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d,
                                 gpuCtx->_pc4Data_d + (iBlockInDataSize / sizeof(char4)),
-                                ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4)),
+                                ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan_csize),
                                 cudaMemcpyDeviceToDevice));
         CUDA_SAFE_CALL(cudaThreadSynchronize());
         iCUDARet = cudaGetLastError();
@@ -724,7 +727,7 @@ void do_pfb(struct vegas_databuf *db_in,
         }
                                 
         // Cuda Note: cudaMemcpy host to device is asynchronous, be supposedly safe.                                
-        CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + ((VEGAS_NUM_TAPS - 1) * gpuCtx->_nsubband * gpuCtx->_nchan),
+        CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan),
                                 payload_addr_in,
                                 iBlockInDataSize,
                                 cudaMemcpyHostToDevice));
@@ -762,9 +765,9 @@ void do_pfb(struct vegas_databuf *db_in,
             if (!(is_valid(heap_in, (VEGAS_NUM_TAPS * num_in_heaps_per_proc))))
             {
                 /* Skip all heaps that go into this PFB if there is an invalid heap */
-                iProcData += (VEGAS_NUM_TAPS * gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4));
+                iProcData += (VEGAS_NUM_TAPS * nsubband_x_nchan_csize);
                 /* update the data read pointer */
-                gpuCtx->_pc4DataRead_d += (VEGAS_NUM_TAPS * gpuCtx->_nsubband * gpuCtx->_nchan);
+                gpuCtx->_pc4DataRead_d += (VEGAS_NUM_TAPS * nsubband_x_nchan);
                 if (iProcData >= iBlockInDataSize)
                 {
                     break;
@@ -781,8 +784,7 @@ void do_pfb(struct vegas_databuf *db_in,
                                    heap_in,
                                    num_in_heaps_gpu_buffer);
                 }
-                heap_addr_in = (char*)(vegas_databuf_data(db_in, curblock_in) +
-                                    sizeof(struct time_spead_heap) * heap_in);
+                heap_addr_in = (char*)vegas_datablock_time_heap_header(db_in, curblock_in, heap_in);
                 continue;
             }
         }
@@ -859,14 +861,13 @@ void do_pfb(struct vegas_databuf *db_in,
             g_iSpecPerAcc = 0;
         }
 
-        iProcData += (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(char4));
+        iProcData += nsubband_x_nchan_csize;
         /* update the data read pointer */
-        gpuCtx->_pc4DataRead_d += (gpuCtx->_nsubband * gpuCtx->_nchan);
+        gpuCtx->_pc4DataRead_d += (nsubband_x_nchan);
 
         /* Calculate input heap addresses for the next round of processing */
         heap_in += num_in_heaps_per_proc;
-        heap_addr_in = (char*)(vegas_databuf_data(db_in, curblock_in) +
-                            sizeof(struct time_spead_heap) * heap_in);
+        heap_addr_in = (char*)vegas_datablock_time_heap_header(db_in, curblock_in, heap_in);
         
         if (0 == g_iSpecPerAcc)
         {
@@ -917,7 +918,7 @@ void do_pfb(struct vegas_databuf *db_in,
                     VEGAS_STATUS_SIZE);
 
             /* Set basic params in output index */
-            index_out->heap_size = sizeof(struct freq_spead_heap) + (gpuCtx->_nsubband * gpuCtx->_nchan * sizeof(float4));
+            index_out->heap_size = sizeof(struct freq_spead_heap) + (nsubband_x_nchan_fsize);
         }
 
         pfb_count = (pfb_count + 1) % VEGAS_NUM_TAPS;
