@@ -28,7 +28,7 @@
 
 // Define this due to the l8lbw1 mode not working properly.
 // Note that this code will not support the 512k channel modes!
-#define USE_L8_PACKETS_FOR_L1_MODES
+#undef USE_L8_PACKETS_FOR_L1_MODES
 
 #ifdef USE_L8_PACKETS_FOR_L1_MODES
 struct cmplx_sample

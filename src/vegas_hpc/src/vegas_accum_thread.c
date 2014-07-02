@@ -38,7 +38,7 @@
 #define INT_PAYLOAD     1
 #define FLOAT_PAYLOAD   2
 
-#define USE_L8_PACKETS_FOR_L1_MODES
+#undef USE_L8_PACKETS_FOR_L1_MODES
 
 int g_debug_accumulator_thread = 0; // flag optionally set by main() 
 
