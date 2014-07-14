@@ -32,6 +32,7 @@
 #include "Version.h"
 
 extern int g_debug_accumulator_thread; // For debugging REMOVE THIS before official release
+extern int g_use_L8_packets_for_L1_modes; // flag to enable mode 10-13,15-18 software fix
 
 #define vegas_DAQ_CONTROL "/tmp/vegas_daq_control"
 
@@ -42,6 +43,7 @@ void usage() {
             "  -h, --help         This message\n"
             "  -r, --resize-obuf  HPC will resize the output buffer block when starting a scan\n"
             "  -d, --accumulator-debug HPC will emit debugging info for each spectra\n"
+            "  -8  --l8lbw1-fix   Enables use of L8 packets to correct for bug in L8LBW1 modes\n"
            );
 }
 
@@ -89,6 +91,7 @@ struct KeywordValues keywords[] =
     { "rawdisk_thread_priority", 0x0 },
     { "null_thread_priority", 0x0 },
     { "accum_debug_flag", 0x0 },
+    { "use_l8_packets_for_l1_modes", 0x0 },
     { NULL, 0x0 },
 };
 
@@ -114,7 +117,6 @@ struct KeywordValues keywords[] =
 void configure_accumulator_buffer_size(struct vegas_status *stat, struct vegas_databuf *dbuf_acc)
 {
     // When the manager is present, it will adjust the block size, if not we set it here.
-#if 1
     /* Resize the blocks in the disk input buffer, based on the exposure parameter */
     struct vegas_params vegas_p;
     struct sdfits sf;
@@ -133,7 +135,6 @@ void configure_accumulator_buffer_size(struct vegas_status *stat, struct vegas_d
         disk_block_size = (int64_t)(32*1024*1024);
     }
     vegas_conf_databuf_size(dbuf_acc, disk_block_size);
-#endif
 }
 
 void init_hbw_mode(struct vegas_thread_args *args, int *nthread) 
@@ -266,10 +267,11 @@ void stop_threads(struct vegas_thread_args *args, pthread_t *ids, unsigned nthre
 int main(int argc, char *argv[]) {
 
     static struct option long_opts[] = {
-        {"help",   0, NULL, 'h'},
-        {"resize-obuf", 0, NULL, 'r'},
+        {"help",              0, NULL, 'h'},
+        {"resize-obuf",       0, NULL, 'r'},
         {"accumulator-debug", 0, NULL, 'd'},
-        {"init-gpu", 0, NULL, 'g'},
+        {"init-gpu",          0, NULL, 'g'},
+        {"l8lbw1-fix",        0, NULL, '8'},
         {0,0,0,0}
     };
     int opt, opti;
@@ -280,8 +282,9 @@ int main(int argc, char *argv[]) {
     read_thread_configuration(keywords);
 
     g_debug_accumulator_thread=get_config_key_value("accum_debug_flag", keywords);
+    g_use_L8_packets_for_L1_modes=get_config_key_value("use_l8_packets_for_l1_modes", keywords);
     
-    while ((opt=getopt_long(argc,argv,"hrdg",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hrdg8",long_opts,&opti))!=-1) {
         switch (opt) {
             default:
             case 'h':
@@ -296,6 +299,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'g':
                 initialize_gpu_at_startup = 1;
+                break;
+            case '8':
+                g_use_L8_packets_for_L1_modes = 1;
                 break;
         }
     }

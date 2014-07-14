@@ -28,15 +28,11 @@
 
 // Define this due to the l8lbw1 mode not working properly.
 // Note that this code will not support the 512k channel modes!
-#undef USE_L8_PACKETS_FOR_L1_MODES
-
-#ifdef USE_L8_PACKETS_FOR_L1_MODES
 struct cmplx_sample
 {
     int8_t re;
     int8_t im;
 };
-
 struct time_sample
 {
     struct cmplx_sample pol[2];
@@ -60,8 +56,8 @@ struct time_spead_heap_packet_l1
 {
     struct time_sample data[2048];
 };
-#endif
 
+extern int g_use_L8_packets_for_L1_modes; // flag to enable L8 into L1 fix.
 
 /* Parse info from buffer into param struct */
 extern void vegas_read_subint_params(char *buf, 
@@ -149,10 +145,8 @@ void vegas_pfb_thread(void *_args) {
     int nchan = 0;
     int nsubband = 0;
     struct databuf_index *index_out;
-#ifdef USE_L8_PACKETS_FOR_L1_MODES
     int packet_compression = 0;
     char mdname[80];
-#endif
     
     signal(SIGINT,cc);
     
@@ -171,16 +165,14 @@ void vegas_pfb_thread(void *_args) {
     if (hgeti4(st.buf, "ACC_LEN", &acc_len)==0) 
     {
         fprintf(stderr, "WARNING: %s not in status shm! Using computed value\n", "ACC_LEN");
-    }
-#ifdef USE_L8_PACKETS_FOR_L1_MODES    
+    }    
     if (hgets(st.buf, "MODENAME", sizeof(mdname), mdname)) 
     {
-        if (!strcmp(mdname, "l8/lbw1"))
+        if (strcmp(mdname, "l8/lbw1") == 0 && g_use_L8_packets_for_L1_modes)
         {
             packet_compression = 1;
         }
     }
-#endif
         
     vegas_status_unlock_safe(&st);
     if (EXIT_SUCCESS != reset_state(db_in->block_size,
@@ -212,7 +204,7 @@ void vegas_pfb_thread(void *_args) {
         hdr_in = vegas_databuf_header(db_in, curblock_in);
         struct databuf_index *index_in;
         index_in = (struct databuf_index*)vegas_databuf_index(db_in, curblock_in);
-#ifdef USE_L8_PACKETS_FOR_L1_MODES
+
         if (packet_compression)
         {
             struct time_spead_heap *l8_hdr;
@@ -258,7 +250,7 @@ void vegas_pfb_thread(void *_args) {
             }
             index_in->num_heaps = index_in->num_heaps/8;
         }
-#endif        
+        
         /* Get params */
         if (first)
         {
