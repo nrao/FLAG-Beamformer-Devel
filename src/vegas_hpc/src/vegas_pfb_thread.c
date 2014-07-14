@@ -183,6 +183,13 @@ void vegas_pfb_thread(void *_args) {
         (void) fprintf(stderr, "ERROR: GPU initialisation failed!\n");
         run = 0;
     }
+    
+    if (packet_compression && nchan > 263000)
+    {
+        fprintf(stderr, "ABORTED: Note: software fix for L8LBW1 is currently enabled.\n");
+        fprintf(stderr, "This fix does not support NCHAN greater than 262144 channels\n");
+        run = 0;
+    }
 
     while (run) {
 
