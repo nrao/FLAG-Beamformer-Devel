@@ -62,8 +62,11 @@ public:
     int     _out_block_size;
     int     _init_status;
     int     _first_time_heap_in_accum_status_bits;
+    double  _first_time_heap_mjd;
     
     BlankingStateMachine _blanker;
+    
+    struct time_spead_heap _first_time_heap_in_accum;
     
     int fft_in_stride()  { return 2*_nsubband; };
     int fft_out_stride() { return 2*_nsubband; };
@@ -103,12 +106,14 @@ GpuContext::GpuContext() :
         _nsubband(0),
         _blanker()
 {
-    memset(&_stPlan, 0, sizeof(_stPlan));    
+    memset(&_stPlan, 0, sizeof(_stPlan));
+    memset(&_first_time_heap_in_accum, 0, sizeof(_first_time_heap_in_accum));    
 }
 
 GpuContext::GpuContext(GpuContext *p, int nsubband, int nchan, int in_blok_siz, int out_blok_siz)
 {
     _blanker.reset();
+    memset(&_first_time_heap_in_accum, 0, sizeof(_first_time_heap_in_accum));
     if (p != 0)
     {
         // Move resources from p into this object and null out p's reference
@@ -583,7 +588,7 @@ int dump_to_buffer(struct vegas_databuf *db_out,         // Output databuffer
     index_out->num_heaps += (rtn == VEGAS_OK ? 1 : 0);
     return rtn;
 }
-
+    
 /* Actually do the PFB by calling CUDA kernels */
 extern "C"
 void do_pfb(struct vegas_databuf *db_in,
@@ -600,7 +605,7 @@ void do_pfb(struct vegas_databuf *db_in,
     struct databuf_index *index_out = NULL;
     int heap_in = 0;
     char *heap_addr_in = NULL;
-    struct time_spead_heap first_time_heap_in_accum;
+
     int iProcData = 0;
     cudaError_t iCUDARet = cudaSuccess;
     int iRet = VEGAS_OK;
@@ -611,7 +616,6 @@ void do_pfb(struct vegas_databuf *db_in,
     int num_in_heaps_tail = 0;
     int i = 0;
     int iBlockInDataSize;
-    double first_time_heap_mjd;
     int nsubband_x_nchan;
     size_t nsubband_x_nchan_fsize;
     size_t nsubband_x_nchan_csize;
@@ -644,9 +648,6 @@ void do_pfb(struct vegas_databuf *db_in,
     /* Read in heap from buffer */
     heap_addr_in = (char*)vegas_datablock_time_heap_header(db_in, curblock_in, heap_in);
 
-    // first_time_heap_in_accum = (struct time_spead_heap*)(heap_addr_in);
-    memcpy(&first_time_heap_in_accum, heap_addr_in, sizeof(first_time_heap_in_accum));
-    first_time_heap_mjd = index_in->cpu_gpu_buf[heap_in].heap_rcvd_mjd;
     /* Here, the payload_addr_in is the start of the contiguous block of data that will be
        copied to the GPU (heap_in = 0) */
     payload_addr_in = vegas_datablock_time_heap_data(db_in, curblock_in, heap_in);
@@ -832,6 +833,8 @@ void do_pfb(struct vegas_databuf *db_in,
             if (1 == g_iSpecPerAcc)
             {
                 gpuCtx->_first_time_heap_in_accum_status_bits = g_auiStatusBits[heap_in];
+                memcpy(&gpuCtx->_first_time_heap_in_accum, heap_addr_in, sizeof(gpuCtx->_first_time_heap_in_accum));
+                gpuCtx->_first_time_heap_mjd = index_in->cpu_gpu_buf[heap_in].heap_rcvd_mjd;               
             }                    
         }
         
@@ -841,10 +844,10 @@ void do_pfb(struct vegas_databuf *db_in,
             iRet = dump_to_buffer(db_out,             
                                   *curblock_out,
                                   g_iHeapOut,
-                                  &first_time_heap_in_accum,
+                                  &gpuCtx->_first_time_heap_in_accum,
                                   g_iTotHeapOut,
                                   g_iSpecPerAcc,
-                                  first_time_heap_mjd,
+                                  gpuCtx->_first_time_heap_mjd,
                                   gpuCtx->_first_time_heap_in_accum_status_bits);
             
             if (iRet != VEGAS_OK)
@@ -868,13 +871,6 @@ void do_pfb(struct vegas_databuf *db_in,
         /* Calculate input heap addresses for the next round of processing */
         heap_in += num_in_heaps_per_proc;
         heap_addr_in = (char*)vegas_datablock_time_heap_header(db_in, curblock_in, heap_in);
-        
-        if (0 == g_iSpecPerAcc)
-        {
-            // first_time_heap_in_accum = (struct time_spead_heap*)(heap_addr_in);
-            memcpy(&first_time_heap_in_accum, heap_addr_in, sizeof(first_time_heap_in_accum));
-            first_time_heap_mjd = index_in->cpu_gpu_buf[heap_in].heap_rcvd_mjd;
-        }
 
         /* if output block is full */
         if (g_iHeapOut == g_iMaxNumHeapOut)
