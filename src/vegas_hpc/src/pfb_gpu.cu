@@ -712,6 +712,8 @@ void do_pfb(struct vegas_databuf *db_in,
             g_auiStatusBits[i] = g_auiStatusBits[i-num_in_heaps_tail];
             g_auiHeapValid[i] = g_auiHeapValid[i-num_in_heaps_tail];
         }
+        // Zero out accumulators for 1st integration
+        gpuCtx->zero_accumulator();
     }
     else
     {
