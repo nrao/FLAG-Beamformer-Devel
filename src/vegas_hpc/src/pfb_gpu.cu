@@ -175,6 +175,8 @@ bool
 GpuContext::verify_setup(int nsubband, int nchan, int in_block_size, int out_block_size)
 {
     _blanker.reset();
+    memset(&_first_time_heap_in_accum, 0, sizeof(_first_time_heap_in_accum)); 
+       
     // Does the setup match?
     if (_nsubband == nsubband &&
         _nchan    == nchan &&
