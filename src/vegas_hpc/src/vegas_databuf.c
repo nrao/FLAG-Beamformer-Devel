@@ -208,6 +208,65 @@ size_t freq_heap_datasize(struct databuf_index* index)
     return(index->heap_size - sizeof(struct freq_spead_heap));
 }
 
+/**
+    ASCII diagram of vegas databuf layout:
+
+    +---------------------------+
+    | vegas_databuf structure   |
+    +---------------------------+
+    | FITS header for block 0   |   <---- vegas_databuf_header(db,0)
+    +---------------------------+
+    | FITS header for block 1   |
+    +---------------------------+
+    |           ...             |
+    +---------------------------+    
+    | FITS header for block N-1 |
+    +---------------------------+
+    | Index for block 0         |   <---- vegas_databuf_index(db, 0)
+    +---------------------------+
+    | Index for block 1         |
+    +---------------------------+    
+    |           ...             |    
+    +---------------------------+
+    | Index for block N-1       |            
+    +---------------------------+
+    | Data for block 0          |    <---- vegas_databuf_data(db, 0)        
+    +---------------------------+
+    | Data for block 1          |            
+    +---------------------------+
+    |           ...             |    
+    +---------------------------+
+    | Data for block N-1        |            
+    +---------------------------+        
+    
+The sizes of the data blocks, FITS headers, and Indexes are given in the vegas_databuf structure. 
+
+Inside each data block, are multiple 'heaps' with the spead headers packed at the top of the buffer,
+followed by the data for each heap. 
+
+The Index entry for the block contains the member 'num_heaps'
+(aka 'num_datasets') which specifies the number of valid heap entries. 
+
+    +---------------------------+
+    | spead header for heap 0   |
+    +---------------------------+
+    | spead header for heap 1   |
+    +---------------------------+
+    |           ...             |
+    +---------------------------+    
+    | spead header for heap M   |
+    +---------------------------+    
+    | data for heap 0           |
+    +---------------------------+
+    | data for heap 1           |
+    +---------------------------+    
+    |           ...             |
+    +---------------------------+    
+    | data for heap M           |
+    +---------------------------+    
+    
+*/
+
 // Inside a data buffer datablocks there are a number of spead headers
 // followed by the actual data payload records. The calculates the
 // address of the header for the Nth heap of block M (i.e block_id and heap_id respectively)

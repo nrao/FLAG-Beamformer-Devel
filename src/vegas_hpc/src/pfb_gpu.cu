@@ -558,7 +558,16 @@ int dump_to_buffer(struct vegas_databuf *db_out,         // Output databuffer
     
     freq_heap_out = vegas_datablock_freq_heap_header(db_out, curblk_out, iHeapOut);
     index_out = (struct databuf_index*)vegas_databuf_index(db_out, curblk_out);
-    
+
+    if (index_out->heap_size*(index_out->num_heaps+1) > db_out->block_size ||
+        iHeapOut >= db_out->index_size)
+    {
+        printf("DATABUF ERROR: heapsize*nheaps > blocksize!! (%d > %zd) index_size=%d\n",
+            index_out->heap_size*index_out->num_heaps, db_out->block_size, db_out->index_size); 
+        printf("DATABUF ERROR: blocknum=%d, iHeapOut=%d,iTotHeapOut=%d,iSpecPerAcc=%d\n",
+            curblk_out, iHeapOut,iTotHeapOut, iSpecPerAcc);
+    } 
+        
     payload_addr_out = vegas_datablock_freq_heap_data(db_out, curblk_out, iHeapOut);
 
     /* Write new heap header fields */
@@ -637,7 +646,6 @@ void do_pfb(struct vegas_databuf *db_in,
     num_in_heaps_gpu_buffer = index_in->num_heaps + num_in_heaps_tail;
 
     /* Calculate the maximum number of output heaps per block */
-    // Seems like this should have freq_spead_heap not time_spead_heap??
     g_iMaxNumHeapOut = (g_buf_out_block_size - (sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK)) / nsubband_x_nchan_fsize;
 
     hdr_out = vegas_databuf_header(db_out, *curblock_out);
