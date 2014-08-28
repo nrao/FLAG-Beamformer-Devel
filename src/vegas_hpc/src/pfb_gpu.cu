@@ -175,7 +175,9 @@ bool
 GpuContext::verify_setup(int nsubband, int nchan, int in_block_size, int out_block_size)
 {
     _blanker.reset();
-    memset(&_first_time_heap_in_accum, 0, sizeof(_first_time_heap_in_accum)); 
+    memset(&_first_time_heap_in_accum, 0, sizeof(_first_time_heap_in_accum));
+    _first_time_heap_mjd = 0.0;
+    _first_time_heap_in_accum_status_bits = 0; 
        
     // Does the setup match?
     if (_nsubband == nsubband &&
@@ -853,22 +855,30 @@ void do_pfb(struct vegas_databuf *db_in,
         if (g_iSpecPerAcc == acc_len || gpuCtx->needs_flush())
         {
             /* dump to buffer */
-            iRet = dump_to_buffer(db_out,             
-                                  *curblock_out,
-                                  g_iHeapOut,
-                                  &gpuCtx->_first_time_heap_in_accum,
-                                  g_iTotHeapOut,
-                                  g_iSpecPerAcc,
-                                  gpuCtx->_first_time_heap_mjd,
-                                  gpuCtx->_first_time_heap_in_accum_status_bits);
-            
-            if (iRet != VEGAS_OK)
+            // If no accumulations have occurred, then just clear the accumulator and start again.
+            if (acc_len > 0)
             {
-                (void) fprintf(stdout, "ERROR: Getting accumulated spectrum failed!\n");
-                run = 0;
-                break;
-            }                                  
-            ++g_iHeapOut;
+                iRet = dump_to_buffer(db_out,             
+                                      *curblock_out,
+                                      g_iHeapOut,
+                                      &gpuCtx->_first_time_heap_in_accum,
+                                      g_iTotHeapOut,
+                                      g_iSpecPerAcc,
+                                      gpuCtx->_first_time_heap_mjd,
+                                      gpuCtx->_first_time_heap_in_accum_status_bits);
+            
+                if (iRet != VEGAS_OK)
+                {
+                    (void) fprintf(stdout, "ERROR: Getting accumulated spectrum failed!\n");
+                    run = 0;
+                    break;
+                }                                  
+                ++g_iHeapOut;
+            }
+            else
+            {
+                printf("Scanlength: GPU:asked to dump buffer but no accumulations present\n");
+            }
 
             /* zero accumulators */
             gpuCtx->zero_accumulator();
