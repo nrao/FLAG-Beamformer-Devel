@@ -243,6 +243,12 @@ int32_t exposure_by_phases_v2(SwitchingStateMachine *p, int32_t in_accumid, int6
         // increment the sw cycle count
         p->cur_sw_cycle_number++;
     }
+    // debug output for statistics ...
+    if (correction_made)
+    {
+        printf("Correction_made: ncount_diff=%ld counts_per_phase=%ld accumid=%d\n",
+               ncount_diff, counts_per_phase, in_accumid);
+    }
     
     // update current phase index
     p->cur_phase_idx = in_phase_idx;
