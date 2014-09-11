@@ -1,37 +1,33 @@
 #!/bin/bash
 
 #set -x
-# Shared memory databuffer keys. Use spaces to separate entries
-DATABUFFERKEYS="0x00c62c70 0x00c62c71 0x00c62c72"
 
-#distinguish between the Green Bank and Shao set-ups. Shao setup is
-#installed in "/opt/dibas" on hpc1. NUMA domain 1 doesn't exist on the
-#GB systems.
+# Distinguish between the Green Bank and Shao set-ups. Shao setup is
+# NUMA domain 1 doesn't exist on the GB systems.
+# The number of domains is queried and shared memory is bound to the 
+# highest numbered domain.
+NUM_NUMA_DOMAINS=`numactl --hardware | grep available | cut -f2 -d' '`
+USE_NUMA_DOMAIN=$((NUM_NUMA_DOMAINS-1))
 
-case $DIBAS_DIR in
-    "/opt/dibas")
-        NUMACMD="numactl --membind=1"
-        ;;
-    "/home/dibas")
-        NUMACMD="numactl --membind=0"
-        ;;
-esac
+NUMACMD="numactl --membind=$USE_NUMA_DOMAIN"
+
+# GBT uses YGOR_TELESCOPE instead of DIBAS_DIR
+if [ ! -z "$YGOR_TELESCOPE" ]; then
+    TELES_DIR=$YGOR_TELESCOPE
+elif [ ! -z "$DIBAS_DIR" ]; then
+    TELES_DIR=$DIBAS_DIR
+fi
+
+
 
 ## Remove databuffers if they exist
 remove_data_buffers()
 {
-    clean_guppi_shmem
-    clean_vegas_shmem
-    #for i in $DATABUFFERKEYS; do
-    #    ipcs -m | grep $i # > /dev/null
-    #    if test $? -eq 0; then
-    #        ipcrm -M $i
-    #    fi
-    #    ipcs -s | grep $i # > /dev/null
-    #    if test $? -eq 0; then
-    #        ipcrm -S $i
-    #    fi
-    #done
+    # For GB, guppi has not yet been merged in, so we make it optional
+    if [ -x $TELES_DIR/bin/x86_64-linux/clean_guppi_shmem ] ; then
+        $TELES_DIR/bin/x86_64-linux/clean_guppi_shmem
+    fi
+    $TELES_DIR/bin/x86_64-linux/clean_vegas_shmem
 }
 
 ## Setup buffers for vegas_hpc_server. If any command fails return a non-zero status
@@ -43,22 +39,37 @@ vegas_hpc_setup()
 
     # remove the previous buffers (if they exist)
     remove_data_buffers
+    
+    # Setup (if not present) or clear status memory
+    $NUMACMD $TELES_DIR/bin/x86_64-linux/check_vegas_status -C &> /tmp/errmsg_$$
+    if test $? -ne 0; then
+        cat /tmp/errmsg_$$
+        rm -f /tmp/errmsg_$$
+        exit -1
+    fi
 
     # Set up first (GPU) data buffer
-    $NUMACMD $DIBAS_DIR/bin/x86_64-linux/check_vegas_databuf -c -i1 -n32 -s32768 -t1 >& /dev/null
+    $NUMACMD $TELES_DIR/bin/x86_64-linux/check_vegas_databuf -c -i1 -n32 -s32768 -t1 >& /tmp/errmsg_$$
     if test $? -ne 0; then
+        cat /tmp/errmsg_$$
+        rm -f /tmp/errmsg_$$    
         exit -1
     fi
     # Set up second (CPU_ACCUM) data buffer
-    $NUMACMD $DIBAS_DIR/bin/x86_64-linux/check_vegas_databuf -c -i2 -n32 -s32768 -t2 >& /dev/null
+    $NUMACMD $TELES_DIR/bin/x86_64-linux/check_vegas_databuf -c -i2 -n32 -s32768 -t2 >& /tmp/errmsg_$$
     if test $? -ne 0; then
+        cat /tmp/errmsg_$$
+        rm -f /tmp/errmsg_$$    
         exit -1
     fi
     # Set up third (DISK) data buffer
-    $NUMACMD $DIBAS_DIR/bin/x86_64-linux/check_vegas_databuf -c -i3 -n24 -s16384 -t3 >& /dev/null
+    $NUMACMD $TELES_DIR/bin/x86_64-linux/check_vegas_databuf -c -i3 -n24 -s16384 -t3 >& /tmp/errmsg_$$
     if test $? -ne 0; then
+        cat /tmp/errmsg_$$
+        rm -f /tmp/errmsg_$$    
         exit -1
     fi
+    rm -f /tmp/errmsg_$$    
     exit 0
 }
 
@@ -71,24 +82,37 @@ guppi_hpc_setup()
     # remove the previous buffers (if they exist)
     remove_data_buffers
 
-    # Set up first (NET) data buffer
-    $NUMACMD $DIBAS_DIR/bin/x86_64-linux/check_guppi_databuf -c -i1 -n8 -s128  >& /dev/null
+    # Setup (if not present) or clear status memory
+    $NUMACMD $TELES_DIR/bin/x86_64-linux/check_guppi_status -C &> /tmp/errmsg_$$
     if test $? -ne 0; then
+        cat /tmp/errmsg_$$
+        rm -f /tmp/errmsg_$$
+        exit -1
+    fi
+
+    # Set up first (NET) data buffer
+    $NUMACMD $TELES_DIR/bin/x86_64-linux/check_guppi_databuf -c -i1 -n8 -s128  >& /tmp/errmsg_$$
+    if test $? -ne 0; then
+        cat /tmp/errmsg_$$
+        rm -f /tmp/errmsg_$$    
         exit -1
     fi
     # Set up second (GPU) data buffer
-    $NUMACMD $DIBAS_DIR/bin/x86_64-linux/check_guppi_databuf -c -i2 -n8 -s256  >& /dev/null
+    $NUMACMD $TELES_DIR/bin/x86_64-linux/check_guppi_databuf -c -i2 -n8 -s256  >& /tmp/errmsg_$$
     if test $? -ne 0; then
+        cat /tmp/errmsg_$$
+        rm -f /tmp/errmsg_$$    
         exit -1
     fi
+    rm -f /tmp/errmsg_$$
     exit 0
 }
 
 
 main()
 {
-    if test -z "$DIBAS_DIR"; then
-        echo "Error: DIBAS_DIR environment variable not set, exiting."
+    if test -z "$TELES_DIR"; then
+        echo "Error: Neither YGOR_TELESCOPE or DIBAS_DIR environment variables are set, exiting."
         exit 1
     fi
     case "$1" in
