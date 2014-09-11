@@ -856,7 +856,7 @@ void do_pfb(struct vegas_databuf *db_in,
         {
             /* dump to buffer */
             // If no accumulations have occurred, then just clear the accumulator and start again.
-            if (acc_len > 0)
+            if (g_iSpecPerAcc > 0)
             {
                 iRet = dump_to_buffer(db_out,             
                                       *curblock_out,
