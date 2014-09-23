@@ -57,7 +57,7 @@ struct time_spead_heap_packet_l1
     struct time_sample data[2048];
 };
 
-extern int g_use_L8_packets_for_L1_modes; // flag to enable L8 into L1 fix.
+int g_use_L8_packets_for_L1_modes; // flag to enable L8 into L1 fix.
 
 /* Parse info from buffer into param struct */
 extern void vegas_read_subint_params(char *buf, 
@@ -184,13 +184,6 @@ void vegas_pfb_thread(void *_args) {
         run = 0;
     }
     
-    if (packet_compression && nchan > 263000)
-    {
-        fprintf(stderr, "ABORTED: Note: software fix for L8LBW1 is currently enabled.\n");
-        fprintf(stderr, "This fix does not support NCHAN greater than 262144 channels\n");
-        run = 0;
-    }
-
     while (run) {
 
         /* Note waiting status */
@@ -214,48 +207,33 @@ void vegas_pfb_thread(void *_args) {
 
         if (packet_compression)
         {
-            struct time_spead_heap *l8_hdr;
-            struct time_spead_heap *l1_hdr;
-            struct time_spead_heap_packet_l8 *l8;
-            struct time_spead_heap_packet_l1 *l1;    
-            int i, s, out_heap, out_sample, heap;
+            // This code swaps each 32bit quantity to correct the L8LBW1 mode data
+            struct time_spead_heap *in_hdr;
+            struct time_spead_heap *out_hdr;
+            struct time_spead_heap_packet_l1 *in;
+            struct time_spead_heap_packet_l1 *out;    
+            int s, heap;
+            struct time_sample a, b;
             
-            l8_hdr = (struct time_spead_heap *)vegas_databuf_data(db_in, curblock_in);
-            l1_hdr = (struct time_spead_heap *)vegas_databuf_data(db_in, curblock_in); // tempbuf;
+            in_hdr  = (struct time_spead_heap *)vegas_databuf_data(db_in, curblock_in);
+            out_hdr = (struct time_spead_heap *)vegas_databuf_data(db_in, curblock_in); // tempbuf;
             
-            l8 = (struct time_spead_heap_packet_l8 *)&l8_hdr[MAX_HEAPS_PER_BLK];
-            l1 = (struct time_spead_heap_packet_l1 *)&l1_hdr[MAX_HEAPS_PER_BLK];
-            
-            out_heap = 0;
-            out_sample = 0;
+            in  = (struct time_spead_heap_packet_l1 *)&in_hdr[MAX_HEAPS_PER_BLK];
+            out = (struct time_spead_heap_packet_l1 *)&out_hdr[MAX_HEAPS_PER_BLK];
             
             // for each heap     
             for (heap=0; heap<index_in->num_heaps; ++heap)
-            {   
-                // for each subband zero entry in the l8 packet           
-                for (s=0; s<256; ++s)
-                {
-                    l1[out_heap].data[out_sample++] = l8[heap].data[s].subband[0];
-                }
-
-                if (out_sample >= 2048)
-                {
-                    if (out_heap != heap)
-                    {
-                        l1_hdr[out_heap] = l8_hdr[heap];
-                    }
-                    out_heap++;
-                    out_sample = 0;
-                }
-            }
-            // At this point we have copied all the subband 0 samples packed into the 
-            // first eighth of the input buffer.
-            // This means we have 8 times less data, so we invalidate the rest to indicate this.
-            for (i=index_in->num_heaps/8; i<index_in->num_heaps; ++i)
             {
-                index_in->cpu_gpu_buf[i].heap_valid = 0;
-            }
-            index_in->num_heaps = index_in->num_heaps/8;
+                // Perform a 32bit swap on the data
+                for (s=0;s<2048;s+=2)
+                {
+                    a = in[heap].data[s + 0];
+                    b = in[heap].data[s + 1];
+                    out[heap].data[s + 0] = b;
+                    out[heap].data[s + 1] = a;
+                }   
+            
+            }            
         }
         
         /* Get params */
