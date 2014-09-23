@@ -25,37 +25,7 @@
 
 #define STATUS_KEY "GPUSTAT"
 #include "vegas_threads.h"
-
-// Define this due to the l8lbw1 mode not working properly.
-// Note that this code will not support the 512k channel modes!
-struct cmplx_sample
-{
-    int8_t re;
-    int8_t im;
-};
-struct time_sample
-{
-    struct cmplx_sample pol[2];
-};
-
-// represent a set of 8 subbands with 2 polarizations with complex values
-struct l8_time_sample
-{
-    struct time_sample subband[8];
-};
-
-// represent the contents of a l8/lbw8 packet
-// e.g p.data[time_sample].data[n].subband[0];
-struct time_spead_heap_packet_l8
-{
-    struct l8_time_sample data[256];
-};
-
-// representation of a l8/lbw1 packet
-struct time_spead_heap_packet_l1
-{
-    struct time_sample data[2048];
-};
+#include "l8lbw1_fixups.h"
 
 int g_use_L8_packets_for_L1_modes; // flag to enable L8 into L1 fix.
 
@@ -208,32 +178,7 @@ void vegas_pfb_thread(void *_args) {
         if (packet_compression)
         {
             // This code swaps each 32bit quantity to correct the L8LBW1 mode data
-            struct time_spead_heap *in_hdr;
-            struct time_spead_heap *out_hdr;
-            struct time_spead_heap_packet_l1 *in;
-            struct time_spead_heap_packet_l1 *out;    
-            int s, heap;
-            struct time_sample a, b;
-            
-            in_hdr  = (struct time_spead_heap *)vegas_databuf_data(db_in, curblock_in);
-            out_hdr = (struct time_spead_heap *)vegas_databuf_data(db_in, curblock_in); // tempbuf;
-            
-            in  = (struct time_spead_heap_packet_l1 *)&in_hdr[MAX_HEAPS_PER_BLK];
-            out = (struct time_spead_heap_packet_l1 *)&out_hdr[MAX_HEAPS_PER_BLK];
-            
-            // for each heap     
-            for (heap=0; heap<index_in->num_heaps; ++heap)
-            {
-                // Perform a 32bit swap on the data
-                for (s=0;s<2048;s+=2)
-                {
-                    a = in[heap].data[s + 0];
-                    b = in[heap].data[s + 1];
-                    out[heap].data[s + 0] = b;
-                    out[heap].data[s + 1] = a;
-                }   
-            
-            }            
+            fixup_l8lbw1_block(db_in, curblock_in);
         }
         
         /* Get params */

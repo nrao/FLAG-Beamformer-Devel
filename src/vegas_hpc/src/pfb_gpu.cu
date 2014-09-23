@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
@@ -25,6 +24,7 @@ extern "C" {
 #include "spead_heap.h"
 
 #include "BlankingStateMachine.h"
+#include "gpu_context.h"
 
 #define STATUS_KEY "GPUSTAT"
 
@@ -35,181 +35,13 @@ extern int run;
 /**
  * Global variables: maybe move this to a struct that is passed to each function?
  */
- 
-class GpuContext
-{
-public:
-    // stuff associated with gpu
-    GpuContext();
-    GpuContext(GpuContext *, int nchan, int nsubbands, int inblocksz, int outblksz);
-    cufftHandle _stPlan;
-    float4* _pf4FFTIn_d;
-    float4* _pf4FFTOut_d;
-    char4*  _pc4InBuf;
-    char4*  _pc4Data_d;              /* raw data starting address */
-    char4*  _pc4DataRead_d;          /* raw data read pointer */
-    dim3    _dimBPFB;
-    dim3    _dimGPFB;
-    dim3    _dimBAccum;
-    dim3    _dimGAccum;
-    float * _pfPFBCoeff;
-    float * _pfPFBCoeff_d;
-    float4* _pf4SumStokes_d;
-    
-    int     _nchan;
-    int     _nsubband;
-    int     _in_block_size;
-    int     _out_block_size;
-    int     _init_status;
-    int     _first_time_heap_in_accum_status_bits;
-    double  _first_time_heap_mjd;
-    
-    BlankingStateMachine _blanker;
-    
-    struct time_spead_heap _first_time_heap_in_accum;
-    
-    int fft_in_stride()  { return 2*_nsubband; };
-    int fft_out_stride() { return 2*_nsubband; };
-    int fft_batch()      { return 2*_nsubband; };
-    int accumulate();
-    int do_fft();
-    void zero_accumulator();
-    int get_accumulated_spectrum_from_device(char *h_out);
-    int init_resources();
-    void release_resources();
-    int init_status()    { return _init_status; }
-    bool verify_setup(int num_subbands, int num_chans, 
-                      int input_block_sz, int output_block_sz);
-    void blanking_inputs(int);
-    int  blank_current_fft();
-    int  needs_flush();
-    int  sw_status_changed(int swstat) { return _blanker.sw_status_changed(swstat); }
-    BlankingStateMachine * blanker() { return &_blanker; } // for debug only!!
+#include "gpu_context.h"
 
-
-};
-
-GpuContext::GpuContext() :
-        _pf4FFTIn_d(0),
-        _pf4FFTOut_d(0),
-        _pc4InBuf(0),
-        _pc4Data_d(0),
-        _pc4DataRead_d(0),
-        _dimBPFB(),
-        _dimGPFB(),
-        _dimBAccum(),
-        _dimGAccum(),
-        _pfPFBCoeff(0),
-        _pfPFBCoeff_d(0),
-        _pf4SumStokes_d(0),
-        _nchan(0),
-        _nsubband(0),
-        _blanker()
-{
-    memset(&_stPlan, 0, sizeof(_stPlan));
-    memset(&_first_time_heap_in_accum, 0, sizeof(_first_time_heap_in_accum));    
-}
-
-GpuContext::GpuContext(GpuContext *p, int nsubband, int nchan, int in_blok_siz, int out_blok_siz)
-{
-    _blanker.reset();
-    memset(&_first_time_heap_in_accum, 0, sizeof(_first_time_heap_in_accum));
-    if (p != 0)
-    {
-        // Move resources from p into this object and null out p's reference
-        _pf4FFTIn_d    = p->_pf4FFTIn_d;     p->_pf4FFTIn_d = 0;
-        _pf4FFTOut_d   = p->_pf4FFTOut_d;    p->_pf4FFTOut_d = 0;
-        _pc4InBuf      = p->_pc4InBuf;       p->_pc4InBuf = 0;
-        _pc4Data_d     = p->_pc4Data_d;      p->_pc4Data_d = 0;
-        _pc4DataRead_d = p->_pc4DataRead_d;  p->_pc4DataRead_d = 0;
-        _dimBPFB       = p->_dimBPFB;
-        _dimGPFB       = p->_dimGPFB;
-        _dimBAccum     = p->_dimBAccum;
-        _pfPFBCoeff    = p->_pfPFBCoeff;     p->_pfPFBCoeff = 0;
-        _pfPFBCoeff_d  = p->_pfPFBCoeff_d;   p->_pfPFBCoeff_d = 0;
-        _pf4SumStokes_d= p->_pf4SumStokes_d; p->_pf4SumStokes_d = 0;
-        _stPlan        = p->_stPlan;         p->_stPlan = 0;
-        _nsubband      = p->_nsubband;       p->_nsubband = 0;
-        _nchan         = p->_nchan;          p->_nchan   = 0;    
-    }
-    else
-    {
-        // If we have no object to consume, initialize everything to nil
-        _pf4FFTIn_d    = 0;
-        _pf4FFTOut_d   = 0;
-        _pc4InBuf      = 0;
-        _pc4Data_d     = 0;
-        _pc4DataRead_d = 0;
-        _pfPFBCoeff    = 0;
-        _pfPFBCoeff_d  = 0;
-        _pf4SumStokes_d= 0;
-        _stPlan        = 0;
-        _nchan         = 0;
-        _nsubband      = 0;    
-    }
-    
-    // Do we have new buffer geometry?
-    if (_nsubband == nsubband &&
-        _nchan    == nchan &&
-        _in_block_size == in_blok_siz &&
-        _out_block_size == out_blok_siz)
-    {
-        // Nothing changed, so we should be done
-        printf("### No GPU reallocations necessary\n");
-        return;
-    }
-    else
-    {
-        release_resources();       
-        // setup the new configuration
-        _nsubband = nsubband;
-        _nchan = nchan;
-        _in_block_size = in_blok_siz;
-        _out_block_size = out_blok_siz;
-        // Now allocate new resources for the new configuration
-        init_resources();
-    }
-}
-
-bool
-GpuContext::verify_setup(int nsubband, int nchan, int in_block_size, int out_block_size)
-{
-    _blanker.reset();
-    memset(&_first_time_heap_in_accum, 0, sizeof(_first_time_heap_in_accum));
-    _first_time_heap_mjd = 0.0;
-    _first_time_heap_in_accum_status_bits = 0; 
-       
-    // Does the setup match?
-    if (_nsubband == nsubband &&
-        _nchan    == nchan &&
-        _in_block_size  == in_block_size &&
-        _out_block_size == out_block_size)
-        return true;
-    return false;
-}
-
-void
-GpuContext::blanking_inputs(int status)
-{
-    _blanker.new_input(status);
-}
-
-int
-GpuContext::blank_current_fft()
-{
-    return _blanker.blank_current_fft();
-}
-
-int
-GpuContext::needs_flush()
-{
-    return _blanker.needs_flush();
-}
 
 // Make the damn object global until we complete refactoring ...
 GpuContext *gpuCtx = 0;
 
-static size_t g_buf_out_block_size;
+// static size_t g_buf_out_block_size;
 static int g_iTotHeapOut = 0;
 static int g_iMaxNumHeapOut = 0;
 static int g_iHeapOut = 0;
@@ -230,15 +62,6 @@ void __CUDASafeCall(cudaError_t iCUDARet,
                                                                   __LINE__,   \
                                                                   &cleanup_gpu)
 
-#define CUDA_SAFE_CALL(call) \
-do { \
-    cudaError_t err = call; \
-    if (cudaSuccess != err) { \
-        fprintf (stderr, "Cuda error in file '%s' in line %i : %s.", \
-                 __FILE__, __LINE__, cudaGetErrorString(err) ); \
-        exit(EXIT_FAILURE); \
-    } \
-} while (0)
 
 
 extern "C"
@@ -301,236 +124,6 @@ int reset_state(size_t input_block_sz, size_t output_block_sz, int num_subbands,
     return EXIT_SUCCESS;
 }
 
-int GpuContext::init_resources()
-{
-    int iDevCount = 0;
-    cudaDeviceProp stDevProp = {0};
-    cufftResult iCUFFTRet = CUFFT_SUCCESS;
-    int iRet = EXIT_SUCCESS;
-    int iMaxThreadsPerBlock = 0;
-    size_t buf_in_block_size;
-    int iFileCoeff = 0;
-    char acFileCoeff[256] = {0};
-
-    
-    buf_in_block_size    = _in_block_size;
-    g_buf_out_block_size = _out_block_size;
-    _first_time_heap_in_accum_status_bits = 0;
-
-    /* since CUDASafeCall() calls cudaGetErrorString(),
-       it should not be used here - will cause crash if no CUDA device is
-       found */
-    (void) cudaGetDeviceCount(&iDevCount);
-    if (0 == iDevCount)
-    {
-        (void) fprintf(stderr, "ERROR: No CUDA-capable device found!\n");
-        run = 0;
-        return EXIT_FAILURE;
-    }
-
-    /* just use the first device */
-    printf("pfb_gpu.cu: CUDA_SAFE_CALL(cudaSetDevice(0))\n");
-    CUDA_SAFE_CALL(cudaSetDevice(0));
-
-    CUDA_SAFE_CALL(cudaGetDeviceProperties(&stDevProp, 0));
-    iMaxThreadsPerBlock = stDevProp.maxThreadsPerBlock;
-    printf("pfb_gpu.cu: iMaxThreadsPerBlock = %i\n", iMaxThreadsPerBlock);
-
-    _pfPFBCoeff = (float *) malloc(_nsubband
-                                   * VEGAS_NUM_TAPS
-                                   * _nchan
-                                   * sizeof(float));
-    if (NULL == _pfPFBCoeff)
-    {
-        (void) fprintf(stderr,
-                       "ERROR: GpuContext Memory allocation failed! %s.\n",
-                       strerror(errno));
-        return EXIT_FAILURE;
-    }
-
-    /* allocate memory for the filter coefficient array on the device */
-
-    printf("pfb_gpu.cu: before CUDA_SAFE_CALL(cudaFree(0))\n");
-    CUDA_SAFE_CALL(cudaFree(0));
-    printf("pfb_gpu.cu: after CUDA_SAFE_CALL(cudaFree(0))\n");
-
-    printf("pfb_gpu.cu:  before CUDA_SAFE_CALL(cudaMalloc((void...\n");
-    printf("subbands=%i, taps=%i, nchan=%i, floatsize=%i\n", _nsubband, VEGAS_NUM_TAPS, _nchan, sizeof(float));
-    CUDA_SAFE_CALL(cudaMalloc((void **) &_pfPFBCoeff_d,
-                                       _nsubband
-                                       * VEGAS_NUM_TAPS
-                                       * _nchan
-                                       * sizeof(float)));
-    printf("pfb_gpu.cu:  CUDA_SAFE_CALL(cudaMalloc((void...\n");
-
-    /* read filter coefficients */
-    /* Locate the coefficient directory.  This searches for the configuration
-     * directory in one of YGOR_TELESCOPE, VEGAS_DIR or CONFIG_DIR
-       If none of the environment variables above are specified
-       then we punt and use the current working directory.
-     */
-     
-     
-    char *ygor_root = getenv("YGOR_TELESCOPE");
-    char *vdir_root = getenv("VEGAS_DIR");
-    char *config_root = getenv("CONFIG_DIR");
-    char conf_dir_root[128];
-    
-    if (ygor_root)
-    {
-        /* Use YGOR_TELESCOPE if available */
-        snprintf(conf_dir_root, sizeof(conf_dir_root), "%s/etc/config", ygor_root);
-    }
-    else if (config_root)
-    {
-        snprintf(conf_dir_root, sizeof(conf_dir_root), "%s", config_root);
-    }
-    else if (vdir_root)
-    {
-        snprintf(conf_dir_root, sizeof(conf_dir_root), "%s", vdir_root);
-    }
-    else
-    {
-        snprintf(conf_dir_root, sizeof(conf_dir_root), ".");
-    }
-
-    /* build file name */
-    (void) snprintf(acFileCoeff, sizeof(acFileCoeff),
-                   "%s/%s_%s_%d_%d_%d%s",
-                   conf_dir_root,                   
-                   FILE_COEFF_PREFIX,
-                   FILE_COEFF_DATATYPE,
-                   VEGAS_NUM_TAPS,
-                   _nchan,
-                   _nsubband,
-                   FILE_COEFF_SUFFIX);
-
-    iFileCoeff = open(acFileCoeff, O_RDONLY);
-    if (iFileCoeff < EXIT_SUCCESS)
-    {
-        (void) fprintf(stderr,
-                       "ERROR: Opening filter coefficients file %s "
-                       "failed! %s.\n",
-                       acFileCoeff,
-                       strerror(errno));
-        return EXIT_FAILURE;
-    }
-
-    iRet = read(iFileCoeff,
-                _pfPFBCoeff,
-                _nsubband * VEGAS_NUM_TAPS * _nchan * sizeof(float));
-    if (iRet != (_nsubband * VEGAS_NUM_TAPS * _nchan * sizeof(float)))
-    {
-        (void) fprintf(stderr,
-                       "ERROR: Reading filter coefficients failed! %s.\n",
-                       strerror(errno));
-        return EXIT_FAILURE;
-    }
-    (void) close(iFileCoeff);
-
-    /* copy filter coefficients to the device */
-    CUDA_SAFE_CALL(cudaMemcpy(_pfPFBCoeff_d,
-                              _pfPFBCoeff,
-                              _nsubband * VEGAS_NUM_TAPS * _nchan * sizeof(float),
-                              cudaMemcpyHostToDevice));
-
-    /* allocate memory for data array - 32MB is the block size for the VEGAS
-       input buffer, allocate 32MB + space for (VEGAS_NUM_TAPS - 1) blocks of
-       data
-       NOTE: the actual data in a 32MB block will be only
-       (num_heaps * heap_size), but since we don't know that value until data
-       starts flowing, allocate the maximum possible size */
-    CUDA_SAFE_CALL(cudaMalloc((void **) &_pc4Data_d,
-                                       (buf_in_block_size
-                                        + ((VEGAS_NUM_TAPS - 1)
-                                           * _nsubband
-                                           * _nchan
-                                           * sizeof(char4)))));
-    printf("pfb_gpu.cu: CUDA_SAFE_CALL(cudaMalloc((void...)\n");
-    _pc4DataRead_d = _pc4Data_d;
-    
-    /* calculate kernel parameters */
-    /* ASSUMPTION: gpuCtx._nchan >= iMaxThreadsPerBlock */
-    _dimBPFB.x =   iMaxThreadsPerBlock;
-    _dimBAccum.x = iMaxThreadsPerBlock;
-    _dimGPFB.x =   (_nsubband * _nchan) / iMaxThreadsPerBlock;
-    _dimGAccum.x = (_nsubband * _nchan) / iMaxThreadsPerBlock;
-
-    CUDA_SAFE_CALL(cudaMalloc((void **) &_pf4FFTIn_d,
-                                 _nsubband * _nchan * sizeof(float4)));
-    CUDA_SAFE_CALL(cudaMalloc((void **) &_pf4FFTOut_d,
-                                 _nsubband * _nchan * sizeof(float4)));
-    CUDA_SAFE_CALL(cudaMalloc((void **) &_pf4SumStokes_d,
-                                 _nsubband * _nchan * sizeof(float4)));
-    CUDA_SAFE_CALL(cudaMemset(_pf4SumStokes_d,
-                              0,
-                              _nsubband * _nchan * sizeof(float4)));
-
-    printf("pfb_gpu.cu: 4 CUDA_SAFE_CALL(cudaMalloc...) calls\n");
-
-    /* create plan */
-    iCUFFTRet = cufftPlanMany(&_stPlan,
-                              FFTPLAN_RANK,
-                              &_nchan,
-                              &_nchan,
-                              fft_in_stride(),
-                              FFTPLAN_IDIST,
-                              &_nchan,
-                              fft_in_stride(),
-                              FFTPLAN_ODIST,
-                              CUFFT_C2C,
-                              fft_batch() );
-    if (iCUFFTRet != CUFFT_SUCCESS)
-    {
-        (void) fprintf(stderr, "ERROR: Plan creation failed!\n");
-        run = 0;
-        return EXIT_FAILURE;
-    }
-    printf("GPU resources resized for %d subbands and %d channels\n", _nsubband, _nchan);
-    printf("#################### GPU RE-INIT COMPLETE ####################\n");
-    return EXIT_SUCCESS;
-}
-
-void
-GpuContext::release_resources()
-{
-    // Free existing resources
-    printf("Releasing GPU resources \n");
-    
-    if (_pc4InBuf != NULL)
-    {
-        free(_pc4InBuf);
-        _pc4InBuf = NULL;
-    }
-    if (_pc4Data_d != NULL)
-    {
-        (void) cudaFree(_pc4Data_d);
-        _pc4Data_d = NULL;
-    }
-    if (_pf4FFTIn_d != NULL)
-    {
-        (void) cudaFree(_pf4FFTIn_d);
-        _pf4FFTIn_d = NULL;
-    }
-    if (_pf4FFTOut_d != NULL)
-    {
-        (void) cudaFree(_pf4FFTOut_d);
-        _pf4FFTOut_d = NULL;
-    }
-    if (_pf4SumStokes_d != NULL)
-    {
-        (void) cudaFree(_pf4SumStokes_d);
-        _pf4SumStokes_d = NULL;
-    }
-
-    /* destroy plan */
-    /* TODO: check if plan exists */
-    if (_stPlan)
-    {
-        (void) cufftDestroy(_stPlan);
-        _stPlan = NULL;
-    }
-}
 
 struct freq_spead_heap *
 frequency_heap(struct vegas_databuf *db, int iblk, int iHeap)
@@ -561,7 +154,8 @@ int dump_to_buffer(struct vegas_databuf *db_out,         // Output databuffer
     freq_heap_out = vegas_datablock_freq_heap_header(db_out, curblk_out, iHeapOut);
     index_out = (struct databuf_index*)vegas_databuf_index(db_out, curblk_out);
 
-    if (index_out->heap_size*(index_out->num_heaps+1) > db_out->block_size ||
+    if (sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK + 
+        index_out->heap_size*(index_out->num_heaps+1) > db_out->block_size ||
         iHeapOut >= db_out->index_size)
     {
         printf("DATABUF ERROR: heapsize*nheaps > blocksize!! (%d > %zd) index_size=%d\n",
@@ -648,7 +242,7 @@ void do_pfb(struct vegas_databuf *db_in,
     num_in_heaps_gpu_buffer = index_in->num_heaps + num_in_heaps_tail;
 
     /* Calculate the maximum number of output heaps per block */
-    g_iMaxNumHeapOut = (g_buf_out_block_size - (sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK)) / nsubband_x_nchan_fsize;
+    g_iMaxNumHeapOut = (gpuCtx->_out_block_size - (sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK)) / nsubband_x_nchan_fsize;
 
     hdr_out = vegas_databuf_header(db_out, *curblock_out);
     index_out = (struct databuf_index*)vegas_databuf_index(db_out, *curblock_out);
@@ -672,8 +266,7 @@ void do_pfb(struct vegas_databuf *db_in,
         // instead here to get things going. Not sure how dropped data at start of
         // scan should be treated.
         int bloksz;
-        bloksz = db_in->block_size;
-        // bloksz = (index_in->num_heaps * index_in->heap_size) - (index_in->num_heaps * sizeof(struct time_spead_heap));
+        bloksz = iBlockInDataSize; // calculated above
         /* Sanity check for the first iteration */
         if ((bloksz % (nsubband_x_nchan_csize)) != 0)
         {
@@ -726,6 +319,7 @@ void do_pfb(struct vegas_databuf *db_in,
         }
         // Zero out accumulators for 1st integration
         gpuCtx->zero_accumulator();
+        printf("num_heaps=%d num_in_tail=%d\n", index_in->num_heaps, num_in_heaps_tail);
     }
     else
     {
