@@ -667,25 +667,18 @@ void do_pfb(struct vegas_databuf *db_in,
     /* Copy data block to GPU */
     if (first)
     {
-        // bloksz replaces a calculated value which caused the check below to fail
-        // in the presence of dropped packets. We used the blocksize from the data buffer
-        // instead here to get things going. Not sure how dropped data at start of
-        // scan should be treated.
-        int bloksz;
-        bloksz = db_in->block_size;
-        // bloksz = (index_in->num_heaps * index_in->heap_size) - (index_in->num_heaps * sizeof(struct time_spead_heap));
         /* Sanity check for the first iteration */
-        if ((bloksz % (nsubband_x_nchan_csize)) != 0)
+        if ((iBlockInDataSize % (nsubband_x_nchan_csize)) != 0)
         {
-            (void) fprintf(stderr, "ERROR: Data size mismatch! BlockInDataSize=%d NumSubBands=%d nchan=%d\n",
-                                    bloksz, gpuCtx->_nsubband, gpuCtx->_nchan);
+            (void) fprintf(stderr, "ERROR: Data size mismatch! BlockInDataSize=%d NumSubBands=%d nchan=%d csize=%d\n",
+                                    iBlockInDataSize, gpuCtx->_nsubband, gpuCtx->_nchan,nsubband_x_nchan_csize);
             run = 0;
             return;
         }
         // Cuda Note: cudaMemcpy host to device is asynchronous, be supposedly safe.
         CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d,
                                 payload_addr_in,
-                                bloksz,
+                                iBlockInDataSize,
                                 cudaMemcpyHostToDevice));
         CUDA_SAFE_CALL(cudaThreadSynchronize());
         iCUDARet = cudaGetLastError();
@@ -696,8 +689,8 @@ void do_pfb(struct vegas_databuf *db_in,
                                 
         /* duplicate the last (VEGAS_NUM_TAPS - 1) segments at the end for 
            the next iteration */
-        CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + (bloksz / sizeof(char4)),
-                                  gpuCtx->_pc4Data_d + (bloksz - ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan_csize))/sizeof(char4),
+        CUDA_SAFE_CALL(cudaMemcpy(gpuCtx->_pc4Data_d + (iBlockInDataSize / sizeof(char4)),
+                                  gpuCtx->_pc4Data_d + (iBlockInDataSize - ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan_csize))/sizeof(char4),
                                   ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan_csize),
                                   cudaMemcpyDeviceToDevice));
         CUDA_SAFE_CALL(cudaThreadSynchronize());
