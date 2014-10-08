@@ -39,6 +39,7 @@
 #define FLOAT_PAYLOAD   2
 
 int g_debug_accumulator_thread = 0;    // flag optionally set by main() 
+int g_use_L8_packets_for_L1_modes = 0; // flag to enable/disable using l8 packets for l8lbw1 mode
 
 /*
  * Vegas cpu accumulator thread.
@@ -328,8 +329,16 @@ void vegas_accum_thread(void *_args) {
         {
             if (strncasecmp(expoclkstr, "l8/lbw1", 7) == 0)
             {
-                // Normally we multiply the clock 8x since L1 packets come in at a 8x slower rate. 
-                clock.fpga_clock_multiplier = 8; // The 'real' L1 packets mode
+                if (g_use_L8_packets_for_L1_modes)
+                {
+                    // do not multiply clock when using l8 packets for l8lbw1 mode
+                    clock.fpga_clock_multiplier = 1;
+                }
+                else
+                {
+                    // Normally we multiply the clock 8x since L1 packets come in at a 8x slower rate. 
+                    clock.fpga_clock_multiplier = 8; // The 'real' L1 packets mode
+                }
             }
         }
         memset(expoclkstr, 0, sizeof(expoclkstr));        

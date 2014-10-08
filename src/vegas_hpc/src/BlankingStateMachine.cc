@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#define FFT_BLANKING_CYCLES 8
+#define FFT_BLANKING_CYCLES 0
 
 
 BlankingStateMachine::BlankingStateMachine() :

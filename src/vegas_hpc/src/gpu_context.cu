@@ -237,17 +237,11 @@ int GpuContext::init_resources()
                               cudaMemcpyHostToDevice));
 
     /* allocate memory for data array - 32MB is the block size for the VEGAS
-       input buffer, allocate 32MB + space for (VEGAS_NUM_TAPS - 1) blocks of
-       data
-       NOTE: the actual data in a 32MB block will be only
-       (num_heaps * heap_size), but since we don't know that value until data
-       starts flowing, allocate the maximum possible size */
+       input buffer, allocate enough to hold two entire data blocks.
+     */
     CUDA_SAFE_CALL(cudaMalloc((void **) &_pc4Data_d,
-                                       (buf_in_block_size
-                                        + ((VEGAS_NUM_TAPS - 1)
-                                           * _nsubband
-                                           * _nchan
-                                           * sizeof(char4)))));
+                                       (buf_in_block_size * 2)
+                                        ));
     printf("pfb_gpu.cu: CUDA_SAFE_CALL(cudaMalloc((void...)\n");
     _pc4DataRead_d = _pc4Data_d;
     

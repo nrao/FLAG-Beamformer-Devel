@@ -26,8 +26,9 @@
 #define STATUS_KEY "GPUSTAT"
 #include "vegas_threads.h"
 #include "l8lbw1_fixups.h"
+extern int g_use_L8_packets_for_L1_modes; // flag to enable L8 into L1 fix.
 
-int g_use_L8_packets_for_L1_modes; // flag to enable L8 into L1 fix.
+#define MULTIPLE_BLOCKS 8  // Compress this many blocks into 1 for L8 into L1 fix
 
 /* Parse info from buffer into param struct */
 extern void vegas_read_subint_params(char *buf, 
@@ -117,6 +118,7 @@ void vegas_pfb_thread(void *_args) {
     struct databuf_index *index_out;
     int packet_compression = 0;
     char mdname[80];
+    int num_blocks_needed = 1;
     
     signal(SIGINT,cc);
     
@@ -154,6 +156,11 @@ void vegas_pfb_thread(void *_args) {
         run = 0;
     }
     
+    if (packet_compression)
+    {
+        num_blocks_needed = MULTIPLE_BLOCKS;
+    }
+
     while (run) {
 
         /* Note waiting status */
@@ -161,9 +168,17 @@ void vegas_pfb_thread(void *_args) {
         hputs(st.buf, STATUS_KEY, "waiting");
         vegas_status_unlock_safe(&st);
 
+        int full_blocks[MULTIPLE_BLOCKS], free_blk, nextblk = curblock_in;
         /* Wait for buf to have data */
-        rv = vegas_databuf_wait_filled(db_in, curblock_in);
-        if (rv!=0) continue;
+        for (free_blk=0; free_blk < num_blocks_needed; )
+        {
+            rv = vegas_databuf_wait_filled(db_in, nextblk);
+            if (!run)  break;            
+            if (rv!=0) continue;
+            full_blocks[free_blk] = nextblk;
+            nextblk = (nextblk + 1) % db_in->n_block;
+            ++free_blk;
+        }
 
         /* Note waiting status, current input block */
         vegas_status_lock_safe(&st);
@@ -172,13 +187,12 @@ void vegas_pfb_thread(void *_args) {
         vegas_status_unlock_safe(&st);
 
         hdr_in = vegas_databuf_header(db_in, curblock_in);
-        struct databuf_index *index_in;
-        index_in = (struct databuf_index*)vegas_databuf_index(db_in, curblock_in);
 
+        // If merging/compressing packets, make an l8lbw1 block from
+        // 1 or 4 l8lbw8 input blocks
         if (packet_compression)
-        {
-            // This code swaps each 32bit quantity to correct the L8LBW1 mode data
-            fixup_l8lbw1_block(db_in, curblock_in);
+        {            
+            fixup_l8lbw1_block_merge(db_in, num_blocks_needed, full_blocks);
         }
         
         /* Get params */
@@ -194,12 +208,15 @@ void vegas_pfb_thread(void *_args) {
         vegas_read_subint_params(hdr_in, &gp, &sf);
 
         /* Call PFB function */
-        do_pfb(db_in, curblock_in, db_out, &curblock_out, first, st, acc_len);
+        do_pfb(db_in, full_blocks[0], db_out, &curblock_out, first, st, acc_len);
 
         /* Mark input block as free */
-        vegas_databuf_set_free(db_in, curblock_in);
+        for (free_blk=0; free_blk < num_blocks_needed; ++free_blk)
+        {
+            vegas_databuf_set_free(db_in, full_blocks[free_blk]);
+        }
         /* Go to next input block */
-        curblock_in = (curblock_in + 1) % db_in->n_block;
+        curblock_in = (curblock_in + num_blocks_needed) % db_in->n_block;
 
         /* Check for cancel */
         pthread_testcancel();
