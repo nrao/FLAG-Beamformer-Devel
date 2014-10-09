@@ -10,7 +10,8 @@ BlankingStateMachine::BlankingStateMachine() :
     cur_state(Blanking),
     prev_state(Blanking),
     blanking_counter(0),
-    prev_sw_status(0x8000)
+    prev_sw_status(0x8000),
+    cur_sw_status(0x8000)
 {
 
 }
@@ -32,7 +33,8 @@ BlankingStateMachine::get_state_name()
 int 
 BlankingStateMachine::blank_current_fft()
 {
-    return (cur_state == Blanking || cur_state == WaitBlank);
+    // return cur_sw_status;
+    return (cur_state == Blanking);
 }
 
 int
@@ -49,11 +51,14 @@ void
 BlankingStateMachine::new_input(int blank_status)
 {
     BlankingState next_state = cur_state;
-    prev_state = cur_state;
     int blanked_at_start    = blank_status & 0x2;
     int is_blanked_anywhere = blank_status & 0x1;
     int sw_state_changed    = blank_status & 0x4;
     
+    prev_sw_status = cur_sw_status;
+    cur_sw_status  = is_blanked_anywhere | sw_state_changed;
+    prev_state = cur_state;
+
     switch (cur_state)
     {
         case NotBlanking:
@@ -61,37 +66,16 @@ BlankingStateMachine::new_input(int blank_status)
             // If we need to change state:
             if (is_blanked_anywhere || sw_state_changed)
             {
-                reset_blanking_cycle();
-                if (blanked_at_start)
-                    next_state = Blanking;
-                else
-                    next_state = WaitBlank;
-                    // next_state = Blanking;
-            }        
-        break;
-        
-        case WaitBlank:
-            // Here we are waiting until we see blanking in the first time sample of the current input
-            // Once detected, we can begin counting down blanked fft's
-            if (blanked_at_start)
-            {
                 next_state = Blanking;
-                blanking_counter--;
-            }
+            }        
         break;
         
         case Blanking:
 
-            if (sw_state_changed)
-            {
-                reset_blanking_cycle();
-            }
-            if (!is_blanked_anywhere && blanking_counter < 1)
+            if (!is_blanked_anywhere && !sw_state_changed)
             {
                 next_state = NotBlanking;
-                blanking_counter = 0;
-            }
-            blanking_counter--;            
+            }           
         break;
     }
     cur_state=next_state; 
@@ -108,7 +92,8 @@ BlankingStateMachine::new_input(int blank_status)
 // Returns non-zero when a rising edge on blanking or state change is noted
 int BlankingStateMachine::needs_flush()
 {
-    if (prev_state == NotBlanking && (cur_state == Blanking || cur_state == WaitBlank))
+    if (prev_state == NotBlanking && (cur_state == Blanking))
+    // if ((!prev_sw_status) && (cur_sw_status))
     {
         return 1;
     }

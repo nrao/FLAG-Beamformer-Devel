@@ -1,7 +1,7 @@
 #ifndef BlankingStateMachine_h
 #define BlankingStateMachine_h
 
-enum BlankingState { NotBlanking, Blanking, WaitBlank};
+enum BlankingState { NotBlanking, Blanking};
 class BlankingStateMachine
 {
 public:
@@ -37,6 +37,7 @@ protected:
     BlankingState prev_state;
     int blanking_counter;
     int prev_sw_status;
+    int cur_sw_status;
     
 };
 #endif

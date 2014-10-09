@@ -158,7 +158,7 @@ void vegas_pfb_thread(void *_args) {
     
     if (packet_compression)
     {
-        num_blocks_needed = MULTIPLE_BLOCKS;
+        num_blocks_needed = 8;
     }
 
     while (run) {
@@ -192,7 +192,7 @@ void vegas_pfb_thread(void *_args) {
         // 1 or 4 l8lbw8 input blocks
         if (packet_compression)
         {            
-            fixup_l8lbw1_block_merge(db_in, num_blocks_needed, full_blocks);
+            fixup_l8lbw1_block_merge(db_in, full_blocks);
         }
         
         /* Get params */

@@ -28,7 +28,15 @@ extern "C" {
 
 #define STATUS_KEY "GPUSTAT"
 
-/* ASSUMPTIONS: 1. All blocks contain the same number of heaps. */
+/* ASSUMPTIONS: 
+   1. All blocks contain the same number of heaps. 
+   2. All blocks contain a complete number of heaps 
+      (i.e. no blocks with num_heaps < MAX_HEAPS_PER_BLOCK)
+   3. Heaps which are prior to the start of scan are properly marked with the
+      scan not started/blanking status bit.
+   4. Packet loss will be indicated by setting the invalid index bit (or more consistenly)
+      by setting the blanking status bit.
+ */
 
 extern int run;
 
@@ -37,67 +45,7 @@ extern int run;
  */
 #include "gpu_context.h"
 
-class DataBlockInfoCache
-{
-public:
-    cpu_gpu_buf_index   _heap_idx[2 * MAX_HEAPS_PER_BLK];
-    time_spead_heap     _heap_hdr[2 * MAX_HEAPS_PER_BLK];
-    
-    /*
-     Take an input block and cache its index and spead header info.
-     This does a upper to lower shift prior to loading the upper half
-     */
-    void input(time_spead_heap *hdr_base, databuf_index *idx)
-    {
-        // shift upper to lower buffer
-        memcpy(&_heap_hdr[0], &_heap_hdr[MAX_HEAPS_PER_BLK], MAX_HEAPS_PER_BLK * sizeof(time_spead_heap));
-        memcpy(&_heap_idx[0], &_heap_idx[MAX_HEAPS_PER_BLK], MAX_HEAPS_PER_BLK * sizeof(cpu_gpu_buf_index)); 
-        // store new input data in upper half
-        memcpy(&_heap_hdr[MAX_HEAPS_PER_BLK], hdr_base, MAX_HEAPS_PER_BLK * sizeof(time_spead_heap));
-        memcpy(&_heap_idx[MAX_HEAPS_PER_BLK], idx,      MAX_HEAPS_PER_BLK * sizeof(cpu_gpu_buf_index)); 
-    }
-    /* verify the next num_heaps of data is valid according to the index */
-    int is_valid(int heap_start, int num_heaps)
-    {
-        for (int i = heap_start; i < (heap_start + num_heaps); ++i)
-        {
-            if (!_heap_idx[i].heap_valid)
-            {
-                return FALSE;
-            }
-        }
-        return TRUE;
-    }
-    /* check the switching and blanking status */
-    int is_blanked(int heap_start, int num_heaps)
-    {
-        int state_changed = 0;
-        int banked_at_start = (_heap_hdr[heap_start + num_heaps- 1].status_bits & 0x8)  ? 0x2 : 0x0;
-        int is_blanked = (banked_at_start || (_heap_hdr[heap_start].status_bits & 0x8)) ? 0x1 : 0x0;
-
-        for (int i = heap_start + 1; i < (heap_start + num_heaps); ++i)
-        {
-            if ((_heap_hdr[i].status_bits & 0x3) != (_heap_hdr[i-1].status_bits & 0x3))
-            {
-                state_changed = 0x4;
-            }
-            if (_heap_hdr[i].status_bits & 0x08)
-            {
-                is_blanked = 0x1;
-            }
-        }
-        return (banked_at_start | state_changed | is_blanked);  
-    }
-    int status(int heapidx)
-    {
-        return _heap_hdr[heapidx].status_bits;
-    }
-    double mjd(int heapidx)
-    {
-        return _heap_idx[heapidx].heap_rcvd_mjd;
-    }
-};
-
+#include "DataBlockInfoCache.h"
 
 // Make the damn object global until we complete refactoring ...
 GpuContext *gpuCtx = 0;
@@ -108,10 +56,6 @@ static int g_iMaxNumHeapOut = 0;
 static int g_iHeapOut = 0;
 static DataBlockInfoCache blk_info_cache; 
 
-
-/* Allocate enough space to hold two entire blocks of data */
-// static unsigned int g_auiStatusBits[2*MAX_HEAPS_PER_BLK] = {0};
-// static unsigned int g_auiHeapValid[2*MAX_HEAPS_PER_BLK] = {0};
 static int g_iSpecPerAcc = 0;
 
 void __CUDASafeCall(cudaError_t iCUDARet,
@@ -120,9 +64,9 @@ void __CUDASafeCall(cudaError_t iCUDARet,
                                void (*pCleanUp)(void));
 
 #define CUDASafeCall(iRet)   __CUDASafeCall(iRet,       \
-                                                                  __FILE__,   \
-                                                                  __LINE__,   \
-                                                                  &cleanup_gpu)
+                                              __FILE__,   \
+                                              __LINE__,   \
+                                              &cleanup_gpu)
 
 
 
@@ -273,20 +217,18 @@ void do_pfb(struct vegas_databuf *db_in,
     struct databuf_index *index_in = NULL;
     struct databuf_index *index_out = NULL;
     int heap_in = 0;
-    char *heap_addr_in = NULL;
 
     int iProcData = 0;
     cudaError_t iCUDARet = cudaSuccess;
     int iRet = VEGAS_OK;
     char* payload_addr_in = NULL;
-    int num_in_heaps_per_proc = 0;
     int pfb_count = 0;
-    int num_in_heaps_gpu_buffer = 0;
-    int num_in_heaps_tail = 0;
     int iBlockInDataSize;
     int nsubband_x_nchan;
     size_t nsubband_x_nchan_fsize;
     size_t nsubband_x_nchan_csize;
+    int num_in_heaps_per_fft = 0;    
+    int num_in_heaps_per_pfb;
 
     nsubband_x_nchan = gpuCtx->_nsubband * gpuCtx->_nchan;
     nsubband_x_nchan_fsize = nsubband_x_nchan * sizeof(float4);
@@ -295,12 +237,10 @@ void do_pfb(struct vegas_databuf *db_in,
     /* Setup input and first output data block stuff */
     index_in = (struct databuf_index*)vegas_databuf_index(db_in, curblock_in);
     /* Get the number of heaps per block of data that will be processed by the GPU */
-    num_in_heaps_per_proc = nsubband_x_nchan_csize / time_heap_datasize(index_in);
+    num_in_heaps_per_fft = nsubband_x_nchan_csize / time_heap_datasize(index_in);
+    num_in_heaps_per_pfb = VEGAS_NUM_TAPS * num_in_heaps_per_fft;
+    
     iBlockInDataSize = index_in->num_heaps * time_heap_datasize(index_in);
-
-    num_in_heaps_tail = ((VEGAS_NUM_TAPS - 1) * nsubband_x_nchan_csize)
-                         / time_heap_datasize(index_in);
-    num_in_heaps_gpu_buffer = 2 * MAX_HEAPS_PER_BLK;
 
     /* Calculate the maximum number of output heaps per block */
     g_iMaxNumHeapOut = (gpuCtx->_out_block_size - (sizeof(struct freq_spead_heap) * MAX_HEAPS_PER_BLK)) / nsubband_x_nchan_fsize;
@@ -312,8 +252,6 @@ void do_pfb(struct vegas_databuf *db_in,
 
     /* Set basic params in output index */
     index_out->heap_size = sizeof(struct freq_spead_heap) + (nsubband_x_nchan_fsize);
-    /* Read in heap from buffer */
-    heap_addr_in = (char*)vegas_datablock_time_heap_header(db_in, curblock_in, heap_in);
 
     /* Here, the payload_addr_in is the start of the contiguous block of data that will be
        copied to the GPU (heap_in = 0) */
@@ -337,10 +275,17 @@ void do_pfb(struct vegas_databuf *db_in,
         /* Sanity check for the first iteration */
         if ((iBlockInDataSize % (nsubband_x_nchan_csize)) != 0)
         {
-            (void) fprintf(stderr, "ERROR: Data size mismatch! BlockInDataSize=%d NumSubBands=%d nchan=%d\n",
-                                    iBlockInDataSize, gpuCtx->_nsubband, gpuCtx->_nchan);
+            (void) fprintf(stderr, "ERROR: Data size mismatch on first block!\n  "
+                                   "    BlockInDataSize=%d NumSubBands=%d nchan=%d %d heaps\n"
+                                   "    skipping the entire block\n",
+                                    iBlockInDataSize, gpuCtx->_nsubband, gpuCtx->_nchan,
+                                    index_in->num_heaps);
             // run = 0;
-            // return;
+            CUDA_SAFE_CALL(cudaMemset(&gpuCtx->_pc4Data_d[iBlockInDataSize/sizeof(char4)],
+                                      0x2, // something other than exactly zero
+                                      MAX_HEAPS_PER_BLK * time_heap_datasize(index_in))); 
+            gpuCtx->zero_accumulator();           
+            return;
         }
         // Cuda Note: cudaMemcpy host to device is asynchronous, be supposedly safe.
         CUDA_SAFE_CALL(cudaMemcpy(&gpuCtx->_pc4Data_d[iBlockInDataSize/sizeof(char4)],
@@ -357,17 +302,10 @@ void do_pfb(struct vegas_databuf *db_in,
         /* Load the status data into the upper half for use in the next cycle */
         struct time_spead_heap* time_heap = (struct time_spead_heap*) vegas_databuf_data(db_in, curblock_in);        
         blk_info_cache.input(time_heap, index_in);
-#if 0        
-        for (i = index_in->num_heaps; i < 2 * index_in->num_heaps; ++i)
-        {
-            g_auiStatusBits[i] = time_heap->status_bits;
-            g_auiHeapValid[i] = index_in->cpu_gpu_buf[i].heap_valid;
-            ++time_heap;
-        }
-#endif
+        
         // Zero out accumulators for 1st integration
         gpuCtx->zero_accumulator();
-        printf("num_heaps=%d num_in_tail=%d\n", index_in->num_heaps, num_in_heaps_tail);
+        printf("num_heaps per block = %d\n", index_in->num_heaps);
         // We don't do anything yet, we have just primed the pump ....
         return;
     }
@@ -407,24 +345,8 @@ void do_pfb(struct vegas_databuf *db_in,
         struct time_spead_heap* time_heap = (struct time_spead_heap*) vegas_databuf_data(db_in, curblock_in);
         
         blk_info_cache.input(time_heap, index_in);
-#if 0        
-        memcpy(&g_auiStatusBits[0], &g_auiStatusBits[index_in->num_heaps],
-               sizeof(g_auiStatusBits[0]) * index_in->num_heaps);
-        memcpy(&g_auiHeapValid[0], &g_auiHeapValid[index_in->num_heaps],
-               sizeof(g_auiHeapValid[0]) * index_in->num_heaps);
-               
-        /* now load new data in the upper half */       
-        struct time_spead_heap* time_heap = (struct time_spead_heap*) vegas_databuf_data(db_in, curblock_in);
-        struct cpu_gpu_buf_index *inputidx = (struct cpu_gpu_buf_index *)vegas_databuf_index(db_in, curblock_in);
-        for (i= index_in->num_heaps; i < 2 * index_in->num_heaps; ++i)
-        {
-            g_auiStatusBits[i] = time_heap->status_bits;           
-            g_auiHeapValid[i]  = inputidx->heap_valid;
-            ++time_heap;
-            ++inputidx;
-        }
-#endif
     }
+    
     /* now begin processing the 'old' data in the lower half of the buffers */
     gpuCtx->_pc4DataRead_d = gpuCtx->_pc4Data_d;
     iProcData = 0;
@@ -433,7 +355,7 @@ void do_pfb(struct vegas_databuf *db_in,
         if (0 == pfb_count)
         {
             /* Check if all heaps necessary for this PFB are valid */
-            if (!(blk_info_cache.is_valid(heap_in, (VEGAS_NUM_TAPS * num_in_heaps_per_proc))))
+            if (!(blk_info_cache.is_valid(heap_in, num_in_heaps_per_pfb)))
             {
                 /* Skip all heaps that go into this PFB if there is an invalid heap */
                 iProcData += (VEGAS_NUM_TAPS * nsubband_x_nchan_csize);
@@ -445,17 +367,18 @@ void do_pfb(struct vegas_databuf *db_in,
                 }
 
                 /* Calculate input heap addresses for the next round of processing */
-                heap_in += (VEGAS_NUM_TAPS * num_in_heaps_per_proc);
-                if (heap_in > num_in_heaps_gpu_buffer)
+                heap_in += num_in_heaps_per_pfb;
+                fprintf(stderr, "Invalid data detected -- stepping to heap %d\n", heap_in);
+                
+                if (heap_in > 2 * MAX_HEAPS_PER_BLK)
                 {
                     /* This is not supposed to happen (but may happen if odd number of pkts are dropped
                        right at the end of the buffer, so we therefore do not exit) */
                     (void) fprintf(stdout,
                                    "WARNING: Heap count %d exceeds available number of heaps %d!\n",
                                    heap_in,
-                                   num_in_heaps_gpu_buffer);
+                                   2 * MAX_HEAPS_PER_BLK);
                 }
-                heap_addr_in = (char*)vegas_datablock_time_heap_header(db_in, curblock_in, heap_in);
                 continue;
             }
         }
@@ -485,7 +408,8 @@ void do_pfb(struct vegas_databuf *db_in,
         }
         // Check for 8 FFT cycles worth of data (the size of the PFB time window) for blanking.
         // Note that this check may access data in the upper half of the buffer (i.e the next block)
-        gpuCtx->blanking_inputs(blk_info_cache.is_blanked(heap_in, VEGAS_NUM_TAPS * num_in_heaps_per_proc));
+        gpuCtx->blanking_inputs(blk_info_cache.is_blanked(heap_in, num_in_heaps_per_pfb));
+        
         ++g_iTotHeapOut; // unconditional spectrum counter
                                 
         /* Accumulate power x, power y, stokes real and imag, if the blanking
@@ -504,8 +428,11 @@ void do_pfb(struct vegas_databuf *db_in,
             if (1 == g_iSpecPerAcc)
             {
                 gpuCtx->_first_time_heap_in_accum_status_bits = blk_info_cache.status(heap_in);
-                memcpy(&gpuCtx->_first_time_heap_in_accum, heap_addr_in, sizeof(gpuCtx->_first_time_heap_in_accum));
-                gpuCtx->_first_time_heap_mjd = blk_info_cache.mjd(heap_in); // index_in->cpu_gpu_buf[heap_in].heap_rcvd_mjd;               
+                
+                memcpy(&gpuCtx->_first_time_heap_in_accum,
+                       &blk_info_cache._heap_hdr[heap_in],
+                       sizeof(gpuCtx->_first_time_heap_in_accum));
+                gpuCtx->_first_time_heap_mjd = blk_info_cache.mjd(heap_in);               
             }                    
         }
         
@@ -534,7 +461,7 @@ void do_pfb(struct vegas_databuf *db_in,
             }
             else
             {
-                printf("Scanlength: GPU:asked to dump buffer but no accumulations present\n");
+                // printf("Scanlength: GPU:asked to dump buffer but no accumulations present\n");
             }
 
             /* zero accumulators */
@@ -548,8 +475,7 @@ void do_pfb(struct vegas_databuf *db_in,
         gpuCtx->_pc4DataRead_d += (nsubband_x_nchan);
 
         /* Calculate input heap addresses for the next round of processing */
-        heap_in += num_in_heaps_per_proc;
-        heap_addr_in = (char*)vegas_datablock_time_heap_header(db_in, curblock_in, heap_in);
+        heap_in += num_in_heaps_per_fft;
 
         /* if output block is full */
         if (g_iHeapOut == g_iMaxNumHeapOut)
@@ -557,8 +483,6 @@ void do_pfb(struct vegas_databuf *db_in,
             /* Set the number of heaps written to this block */
             /* Mark output buffer as filled */
             vegas_databuf_set_filled(db_out, *curblock_out);
-
-            // printf("Debug: vegas_pfb_thread going to next output block\n");
 
             /* Note current output block */
             /* NOTE: vegas_status_lock_safe() and vegas_status_unlock_safe() are macros
@@ -718,72 +642,6 @@ int GpuContext::get_accumulated_spectrum_from_device(char *out)
     return VEGAS_OK;
 }
 
-/*
- * function to be used to check if any heap within the current PFB is invalid,
- * in which case, the entire PFB should be discarded.
- * NOTE: this function does not check ALL heaps - it returns at the first
- * invalid heap.
- */
-#if 0
-int is_valid(int heap_start, int num_heaps)
-{
-    for (int i = heap_start; i < (heap_start + num_heaps); ++i)
-    {
-        if (!g_auiHeapValid[i])
-        {
-            return FALSE;
-        }
-    }
-
-    return TRUE;
-}
-#endif
-
-/*
-A note about blanking:
-The blanking status is copied from the time series input into the array
-g_auiStatusBits, with time acending with index, like so:
-    g_auiStatusBits[32] = t0
-    g_auiStatusBits[33] = t0 + dt
-    g_auiStatusBits[34] = t0 + dt + dt
-    
-So when we think about labeling the frequency heap outputs, the convention
-is to use the '1st' non-blanked time-series (e.g. index 32 above) to fill 
-in the timestamp, counter, mjd etc.
-
-However, when we think about how to process blanking, we need to use the
-most recent(e.g index 34 above), status to drive the blanking state machine.
-Below, the check which sets 0x2 is taken from the most current time-series status.
-
- is_blanked(tail, length)
- * Check the input time series for blanking and encode
- * the result.
- * Return value: 
- *  - bit 0x4 -- indicates cal or sig/ref state changed during input
- *  - bit 0x2 -- indicates if the most recent time sample had blanking asserted
- *  - bit 0x1 -- indicates if any of the time samples had blanking asserted
- */
-#if 0
-int is_blanked(int heap_start, int num_heaps)
-{
-    int state_changed = 0;
-    int banked_at_start = (g_auiStatusBits[heap_start + num_heaps- 1] & 0x8)  ? 0x2 : 0x0;
-    int is_blanked = (banked_at_start || (g_auiStatusBits[heap_start] & 0x8)) ? 0x1 : 0x0;
-   
-    for (int i = heap_start + 1; i < (heap_start + num_heaps); ++i)
-    {
-        if ((g_auiStatusBits[i] & 0x3) != (g_auiStatusBits[i-1] & 0x3))
-        {
-            state_changed = 0x4;
-        }
-        if (g_auiStatusBits[i] & 0x08)
-        {
-            is_blanked = 0x1;
-        }
-    }
-    return (banked_at_start | state_changed | is_blanked);
-}
-#endif
 
 void __CUDASafeCall(cudaError_t iCUDARet,
                                const char* pcFile,

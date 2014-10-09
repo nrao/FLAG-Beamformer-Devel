@@ -43,14 +43,14 @@ void fixup_l8lbw1_block(struct vegas_databuf *db, int curblock_in)
 // The borders of complete l8lbw8 input and l8lbw1 output should
 // always be in lock-step. (i.e an integral number of l8lbw8
 // blocks should equal 1 l8lbw1 output block.
-// 4 * l8lbw8 --> 0.5 * l8lbw1
+// 8 * l8lbw8 --> l8lbw1
 // Note: Data is being compressed into the 1st data block to be
-// sent to the GPU. The GPU will therefore get every 4th buffer.
+// sent to the GPU. The GPU will therefore get every 8th buffer.
 
 // This uses L8LBW8 packets to form a L8LBW1 input block for the GPU
-// Since the high channel modes need more data, four input blocks
-// are used to form a 0.5 full gpu input block.
-void fixup_l8lbw1_block_merge(struct vegas_databuf *db, int num_needed, int input_blks[8])
+// Since the high channel modes need more data, eight input blocks
+// are used to form a full gpu input block.
+void fixup_l8lbw1_block_merge(struct vegas_databuf *db, int input_blks[8])
 {
     struct time_spead_heap *l8_hdr;
     struct time_spead_heap *l1_hdr;
@@ -59,19 +59,12 @@ void fixup_l8lbw1_block_merge(struct vegas_databuf *db, int num_needed, int inpu
     int s, out_heap, out_sample, heap;
     struct databuf_index *index_in, *index_out;
     int in_blk_idx;
+    const int num_needed = 8;
         
-    // We are collapsing 1,2 or 4 or 8 blocks into 1. The first gets the results
+    // We are collapsing 8 blocks into 1. The first block gets the results
     l1_hdr = (struct time_spead_heap *)vegas_databuf_data(db, input_blks[0]);
     index_out = (struct databuf_index*)vegas_databuf_index(db, input_blks[0]);
-    
-    if (num_needed > 8)
-    {
-        fprintf(stderr, "fixup_l8lbw1_block_merge: num_needed (%d) is not supported\n",
-                num_needed);
-        pthread_exit(0);
-    }
-    
-    
+        
     l1 = (struct time_spead_heap_packet_l1 *)&l1_hdr[MAX_HEAPS_PER_BLK];
     
     out_heap = 0;
@@ -93,16 +86,17 @@ void fixup_l8lbw1_block_merge(struct vegas_databuf *db, int num_needed, int inpu
                 l1[out_heap].data[out_sample++] = l8[heap].data[s].subband[0];
             }
 
+            // As we process the heaps, every 8th heap we copy the header
+            // into the output heap spead headers
             if (out_sample % 2048 == 0)
             {
-                if (out_heap != heap)
+                if (out_heap != 0)
                 {
                     l1_hdr[out_heap] = l8_hdr[heap];
                 }
                 out_heap++;
                 out_sample = 0;
             }
-
         }
     }
     // Record the new size of the (1st) input buffer
