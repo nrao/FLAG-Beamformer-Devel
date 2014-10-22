@@ -19,10 +19,21 @@ ifdef EXT_DISK
 	OPT_FLAGS += -DEXT_DISK
 endif
 
+COMPUTECAP=35
+ifdef GTX680
+    COMPUTECAP=30
+endif
+ifdef GTX780
+    COMPUTECAP=35
+endif
+ifdef GTX750
+    COMPUTECAP=50
+endif
+
 CFLAGS = -g -O3 -Wall -D_GNU_SOURCE -I$(CUDA)/include -I$(VEGAS_INCL)\
 		-I$(PYSLALIB) -I$(VEGAS_DIR)/src $(OPT_FLAGS)
 
-NVCCFLAGS  = -gencode arch=compute_35,code=sm_35
+NVCCFLAGS  = -gencode arch=compute_$(COMPUTECAP),code=sm_$(COMPUTECAP)
 #NVCCFLAGS  = -arch=compute_35 -code=compute_35
 NVCCFLAGS += -I$(CUDA)/include -I$(VEGAS_INCL)
 
@@ -32,13 +43,13 @@ CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread
 PROGS = check_vegas_databuf check_vegas_status clean_vegas_shmem
 OBJS  = vegas_status.o vegas_databuf.o vegas_udp.o vegas_error.o \
 	vegas_params.o vegas_time.o vegas_thread_args.o \
-	write_sdfits.o misc_utils.o l8lbw1_fixups.o \
-	hget.o hput.o sla.o privilege_management.o SwitchingStateMachine.o 
+	write_sdfits.o misc_utils.o \
+	hget.o hput.o sla.o privilege_management.o SwitchingStateMachine.o l8lbw1_fixups.o
 THREAD_PROGS = test_net_thread vegas_hpc_hbw
 THREAD_OBJS  = vegas_net_thread.o vegas_rawdisk_thread.o \
 	        vegas_sdfits_thread.o vegas_accum_thread.o \
 	        vegas_null_thread.o vegas_fake_net_thread.o
-CUDA_OBJS = pfb_gpu.o pfb_gpu_kernels.o vegas_pfb_thread.o BlankingStateMachine.o
+CUDA_OBJS = pfb_gpu.o pfb_gpu_kernels.o vegas_pfb_thread.o BlankingStateMachine.o gpu_context.o
 
 all: $(PROGS) $(THREAD_PROGS) vegas_hpc_lbw vegas_hpc_server
 clean:

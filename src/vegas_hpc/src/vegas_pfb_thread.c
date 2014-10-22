@@ -28,6 +28,8 @@
 #include "l8lbw1_fixups.h"
 extern int g_use_L8_packets_for_L1_modes; // flag to enable L8 into L1 fix.
 
+#define MULTIPLE_BLOCKS 8  // Compress this many blocks into 1 for L8 into L1 fix
+
 /* Parse info from buffer into param struct */
 extern void vegas_read_subint_params(char *buf, 
                                      struct vegas_params *g,
@@ -156,10 +158,7 @@ void vegas_pfb_thread(void *_args) {
     
     if (packet_compression)
     {
-        if (nchan > 128*1024)
-            num_blocks_needed = 4;
-        else
-            num_blocks_needed = 1;
+        num_blocks_needed = 8;
     }
 
     while (run) {
@@ -169,13 +168,17 @@ void vegas_pfb_thread(void *_args) {
         hputs(st.buf, STATUS_KEY, "waiting");
         vegas_status_unlock_safe(&st);
 
-        int full_blocks[4], free_blk, nextblk = curblock_in;
+        int full_blocks[MULTIPLE_BLOCKS], free_blk, nextblk = curblock_in;
         /* Wait for buf to have data */
         for (free_blk=0; free_blk < num_blocks_needed; )
         {
-            rv = vegas_databuf_wait_filled(db_in, nextblk);
+            do
+            {
+                rv = vegas_databuf_wait_filled(db_in, nextblk);
+                if (!run)  break;                  
+            } while(rv == VEGAS_TIMEOUT);
+            
             if (!run)  break;            
-            if (rv!=0) continue;
             full_blocks[free_blk] = nextblk;
             nextblk = (nextblk + 1) % db_in->n_block;
             ++free_blk;
@@ -193,7 +196,7 @@ void vegas_pfb_thread(void *_args) {
         // 1 or 4 l8lbw8 input blocks
         if (packet_compression)
         {            
-            fixup_l8lbw1_block_merge(db_in, num_blocks_needed, full_blocks);
+            fixup_l8lbw1_block_merge(db_in, full_blocks);
         }
         
         /* Get params */

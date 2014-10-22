@@ -34,11 +34,9 @@ struct time_spead_heap_packet_l1
 {
     struct time_sample data[2048];
 };
-#if defined(SIMPLE_LONGWORD_SWAP)
+
 void fixup_l8lbw1_block(struct vegas_databuf *, int curblk);
-#else
-void fixup_l8lbw1_block_merge(struct vegas_databuf *, int numneeded, int full_blocks[4]);
-#endif
+
 
 
 #endif
