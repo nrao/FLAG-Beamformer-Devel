@@ -382,6 +382,7 @@ void do_pfb(struct vegas_databuf *db_in,
                 continue;
             }
         }
+
         /* Perform polyphase filtering */
         DoPFB<<<gpuCtx->_dimGPFB, gpuCtx->_dimBPFB>>>(gpuCtx->_pc4DataRead_d,
                                                       gpuCtx->_pf4FFTIn_d,
@@ -416,6 +417,7 @@ void do_pfb(struct vegas_databuf *db_in,
            bit is not set */
         if (!(gpuCtx->blank_current_fft()))
         {
+            // printf("N %d\n", heap_in);
             iRet = gpuCtx->accumulate();
             if (iRet != VEGAS_OK)
             {
@@ -434,6 +436,10 @@ void do_pfb(struct vegas_databuf *db_in,
                        sizeof(gpuCtx->_first_time_heap_in_accum));
                 gpuCtx->_first_time_heap_mjd = blk_info_cache.mjd(heap_in);               
             }                    
+        }
+        else
+        {
+            // printf("B %d\n", heap_in);
         }
         
         if (g_iSpecPerAcc == acc_len || gpuCtx->needs_flush())
@@ -461,7 +467,7 @@ void do_pfb(struct vegas_databuf *db_in,
             }
             else
             {
-                // printf("Scanlength: GPU:asked to dump buffer but no accumulations present\n");
+                printf("Scanlength: GPU:asked to dump buffer but no accumulations present\n");
             }
 
             /* zero accumulators */

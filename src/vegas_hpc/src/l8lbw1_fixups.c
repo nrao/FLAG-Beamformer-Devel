@@ -69,6 +69,7 @@ void fixup_l8lbw1_block_merge(struct vegas_databuf *db, int input_blks[8])
     
     out_heap = 0;
     out_sample = 0;
+    int blank_present = 0;
     
     // for each data block
     for (in_blk_idx=0; in_blk_idx<num_needed; ++in_blk_idx)
@@ -85,7 +86,9 @@ void fixup_l8lbw1_block_merge(struct vegas_databuf *db, int input_blks[8])
             {
                 l1[out_heap].data[out_sample++] = l8[heap].data[s].subband[0];
             }
-
+            // This checks to see if any of the 8 packets that comprised the 1 L1 packet
+            // had a blanking bit set.
+            blank_present |= (l8_hdr[heap].status_bits & 0x8);
             // As we process the heaps, every 8th heap we copy the header
             // into the output heap spead headers
             if (out_sample % 2048 == 0)
@@ -93,14 +96,23 @@ void fixup_l8lbw1_block_merge(struct vegas_databuf *db, int input_blks[8])
                 if (out_heap != 0)
                 {
                     l1_hdr[out_heap] = l8_hdr[heap];
+                    l1_hdr[out_heap].status_bits |= blank_present;
                 }
                 out_heap++;
                 out_sample = 0;
+                blank_present = 0;
             }
         }
     }
+    // invalidate any heaps which are missing to make a full block
+    if (out_heap < 4095)
+        printf("not enough out heaps invalidating last %d\n", 4096-out_heap);
+    for (; out_heap<4096; ++out_heap)
+    {
+        index_out->cpu_gpu_buf[out_heap].heap_valid = 0;
+    }
     // Record the new size of the (1st) input buffer
-    index_out->num_heaps = out_heap;   
+    index_out->num_heaps = 4096;   
 }
 
 #endif

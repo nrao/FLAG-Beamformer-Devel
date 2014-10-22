@@ -172,9 +172,13 @@ void vegas_pfb_thread(void *_args) {
         /* Wait for buf to have data */
         for (free_blk=0; free_blk < num_blocks_needed; )
         {
-            rv = vegas_databuf_wait_filled(db_in, nextblk);
+            do
+            {
+                rv = vegas_databuf_wait_filled(db_in, nextblk);
+                if (!run)  break;                  
+            } while(rv == VEGAS_TIMEOUT);
+            
             if (!run)  break;            
-            if (rv!=0) continue;
             full_blocks[free_blk] = nextblk;
             nextblk = (nextblk + 1) % db_in->n_block;
             ++free_blk;
