@@ -23,7 +23,7 @@ public:
         memcpy(&_heap_idx[0], &_heap_idx[MAX_HEAPS_PER_BLK], MAX_HEAPS_PER_BLK * sizeof(cpu_gpu_buf_index)); 
         // store new input data in upper half
         memcpy(&_heap_hdr[MAX_HEAPS_PER_BLK], hdr_base, MAX_HEAPS_PER_BLK * sizeof(time_spead_heap));
-        memcpy(&_heap_idx[MAX_HEAPS_PER_BLK], idx,      MAX_HEAPS_PER_BLK * sizeof(cpu_gpu_buf_index)); 
+        memcpy(&_heap_idx[MAX_HEAPS_PER_BLK], &idx->cpu_gpu_buf[0], MAX_HEAPS_PER_BLK * sizeof(cpu_gpu_buf_index)); 
     }
 
     /* verify the next num_heaps of data is valid according to the index */
