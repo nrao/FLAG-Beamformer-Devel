@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <memory.h>
 
+#include "vegas_error.h"
+
 #define SR_BIT_MASK (0x2)
 #define CAL_BIT_MASK (0x1)
 #define SIG_REF_CAL_MASK (SR_BIT_MASK|CAL_BIT_MASK)

@@ -1,6 +1,7 @@
 #include <cufft.h>
 #include "gpu_context.h"
 #include "pfb_gpu.h"
+#include "vegas_error.h"
 
 // Ugly, but so much depends upon it
 extern int run;

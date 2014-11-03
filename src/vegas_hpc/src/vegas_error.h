@@ -26,6 +26,14 @@ void vegas_error(const char *name, const char *msg);
 /** Call this to log an warning message */
 void vegas_warn(const char *name, const char *msg);
 
+/** Call this instead of printf to get a time stamped output message */
+void tprintf(const char *fmt, ...);
+
+void tfprintf(FILE *stream, const char *format, ...);
+
+#define printf tprintf
+#define fprintf tfprintf
+
 #ifdef __cplusplus /* C++ prototypes */
 }
 #endif

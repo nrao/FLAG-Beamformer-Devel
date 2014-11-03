@@ -1,7 +1,7 @@
 
 #include "BlankingStateMachine.h"
-
 #include <stdio.h>
+#include "vegas_error.h"
 
 #define FFT_BLANKING_CYCLES 0
 
