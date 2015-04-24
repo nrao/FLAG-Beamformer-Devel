@@ -11,7 +11,7 @@
 #include <sys/sem.h>
 #include "spead_heap.h"
 
-struct vegas_databuf {
+struct decprecated_vegas_databuf {
     char data_type[64]; /**< Type of data in buffer */
     unsigned int buf_type;  /**< GPU_INPUT_BUF or CPU_INPUT_BUF */
     size_t databuf_size; /**< Size for the entire buffer (bytes) */
@@ -24,8 +24,30 @@ struct vegas_databuf {
     int n_block;        /**< Number of data blocks in buffer */
 };
 
-#define VEGAS_DATABUF_KEY 0x00C62C70
+//#define VEGAS_DATABUF_KEY 0x00C62C70
+#define VEGAS_DATABUF_KEY 0x80194aad
 
+#define NUM_ANTENNAS 40
+#define NUM_BLOCKS 2
+
+typedef struct {
+    char data_type[64]; /* Type of data in buffer */
+    size_t header_size; /* Size of each block header (bytes) */
+    size_t block_size;  /* Size of each data block (bytes) */
+    int n_block;        /* Number of data blocks in buffer */
+    int shmid;          /* ID of this shared mem segment */
+    int semid;          /* ID of locking semaphore set */
+} vegas_databuf_header_t;
+
+typedef struct vegas_databuf_block {
+  int mcnt;
+  int data[NUM_ANTENNAS];
+} vegas_databuf_block_t;
+
+struct vegas_databuf {
+        vegas_databuf_header_t header;
+        vegas_databuf_block_t block[NUM_BLOCKS];
+};
 /* union for semaphore ops. */
 union semun {
     int val;
@@ -85,8 +107,8 @@ extern "C" {
  * error if an existing shmem area exists with the given shmid (or
  * if other errors occured trying to allocate it).
  */
-struct vegas_databuf *vegas_databuf_create(int n_block, size_t block_size,
-        int databuf_id, int buf_type);
+//struct vegas_databuf *vegas_databuf_create(int n_block, size_t block_size,
+//        int databuf_id, int buf_type);
 void vegas_conf_databuf_size(struct vegas_databuf *d, size_t new_block_size);
 
 /** Return a pointer to a existing shmem segment with given id.

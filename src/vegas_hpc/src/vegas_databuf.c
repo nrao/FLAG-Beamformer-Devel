@@ -19,97 +19,12 @@
 #include "vegas_error.h"
 
 
+
 struct vegas_databuf *vegas_databuf_create(int n_block, size_t block_size,
         int databuf_id, int buf_type) {
-
-    /* Calc databuf size */
-    const size_t header_size = VEGAS_STATUS_SIZE;
-    size_t struct_size = sizeof(struct vegas_databuf);
-    struct_size = 8192 * (1 + struct_size/8192); /* round up */
-    size_t index_size = sizeof(struct databuf_index);
-    size_t databuf_size = (block_size+header_size+index_size) * n_block + struct_size;
-
-    /* Get shared memory block, error if it already exists */
-    int shmid;
-    shmid = shmget(VEGAS_DATABUF_KEY + databuf_id - 1, 
-            databuf_size, 0666 | IPC_CREAT | IPC_EXCL);
-    if (shmid==-1) {
-        vegas_error("vegas_databuf_create", "shmget error");
-        return(NULL);
-    }
-
-    /* Attach */
-    struct vegas_databuf *d;
-    d = shmat(shmid, NULL, 0);
-    if (d==(void *)-1) {
-        vegas_error("vegas_databuf_create", "shmat error");
-        return(NULL);
-    }
-
-    /* Try to lock in memory */
-    int rv = shmctl(shmid, SHM_LOCK, NULL);
-    if (rv==-1) {
-        vegas_error("vegas_databuf_create", "Error locking shared memory.");
-        perror("shmctl");
-    }
-
-    /* Zero out memory */
-    memset(d, 0, databuf_size);
-
-    /* Fill params into databuf */
-    int i;
-    char end_key[81];
-    memset(end_key, ' ', 80);
-    strncpy(end_key, "END", 3);
-    end_key[80]='\0';
-    d->shmid = shmid;
-    d->semid = 0;
-    d->n_block = n_block;
-    d->databuf_size = databuf_size;
-    d->struct_size = struct_size;
-    d->block_size = block_size;
-    d->header_size = header_size;
-    d->index_size = index_size;
-    sprintf(d->data_type, "unknown");
-    d->buf_type = buf_type;
-
-    for (i=0; i<n_block; i++) { 
-        memcpy(vegas_databuf_header(d,i), end_key, 80); 
-    }
-
-    /* Get semaphores set up.
-       If the disk buffer (type=3), we make 1024 semaphores, as the blocks
-       may be resized later. */
-    if(buf_type == DISK_INPUT_BUF)
-        d->semid = semget(VEGAS_DATABUF_KEY + databuf_id - 1, MAX_BLKS_PER_BUF, 0666 | IPC_CREAT);
-    else
-        d->semid = semget(VEGAS_DATABUF_KEY + databuf_id - 1, n_block, 0666 | IPC_CREAT);
-
-    if (d->semid==-1) { 
-        vegas_error("vegas_databuf_create", "semget error");
-        return(NULL);
-    }
-
-    /* Init semaphores to 0 */
-    union semun arg;
-
-    if(buf_type == DISK_INPUT_BUF)
-    {
-        arg.array = (unsigned short *)malloc(sizeof(unsigned short)*MAX_BLKS_PER_BUF);
-        memset(arg.array, 0, sizeof(unsigned short)*MAX_BLKS_PER_BUF);
-    }
-    else
-    {
-        arg.array = (unsigned short *)malloc(sizeof(unsigned short)*n_block);
-        memset(arg.array, 0, sizeof(unsigned short)*n_block);
-    }
-
-    rv = semctl(d->semid, 0, SETALL, arg);
-    free(arg.array);
-
+    struct vegas_databuf *d;    
     return(d);
 }
-
 
 /** 
  * Resizes the blocks within the specified databuf. The number of blocks
@@ -119,19 +34,21 @@ void vegas_conf_databuf_size(struct vegas_databuf *d, size_t new_block_size)
 {
 
     /* Calculate number of data blocks that can fit into the existing buffer */
-    int new_n_block = (d->databuf_size - d->struct_size) / (new_block_size + d->header_size + d->index_size);
+    //int new_n_block = (d->databuf_size - d->struct_size) / (new_block_size + d->header_size + d->index_size);
     
     /* Make sure that there won't be more data blocks than semaphores */
+    /*
     if(new_n_block > MAX_BLKS_PER_BUF)
     {
         printf("Warning: the disk buffer contains more than %d blocks. Only %d blocks will be used\n",
                 MAX_BLKS_PER_BUF, MAX_BLKS_PER_BUF);
         new_n_block = MAX_BLKS_PER_BUF;
     }
+    */
 
     /* Fill params into databuf */
-    d->n_block = new_n_block;
-    d->block_size = new_block_size;
+    //d->n_block = new_n_block;
+    //d->block_size = new_block_size;
 
     return;
 }
@@ -148,7 +65,8 @@ int vegas_databuf_detach(struct vegas_databuf *d) {
 
 void vegas_databuf_clear(struct vegas_databuf *d) {
 
-    /* Zero out semaphores */
+/*
+    // Zero out semaphores 
     union semun arg;
     if(d->buf_type == DISK_INPUT_BUF)
     {
@@ -161,14 +79,15 @@ void vegas_databuf_clear(struct vegas_databuf *d) {
       memset(arg.array, 0, sizeof(unsigned short)*d->n_block);
     }
 
-    semctl(d->semid, 0, SETALL, arg);
+    semctl(d->header.semid, 0, SETALL, arg);
     free(arg.array);
 
-    /* Clear all headers */
+    // Clear all headers 
     int i;
     for (i=0; i<d->n_block; i++) {
         vegas_fitsbuf_clear(vegas_databuf_header(d, i));
     }
+*/
 
 }
 
@@ -184,18 +103,21 @@ void vegas_fitsbuf_clear(char *buf) {
 
 /// Returns a pointer to the 1st FITS header for the given block
 char *vegas_databuf_header(struct vegas_databuf *d, int block_id) {
-    return((char *)d + d->struct_size + block_id*d->header_size);
+    //return((char *)d + d->struct_size + block_id*d->header_size);
+    return((char *)d);
 }
 
 /// Returns a pointer to the 1st index for the given block
 char *vegas_databuf_index(struct vegas_databuf *d, int block_id) {
-    return((char *)d + d->struct_size + d->n_block*d->header_size
-            + block_id*d->index_size);
+    //return((char *)d + d->struct_size + d->n_block*d->header_size
+    //        + block_id*d->index_size);
+    return((char *)d);
 }
 /// Returns a pointer to the base of the data for the given block
 char *vegas_databuf_data(struct vegas_databuf *d, int block_id) {
-    return((char *)d + d->struct_size + d->n_block*d->header_size
-            + d->n_block*d->index_size + block_id*d->block_size);
+    //return((char *)d + d->struct_size + d->n_block*d->header_size
+    //        + d->n_block*d->index_size + block_id*d->block_size);
+    return((char *)d);
 }
 
 size_t time_heap_datasize(struct databuf_index* index)
@@ -348,7 +270,7 @@ struct vegas_databuf *vegas_databuf_attach(int databuf_id) {
 }
 
 int vegas_databuf_block_status(struct vegas_databuf *d, int block_id) {
-    return(semctl(d->semid, block_id, GETVAL));
+    return(semctl(d->header.semid, block_id, GETVAL));
 }
 
 int vegas_databuf_total_status(struct vegas_databuf *d) {
@@ -358,9 +280,9 @@ int vegas_databuf_total_status(struct vegas_databuf *d) {
     arg.array = (unsigned short *)malloc(sizeof(unsigned short)*MAX_BLKS_PER_BUF);
     
     memset(arg.array, 0, sizeof(unsigned short)*MAX_BLKS_PER_BUF);
-    semctl(d->semid, 0, GETALL, arg);
+    semctl(d->header.semid, 0, GETALL, arg);
     int i,tot=0;
-    for (i=0; i<d->n_block; i++) tot+=arg.array[i];
+    for (i=0; i<d->header.n_block; i++) tot+=arg.array[i];
     free(arg.array);
     return(tot);
 
@@ -379,7 +301,7 @@ int vegas_databuf_wait_free(struct vegas_databuf *d, int block_id) {
     struct timespec timeout;
     timeout.tv_sec = 0;
     timeout.tv_nsec = 250000000;
-    rv = semtimedop(d->semid, &op, 1, &timeout);
+    rv = semtimedop(d->header.semid, &op, 1, &timeout);
     if (rv==-1) { 
         if (errno==EAGAIN) return(VEGAS_TIMEOUT);
         if (errno==EINTR) return(VEGAS_ERR_SYS);
@@ -407,7 +329,7 @@ int vegas_databuf_wait_filled(struct vegas_databuf *d, int block_id) {
     struct timespec timeout;
     timeout.tv_sec = 0;
     timeout.tv_nsec = 250000000;
-    rv = semtimedop(d->semid, op, 2, &timeout);
+    rv = semtimedop(d->header.semid, op, 2, &timeout);
     if (rv==-1) { 
         if (errno==EAGAIN) return(VEGAS_TIMEOUT);
         // Don't complain on a signal interruption
@@ -427,7 +349,7 @@ int vegas_databuf_set_free(struct vegas_databuf *d, int block_id) {
     int rv;
     union semun arg;
     arg.val = 0;
-    rv = semctl(d->semid, block_id, SETVAL, arg);
+    rv = semctl(d->header.semid, block_id, SETVAL, arg);
     if (rv==-1) { 
         vegas_error("vegas_databuf_set_free", "semctl error");
         return(VEGAS_ERR_SYS);
@@ -443,7 +365,7 @@ int vegas_databuf_set_filled(struct vegas_databuf *d, int block_id) {
     int rv;
     union semun arg;
     arg.val = 1;
-    rv = semctl(d->semid, block_id, SETVAL, arg);
+    rv = semctl(d->header.semid, block_id, SETVAL, arg);
     if (rv==-1) { 
         vegas_error("vegas_databuf_set_filled", "semctl error");
         return(VEGAS_ERR_SYS);
