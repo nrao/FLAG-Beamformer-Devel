@@ -218,6 +218,10 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     int rx_some_data = 0;
     scan_finished = 0;
     
+    // TBF: kluge
+    int scanRows = 6;
+    int rowsWritten = 0;
+
     signal(SIGINT, stop_thread);
 
     vegas_status_lock_safe(&st);
@@ -258,9 +262,10 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             continue;
         }
         rx_some_data = 1;
-        printf("Got a buffer block=%d, gdb=%p\n", block, gdb);
-        //dbprintf("Got a buffer block=%d, gdb=%p\n", block, gdb);
+        printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n", block, gdb, gdb->block[block].mcnt);
 
+        fitsio->write(gdb->block[block].data);
+        rowsWritten++;
 
         /*
         char *fits_header = vegas_databuf_header(gdb, block);
@@ -340,13 +345,14 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         block = (block + 1) % gdb->header.n_block;
         
         // Scan completed (We have more than SCANLEN of data)
-        /*
-        if (fitsio->is_scan_complete())
+        
+        //if (fitsio->is_scan_complete())
+        if (rowsWritten >= scanRows)
         {
             printf("Ending fits writer because scan is complete\n");
             scan_finished = 1;
         }
-        */
+
         // Check for a thread cancellation
         pthread_testcancel();
         

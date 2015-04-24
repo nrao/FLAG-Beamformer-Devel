@@ -151,7 +151,7 @@ public:
     void createDataTable();
 
     int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
-    int write();
+    int write(int *data);
     bool is_scan_complete();
     void set_scan_complete();
 

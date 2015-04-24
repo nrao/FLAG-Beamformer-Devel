@@ -1264,6 +1264,7 @@ void VegasFitsIO::createActStateTable()
 
 void VegasFitsIO::createDataTable()
 {
+/*
     const int DATA_HDU = data_hdu;
     const int DATA_COLS = 8;
     char const *ttypeLags[] = {"INTEGRAT", "DATA", "UTCDELTA", "INTEGNUM",
@@ -1288,10 +1289,17 @@ void VegasFitsIO::createDataTable()
     tformLags[4] = accumid_tform;
     tformLags[5] = sttspec_tform;
     tformLags[6] = stpspec_tform;
+*/
+    const int DATA_HDU = data_hdu;
+    const int DATA_COLS = 1;
+    char const *ttypeLags[] = {"DATA"};
+    char const *tformLags[] = {"40I"};
+    char const *tunitLags[] = {"COUNTS"};
 
     //                  HDU#, addtnl cols, ttypeState, tformState, tunitState
     createBaseDataTable(DATA_HDU, DATA_COLS, (char **)ttypeLags, (char **)tformLags, (char **)tunitLags);
 
+    /*
     long intShape[2];
     intShape[0] = numberSubBands * numberStokes;
     intShape[1] = numberPhases;
@@ -1317,6 +1325,7 @@ void VegasFitsIO::createDataTable()
                    (char *)"Actual start time in MJD");
     update_key_flt((char *)"DURATION", requestedIntegrationTime, 7,
                    (char *)"Length of one integration, seconds");
+    */
 
     flush();
 }
@@ -1427,12 +1436,27 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
 
 /// Writes a full integration of data to a row in the FITS file.
 int
-VegasFitsIO::write()
+VegasFitsIO::write(int *data)
 {
     int column = 1;
     MutexLock l(lock_mutex);
     l.lock();
 
+    // DMJD - apparently, this is always expected in FitsIO base class (TBF)
+    double dmjd = 0.0; 
+    write_col_dbl(column++,
+                  current_row,
+                  1,
+                  1,
+                  &dmjd);
+
+    // DATA column
+    write_col_int(column++,
+                  current_row,
+                  1,
+                  40,
+                  data);
+/*
 
     // DMJD column
     double dmjd = integration_start_time;
@@ -1499,6 +1523,8 @@ VegasFitsIO::write()
                   1,
                   1,
                   (long int *)&time_ctr_40bits);
+
+     */
 
     ++current_row;
 
