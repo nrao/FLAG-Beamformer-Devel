@@ -20,6 +20,7 @@
 //#	P. O. Box 2
 //#	Green Bank, WV 24944-0002 USA
 
+#include <stdio.h>
 #include <signal.h>
 #include <pthread.h>
 #include <time.h>
@@ -77,7 +78,7 @@ void *runGbtFitsWriter(void *ptr)
 }
 
 // data_buffer timeouts are .250 sec, so wait up to 2.5 seconds
-#define MAX_ACCUM_TIMEOUTS 10
+#define MAX_ACCUM_TIMEOUTS 100
 
 void *
 VegasFitsThread::run(struct vegas_thread_args *args)
@@ -120,7 +121,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::status_detach, &st);
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::setExitStatus, &st);    
     
-    const int databufid = 3; // disk buffer
+    const int databufid = 1; // disk buffer
     // Attach to the data buffer shared memory
     vegas_databuf *gdb = vegas_databuf_attach(databufid);
     if(gdb == 0)
@@ -168,6 +169,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     // pass a copy of the status memory to the writer
     fitsio->copyStatusMemory(status_buf);
 
+    printf("status_buf: %s\n", status_buf);
       
     int nsubband;         
     if (hgeti4(status_buf, "NSUBBAND", &nsubband))
@@ -175,6 +177,8 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         fitsio->setNumberSubBands(nsubband);
     }
 
+    fitsio->setNumberStokes(1);
+    
     // I'm assuming STRTDMJD is the starttime in DMJD
     if (hgetr8(status_buf, "STRTDMJD", &start_time) == 0)
     {
@@ -194,7 +198,9 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     // start_time=2013_10_01_12:00:00
     // BANK=A
     // would result in a file: /lustre/project_1/VEGAS/2013_10_01_12:00:00A.fits
+    printf("fitsio opening\n");
     fitsio->open();
+    printf("fitsio opened\n");
     if(fitsio->getStatus() != 0)
     {
         char buf[64];
@@ -228,6 +234,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         // Wait for a data buffer from the HPC program
         if(vegas_databuf_wait_filled(gdb, block))
         {
+            printf("Timed out\n");
             // Waiting timed out - check the scan status
             // dbprintf("db not filled\n");
             vegas_status_lock_safe(&st);
@@ -251,7 +258,11 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             continue;
         }
         rx_some_data = 1;
-        dbprintf("Got a buffer block=%d, gdb=%p\n", block, gdb);
+        printf("Got a buffer block=%d, gdb=%p\n", block, gdb);
+        //dbprintf("Got a buffer block=%d, gdb=%p\n", block, gdb);
+
+
+        /*
         char *fits_header = vegas_databuf_header(gdb, block);
         
         databuf_index *index = reinterpret_cast<databuf_index*>(
@@ -309,13 +320,15 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             new_integration = false;
             data_waiting = true;
 
-            /* Note current block */           
+            // Note current block 
             vegas_status_lock_safe(&st);
             hputi4(st.buf, "DSKBLKIN", block);
             vegas_status_unlock_safe(&st);
             
             delete chunk;
         }
+
+        */
 
         // Free the datablock for the HPC program
         if(vegas_databuf_set_free(gdb, block))
@@ -324,14 +337,16 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             printf("block=%d\n", block);
         }
 
-        block = (block + 1) % gdb->n_block;
+        block = (block + 1) % gdb->header.n_block;
         
         // Scan completed (We have more than SCANLEN of data)
+        /*
         if (fitsio->is_scan_complete())
         {
             printf("Ending fits writer because scan is complete\n");
             scan_finished = 1;
         }
+        */
         // Check for a thread cancellation
         pthread_testcancel();
         
