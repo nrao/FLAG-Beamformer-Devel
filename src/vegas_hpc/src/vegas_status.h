@@ -12,6 +12,8 @@
 #include "vegas_params.h"
 
 #define VEGAS_STATUS_KEY 0x01001840
+#define VEGAS_STATUS_KEY 0x40194aad
+
 #define VEGAS_STATUS_SEMID "/vegas_status"
 #define VEGAS_STATUS_SIZE (2880*64) ///< FITS-style buffer
 #define VEGAS_STATUS_CARD 80 ///< Size of each FITS "card"
