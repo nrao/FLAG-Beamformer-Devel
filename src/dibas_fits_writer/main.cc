@@ -38,6 +38,8 @@
 #include <sched.h>
 
 #include "VegasFitsIO.h"
+#include "mainTest.h"
+
 // #include "vegas_threads.h"
 #define FITS_THREAD_CORE 3
 #define FITS_PRIORITY (-20)
@@ -86,7 +88,8 @@ const char CONTROL_FIFO[] = "/tmp/vegas_fits_control";
 
 extern "C" int setup_privileges();
 
-int main(int argc, char **argv)
+
+int mainThread(int argc, char **argv)
 {
     run = 1;
     int command_fifo;
@@ -293,4 +296,12 @@ int main(int argc, char **argv)
     /* TODO: remove FIFO */
 
     exit(0);
+}
+
+int main(int argc, char **argv) {
+    printf("Dibas FITS Writer main: %d\n", argc);
+    if (argc > 1)
+        mainTest(argc, argv);
+    else     
+        mainThread(argc, argv);
 }
