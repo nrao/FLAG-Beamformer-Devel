@@ -113,8 +113,9 @@ int mainTest(int argc, char **argv) {
     fitsio->open();
 
     // create fake data (ramp)
-    int i, dataSize = 40;
-    int data[40];
+    int i;
+    int dataSize = 8200;
+    float data[dataSize];
     for (i=0; i<dataSize; i++)
         data[i] = i;
 

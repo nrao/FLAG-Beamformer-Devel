@@ -28,6 +28,21 @@ struct decprecated_vegas_databuf {
 #define VEGAS_DATABUF_KEY 0x80194aad
 
 #define NUM_ANTENNAS 40
+
+// The bin size is the number of elements in the lower trianglular
+//   portion of the covariance matrix
+//   (41 * 20) gives us the number of complex pair elements
+#define BIN_SIZE (41 * 20)
+// #define BIN_SIZE 4
+// This is the number of frequency channels that we will be correlating
+//   It will be either 5, 50, or 160, and probably should always be a macro
+//   For the purposes of this simulator we don't care about the input to the correlator
+//   except that the number of input channels will indicate the number of output channels
+//   That is, the total number of complex pairs we will be writing to shared memory
+//   is given as: BIN_SIZE * NUM_CHANNELS
+#define NUM_CHANNELS 5
+#define TOTAL_DATA_SIZE (BIN_SIZE * NUM_CHANNELS * 2)
+
 #define NUM_BLOCKS 2
 
 typedef struct {
@@ -41,7 +56,8 @@ typedef struct {
 
 typedef struct vegas_databuf_block {
   int mcnt;
-  int data[NUM_ANTENNAS];
+  // we must double the elements since CFITSIO interperates every two elements as a pair
+  float data[TOTAL_DATA_SIZE];
 } vegas_databuf_block_t;
 
 struct vegas_databuf {
