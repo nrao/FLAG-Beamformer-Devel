@@ -17,6 +17,7 @@
 #include "vegas_status.h"
 #include "vegas_databuf.h"
 #include "vegas_error.h"
+#include "hashpipe_ipckey.h"
 
 
 
@@ -247,9 +248,22 @@ vegas_datablock_freq_heap_data(struct vegas_databuf *d, int block_id, int heap_i
  */
 struct vegas_databuf *vegas_databuf_attach(int databuf_id) {
 
+    // TBF: needs to be instance aware!
+    int instance_id = 0;
+
+    /* Get shared memory block */
+    key_t key = hashpipe_databuf_key(instance_id);
+    //if(key == HASHPIPE_KEY_ERROR) {
+    if(key == -1) {
+        //hashpipe_error(__FUNCTION__, "hashpipe_databuf_key error");
+        vegas_error("vegas_databuf_attach", "hashpipe_databuf_key error");
+        return NULL;
+    }
+    printf("vegas_databuf shmget key: %x\n" , key);
+    
     /* Get shmid */
     int shmid;
-    shmid = shmget(VEGAS_DATABUF_KEY + databuf_id - 1, 0, 0666);
+    shmid = shmget(key + databuf_id - 1, 0, 0666);
     if (shmid==-1) {
         // Doesn't exist, exit quietly otherwise complain
         if (errno!=ENOENT)

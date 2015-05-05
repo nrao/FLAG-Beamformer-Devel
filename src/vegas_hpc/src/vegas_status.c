@@ -16,10 +16,70 @@
 #include "vegas_status.h"
 #include "vegas_error.h"
 
+int hashpipe_status_semname(int instance_id, char * semid, size_t size)
+{
+    //static char semid[NAME_MAX-4] = {'\0'};
+    size_t length_remaining = size;
+    int bytes_written;
+    char *s;
+    int rc = 1;
+
+    const char * envstr = getenv("HASHPIPE_STATUS_SEMNAME");
+    if(envstr) {
+        strncpy(semid, envstr, length_remaining);
+        semid[length_remaining-1] = '\0';
+    } else {
+        envstr = getenv("HASHPIPE_KEYFILE");
+        if(!envstr) {
+            envstr = getenv("HOME");
+            if(!envstr) {
+                envstr = "/tmp";
+            }
+        }
+        strncpy(semid, envstr, length_remaining);
+        semid[length_remaining-1] = '\0';
+        // Convert all but the leading / to _
+        s = semid + 1;
+        while((s = strchr(s, '/'))) {
+          *s = '_';
+        }
+        length_remaining -= strlen(semid);
+        if(length_remaining > 0) {
+            bytes_written = snprintf(semid+strlen(semid),
+                length_remaining, "_hashpipe_status_%d", instance_id&0x3f);
+            if(bytes_written < length_remaining) {
+              // No truncation
+              rc = 0;
+            }
+        }
+    }
+#ifdef HASHPIPE_VERBOSE
+    fprintf(stderr, "using hashpipe status semaphore '%s'\n", semid);
+#endif
+    return rc;
+}
+
 int vegas_status_attach(struct vegas_status *s) {
 
+    // TBF: needs to be instance aware!
+    int instance_id = 0;
+    instance_id &= 0x3f;
+    //int NAME_MAX = 256;
+    char semid[NAME_MAX] = {'\0'};
+
+    /* Get shared memory block */
+    key_t key = hashpipe_status_key(instance_id);
+    //if(key == HASHPIPE_KEY_ERROR) {
+    if(key == -1) {
+        //hashpipe_error(__FUNCTION__, "hashpipe_databuf_key error");
+        vegas_error("vegas_status_attach", "hashpipe_databuf_key error");
+        return NULL;
+    }
+    printf("shmget key: %x\n" , key);
+
     /* Get shared mem id (creating it if necessary) */
-    s->shmid = shmget(VEGAS_STATUS_KEY, VEGAS_STATUS_SIZE, 0666 | IPC_CREAT);
+    s->shmid = shmget(key, VEGAS_STATUS_SIZE, 0666 | IPC_CREAT);
+    //s->shmid = shmget(VEGAS_STATUS_KEY, VEGAS_STATUS_SIZE, 0666 | IPC_CREAT);
     if (s->shmid==-1) { 
         vegas_error("vegas_status_attach", "shmget error");
         return(VEGAS_ERR_SYS);
@@ -36,8 +96,15 @@ int vegas_status_attach(struct vegas_status *s) {
     /* Get the locking semaphore.
      * Final arg (1) means create in unlocked state (0=locked).
      */
+    // make a uniqueish identifier for the semaphore, ala hashpipe
+    if(hashpipe_status_semname(instance_id, semid, NAME_MAX)) {
+        vegas_error("vegas_status_attach", "semname truncated");
+        return(VEGAS_ERR_SYS);
+    }    
     mode_t old_umask = umask(0);
-    s->lock = sem_open(VEGAS_STATUS_SEMID, O_CREAT, 0666, 1);
+    //s->lock = sem_open(VEGAS_STATUS_SEMID, O_CREAT, 0666, 1);
+    printf("vegas_status_attach sem_open w/ %s\n" , semid);
+    s->lock = sem_open(semid, O_CREAT, 0666, 1);
     umask(old_umask);
     if (s->lock==SEM_FAILED) {
         vegas_error("vegas_status_attach", "sem_open");

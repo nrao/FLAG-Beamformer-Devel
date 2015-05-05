@@ -11,7 +11,7 @@
 
 #include "vegas_params.h"
 
-#define VEGAS_STATUS_KEY 0x01001840
+//#define VEGAS_STATUS_KEY 0x01001840
 #define VEGAS_STATUS_KEY 0x40194aad
 
 #define VEGAS_STATUS_SEMID "/vegas_status"
