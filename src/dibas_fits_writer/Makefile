@@ -1,5 +1,12 @@
 OPT_FLAGS=
 
+# Local vars setup by some bash script somewhere
+CUDA=/opt/local/cuda
+DIBAS=/home/dibas
+PYSLALIB=/home/dibas/pulsar/src/presto/lib
+VEGAS_LIB=/home/dibas/dibaslibs/lib
+PRESTO=/home/dibas/pulsar/src/presto
+
 USER_INCLUDES += -I$(CUDA)/include
 #USER_INCLUDES += -I/opt/local/include
 USER_INCLUDES += -I$(PYSLALIB)
@@ -30,6 +37,7 @@ EXTRA_SOURCES+=vegas_error.c
 EXTRA_SOURCES+=vegas_params.c
 EXTRA_SOURCES+=vegas_thread_args.c
 EXTRA_SOURCES+=vegas_time.c
+EXTRA_SOURCES+=hashpipe_ipckey.c
 EXTRA_SOURCES+=hput.c
 EXTRA_SOURCES+=hget.c
 EXTRA_SOURCES+=sla.c
@@ -40,6 +48,7 @@ EXTRA_OBJECTS+=vegas_error.o
 EXTRA_OBJECTS+=vegas_params.o
 EXTRA_OBJECTS+=vegas_thread_args.o
 EXTRA_OBJECTS+=vegas_time.o
+EXTRA_OBJECTS+=hashpipe_ipckey.o
 EXTRA_OBJECTS+=hput.o
 EXTRA_OBJECTS+=hget.o
 EXTRA_OBJECTS+=sla.o
