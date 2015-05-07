@@ -1306,11 +1306,14 @@ void VegasFitsIO::createDataTable()
     // #define NUM_CHANNELS 5
     // #define TOTAL_DATA_SIZE (BIN_SIZE * NUM_CHANNELS * 2)
     // TOTAL_DATA_SIZE = 41 * 20 * 5 * 2 = 8200
-    
+
+    char data_form[10];
+    sprintf(data_form, "%dE", TOTAL_DATA_SIZE);
+
     const int DATA_HDU = data_hdu;
     const int DATA_COLS = 1;
     char const *ttypeLags[] = {"DATA"};
-    char const *tformLags[] = {"8200E"};
+    char const *tformLags[] = {data_form};
     char const *tunitLags[] = {"COUNTS"};
 
     //                  HDU#, addtnl cols, ttypeState, tformState, tunitState
