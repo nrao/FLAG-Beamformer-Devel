@@ -343,6 +343,9 @@ protected:
                       long nelem, char **array);
     int write_col_uint(int colnum, long firstrow, long firstelem,
                        long nelem, unsigned int *array);
+
+	int write_col_cmp(int  colnum, long  firstrow, long  firstelem,
+						long  nelem, float *array);
     int write_comment(const char *comment);
     int write_history(const char *info);
     int write_tdim(int colnum, int naxis, long naxes[]);

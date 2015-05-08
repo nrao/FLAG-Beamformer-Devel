@@ -987,6 +987,13 @@ int FitsIO::write_col_null(int  colnum, long  firstrow, long  firstelem,
                               nelem, &status);
 }
 
+int FitsIO::write_col_cmp(int  colnum, long  firstrow, long  firstelem,
+                          long  nelem, float *array)
+{
+    return fits_write_col_cmp(fptr, colnum, firstrow, firstelem,
+                              nelem, array, &status);
+}
+
 int FitsIO::update_key_dbl(char *keyname, double value,
                            int decim, char *comment)
 {

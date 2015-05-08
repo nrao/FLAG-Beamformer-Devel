@@ -1,24 +1,24 @@
 //# Copyright (C) 2013 Associated Universities, Inc. Washington DC, USA.
-//# 
+//#
 //# This program is free software; you can redistribute it and/or modify
 //# it under the terms of the GNU General Public License as published by
 //# the Free Software Foundation; either version 2 of the License, or
 //# (at your option) any later version.
-//# 
+//#
 //# This program is distributed in the hope that it will be useful, but
 //# WITHOUT ANY WARRANTY; without even the implied warranty of
 //# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 //# General Public License for more details.
-//# 
+//#
 //# You should have received a copy of the GNU General Public License
 //# along with this program; if not, write to the Free Software
 //# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-//# 
+//#
 //# Correspondence concerning GBT software should be addressed as follows:
-//#	GBT Operations
-//#	National Radio Astronomy Observatory
-//#	P. O. Box 2
-//#	Green Bank, WV 24944-0002 USA
+//# GBT Operations
+//# National Radio Astronomy Observatory
+//# P. O. Box 2
+//# Green Bank, WV 24944-0002 USA
 
 //# $Id$
 
@@ -38,7 +38,7 @@ public:
     VegasFitsThread() {};
     /// The FITS writing main loop. Data blocks are obtained from data shared memory
     /// and processed by the VegasFitsIO writer.
-    /// Processing proceeds as follows: 
+    /// Processing proceeds as follows:
     /// 1. A data block is waited to be filled.
     /// 2. When the block is full, each dataset contained in the block is processed
     /// by the DiskBuffer class (organizes the data and transposes it as necessary).
@@ -55,7 +55,7 @@ public:
 
 protected:
 
-}; 
+};
 
 // Calls directly into VegasFitsThread::run()
 extern "C" void *runGbtFitsWriter(void *args);

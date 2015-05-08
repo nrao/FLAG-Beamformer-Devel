@@ -161,6 +161,7 @@ int mainThread(int argc, char **argv)
         pfd[0].events = POLLIN;
         pfd[1].fd = fileno(stdin);
         pfd[1].events = POLLIN;
+		// ?, num file desc, timeout
         rv = poll(pfd, 2, 1000);
         if (rv==0) 
         { 
@@ -300,8 +301,8 @@ int mainThread(int argc, char **argv)
 
 int main(int argc, char **argv) {
     printf("Dibas FITS Writer main: %d\n", argc);
-    if (argc > 1)
+/*    if (argc > 1)
         mainTest(argc, argv);
-    else     
+    else */    
         mainThread(argc, argv);
 }

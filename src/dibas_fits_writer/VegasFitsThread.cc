@@ -1,24 +1,24 @@
 //# Copyright (C) 2013 Associated Universities, Inc. Washington DC, USA.
-//# 
+//#
 //# This program is free software; you can redistribute it and/or modify
 //# it under the terms of the GNU General Public License as published by
 //# the Free Software Foundation; either version 2 of the License, or
 //# (at your option) any later version.
-//# 
+//#
 //# This program is distributed in the hope that it will be useful, but
 //# WITHOUT ANY WARRANTY; without even the implied warranty of
 //# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 //# General Public License for more details.
-//# 
+//#
 //# You should have received a copy of the GNU General Public License
 //# along with this program; if not, write to the Free Software
 //# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-//# 
+//#
 //# Correspondence concerning GBT software should be addressed as follows:
-//#	GBT Operations
-//#	National Radio Astronomy Observatory
-//#	P. O. Box 2
-//#	Green Bank, WV 24944-0002 USA
+//# GBT Operations
+//# National Radio Astronomy Observatory
+//# P. O. Box 2
+//# Green Bank, WV 24944-0002 USA
 
 #include <stdio.h>
 #include <signal.h>
@@ -28,7 +28,7 @@
 #include <sys/prctl.h>
 #include <sys/resource.h>
 
-extern "C" 
+extern "C"
 {
 #include "vegas_error.h"
 #include "vegas_status.h"
@@ -55,7 +55,7 @@ static int verbose = false;
 #define vegas_status_lock_safe(s) \
     pthread_cleanup_push((void (*)(void*))vegas_status_unlock, s); \
     vegas_status_lock(s)
-    
+
 #define MJD_1970_EPOCH (40587)
 double timeval_2_mjd(timeval *tv)
 {
@@ -85,7 +85,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 {
     int rv;
     VegasFitsIO *fitsio;
-    
+
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::set_finished, args);
 
     /* Set cpu affinity */
@@ -95,32 +95,32 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     //CPU_SET(6, &cpuset);
     //rv = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
     rv=0;
-    if (rv<0) 
-    { 
+    if (rv<0)
+    {
         vegas_error("VegasFitsThread::run", "Error setting cpu affinity.");
         perror("sched_setaffinity");
     }
 
     /* Set priority */
     // rv = setpriority(PRIO_PROCESS, 0, args->priority);
-    if (rv<0) 
+    if (rv<0)
     {
         vegas_error("VegasFitsThread::run", "Error setting priority level.");
         perror("set_priority");
     }
-    
+
     /* Attach to status shared mem area */
     struct vegas_status st;
     rv = vegas_status_attach(&st);
-    if (rv!=VEGAS_OK) 
+    if (rv!=VEGAS_OK)
     {
-        vegas_error("VegasFitsThread::run", 
+        vegas_error("VegasFitsThread::run",
                     "Error attaching to status shared memory.");
         pthread_exit(NULL);
     }
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::status_detach, &st);
-    pthread_cleanup_push((void (*)(void*))&VegasFitsThread::setExitStatus, &st);    
-    
+    pthread_cleanup_push((void (*)(void*))&VegasFitsThread::setExitStatus, &st);
+
     const int databufid = 1; // disk buffer
     // Attach to the data buffer shared memory
     vegas_databuf *gdb = vegas_databuf_attach(databufid);
@@ -128,30 +128,30 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     {
         vegas_error("VegasFitsThread::run", "databuffer attach error cannot continue");
         pthread_exit(NULL);
-    }    
-    pthread_cleanup_push((void (*)(void*))&VegasFitsThread::databuf_detach, gdb);    
-    
+    }
+    pthread_cleanup_push((void (*)(void*))&VegasFitsThread::databuf_detach, gdb);
+
     /* Set the thread  status to init */
     vegas_status_lock_safe(&st);
     hputs(st.buf, STATUS_KEYW, "init");
     vegas_status_unlock_safe(&st);
 
-    
+
     /* Initialize some key parameters */
     struct sdfits sf;
     double start_time = 0;
     sf.data_columns.data = NULL;
     sf.filenum = 0;
-    sf.new_file = 1; 
-    
+    sf.new_file = 1;
+
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::free_sdfits, &sf);
-    
+
     // Query status memory for keywords & settings
     // Make a local copy of the status area
     // If keyword does not exist, attempt to fill-in a default value.
     char status_buf[VEGAS_STATUS_SIZE];
     char datadir[64] = {0};
-    
+
     vegas_status_lock_safe(&st);
     memcpy(status_buf, st.buf, VEGAS_STATUS_SIZE);
     vegas_status_unlock_safe(&st);
@@ -165,34 +165,34 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     // Create a VegasFitsIO writer
     fitsio = new VegasFitsIO(datadir, false);
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::close, fitsio);
-       
+
     // pass a copy of the status memory to the writer
     fitsio->copyStatusMemory(status_buf);
 
     printf("status_buf: %s\n", status_buf);
-      
-    int nsubband;         
+
+    int nsubband;
     if (hgeti4(status_buf, "NSUBBAND", &nsubband))
     {
         fitsio->setNumberSubBands(nsubband);
     }
 
     fitsio->setNumberStokes(1);
-    
+
     // I'm assuming STRTDMJD is the starttime in DMJD
     if (hgetr8(status_buf, "STRTDMJD", &start_time) == 0)
     {
         // use the current time
         timeval tv;
         gettimeofday(&tv, 0);
-        start_time = timeval_2_mjd(&tv);        
-    }    
-    fitsio->set_startTime(start_time); 
-    
+        start_time = timeval_2_mjd(&tv);
+    }
+    fitsio->set_startTime(start_time);
+
     // Starttime & DATADIR must be set as it is used to determine the file name
     // for data FITS files. The path becomes something like this:
     // sprintf(fullpath, "%s/%s/VEGAS/%s%c.fits", DATADIR, PROJID, start_time, BANK)
-    // example: 
+    // example:
     // DATADIR=/lustre
     // PROJID=project_1
     // start_time=2013_10_01_12:00:00
@@ -217,7 +217,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     char scan_status[96];
     int rx_some_data = 0;
     scan_finished = 0;
-    
+
     // TBF: kluge
     int scanRows = 6;
     int rowsWritten = 0;
@@ -232,7 +232,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     vegas_status_lock_safe(&st);
     hputs(st.buf, STATUS_KEYW, "running");
     vegas_status_unlock_safe(&st);
-           
+
     while(!scan_finished && ::run)
     {
         // Wait for a data buffer from the HPC program
@@ -258,18 +258,18 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             else
             {
                 num_accum_timeouts = 0;
-            }           
+            }
             continue;
         }
         rx_some_data = 1;
-        printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n", block, gdb, gdb->block[block].mcnt);
+        printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n", block, gdb, gdb->block[block].header.mcnt);
 
-        fitsio->write(gdb->block[block].data);
+        fitsio->write(&(gdb->block[block]));
         rowsWritten++;
 
         /*
         char *fits_header = vegas_databuf_header(gdb, block);
-        
+
         databuf_index *index = reinterpret_cast<databuf_index*>(
             vegas_databuf_index(gdb, block));
         dbprintf("datasets=%d\n", index->num_datasets);
@@ -315,7 +315,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
                     delete chunk;
                     chunk=0;
                     break;
-                }                
+                }
                 new_integration = true;
                 last_int = integration;
             }
@@ -325,11 +325,11 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             new_integration = false;
             data_waiting = true;
 
-            // Note current block 
+            // Note current block
             vegas_status_lock_safe(&st);
             hputi4(st.buf, "DSKBLKIN", block);
             vegas_status_unlock_safe(&st);
-            
+
             delete chunk;
         }
 
@@ -343,9 +343,9 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         }
 
         block = (block + 1) % gdb->header.n_block;
-        
+
         // Scan completed (We have more than SCANLEN of data)
-        
+
         //if (fitsio->is_scan_complete())
         if (rowsWritten >= scanRows)
         {
@@ -355,24 +355,24 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 
         // Check for a thread cancellation
         pthread_testcancel();
-        
+
     }
-    printf("VegasFitsThread::run exiting with scan_finished=%d run=%d\n", scan_finished, ::run); 
-    
+    printf("VegasFitsThread::run exiting with scan_finished=%d run=%d\n", scan_finished, ::run);
+
     fitsio->close();
-    
+
     // Set our process status to exiting
     vegas_status_lock_safe(&st);
     hputs(st.buf, STATUS_KEYW, "exiting");
     vegas_status_unlock_safe(&st);
-    
+
     vegas_databuf_detach(gdb);
-    pthread_cleanup_pop(0); 
     pthread_cleanup_pop(0);
-    pthread_cleanup_pop(0);   
     pthread_cleanup_pop(0);
-    pthread_cleanup_pop(0);   
-    pthread_cleanup_pop(0);    
+    pthread_cleanup_pop(0);
+    pthread_cleanup_pop(0);
+    pthread_cleanup_pop(0);
+    pthread_cleanup_pop(0);
     return 0;
 }
 
@@ -382,7 +382,7 @@ VegasFitsThread::set_finished(struct vegas_thread_args *args)
     // vegas_thread_set_finished(args);
 }
 
-void 
+void
 VegasFitsThread::status_detach(vegas_status *st)
 {
     vegas_status_detach(st);
@@ -396,19 +396,19 @@ VegasFitsThread::setExitStatus(vegas_status *st)
     vegas_status_unlock(st);
 }
 
-void 
+void
 VegasFitsThread::databuf_detach(vegas_databuf *db)
 {
     vegas_databuf_detach(db);
 }
- 
-void 
+
+void
 VegasFitsThread::free_sdfits(vegas_status *st)
 {
     // no-op
 }
 
-void 
+void
 VegasFitsThread::close(VegasFitsIO *f)
 {
     f->close();

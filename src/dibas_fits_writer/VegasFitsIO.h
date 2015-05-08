@@ -1,24 +1,24 @@
 //# Copyright (C) 2013 Associated Universities, Inc. Washington DC, USA.
-//# 
+//#
 //# This program is free software; you can redistribute it and/or modify
 //# it under the terms of the GNU General Public License as published by
 //# the Free Software Foundation; either version 2 of the License, or
 //# (at your option) any later version.
-//# 
+//#
 //# This program is distributed in the hope that it will be useful, but
 //# WITHOUT ANY WARRANTY; without even the implied warranty of
 //# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 //# General Public License for more details.
-//# 
+//#
 //# You should have received a copy of the GNU General Public License
 //# along with this program; if not, write to the Free Software
 //# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-//# 
+//#
 //# Correspondence concerning GBT software should be addressed as follows:
-//#	GBT Operations
-//#	National Radio Astronomy Observatory
-//#	P. O. Box 2
-//#	Green Bank, WV 24944-0002 USA
+//# GBT Operations
+//# National Radio Astronomy Observatory
+//# P. O. Box 2
+//# Green Bank, WV 24944-0002 USA
 
 #ifndef VEGASFITSIO
 #define VEGASFITSIO
@@ -36,6 +36,11 @@
 #include "FitsIO.h"
 #include "SwitchingSignals.h"
 
+extern "C"
+{
+#include "vegas_databuf.h"
+}
+
 class DiskBufferChunk;
 #include <map>
 #include <vector>
@@ -43,28 +48,6 @@ class DiskBufferChunk;
 
 #include "Mutex.h"
 
-#include "vegas_databuf.h"
-
-#define NUM_ANTENNAS 40
-
-// The bin size is the number of elements in the lower trianglular
-//   portion of the covariance matrix
-//   (41 * 20) gives us the number of complex pair elements
-#define BIN_SIZE (41 * 20)
-
-// This is the number of frequency channels that we will be correlating
-//   It will be either 5, 50, or 160, and probably should always be a macro
-//   For the purposes of this simulator we don't care about the input to the correlator
-//   except that the number of input channels will indicate the number of output channels
-//   That is, the total number of complex pairs we will be writing to shared memory
-//   is given as: BIN_SIZE * NUM_CHANNELS
-
-// defined in vegas_databuf.h 
-// #define NUM_CHANNELS 5
-
-#define TOTAL_DATA_SIZE (BIN_SIZE * NUM_CHANNELS * 2)
-// TOTAL_DATA_SIZE = 41 * 20 * 5 * 2 = 8200
-    
 /// A GBT-like Vegas/spectral-line Fits writing class
 class VegasFitsIO : public FitsIO
 {
@@ -137,7 +120,7 @@ public:
     ///@}
 
 public:
-    /// SAMPLER Table methods 
+    /// SAMPLER Table methods
     void setPolarization(const char *pol);
     void setNumberStokes(int stokes);
     void setNumberSubBands(int subbands);
@@ -173,7 +156,7 @@ public:
     void createDataTable();
 
     int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
-    int write(float *data);
+    int write(vegas_databuf_block_t *block);
     bool is_scan_complete();
     void set_scan_complete();
 

@@ -1,24 +1,24 @@
 //# Copyright (C) 2013 Associated Universities, Inc. Washington DC, USA.
-//# 
+//#
 //# This program is free software; you can redistribute it and/or modify
 //# it under the terms of the GNU General Public License as published by
 //# the Free Software Foundation; either version 2 of the License, or
 //# (at your option) any later version.
-//# 
+//#
 //# This program is distributed in the hope that it will be useful, but
 //# WITHOUT ANY WARRANTY; without even the implied warranty of
 //# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 //# General Public License for more details.
-//# 
+//#
 //# You should have received a copy of the GNU General Public License
 //# along with this program; if not, write to the Free Software
 //# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-//# 
+//#
 //# Correspondence concerning GBT software should be addressed as follows:
-//#	GBT Operations
-//#	National Radio Astronomy Observatory
-//#	P. O. Box 2
-//#	Green Bank, WV 24944-0002 USA
+//# GBT Operations
+//# National Radio Astronomy Observatory
+//# P. O. Box 2
+//# Green Bank, WV 24944-0002 USA
 
 // Local
 #include "DiskBufferChunk.h"
@@ -139,10 +139,10 @@ void
 VegasFitsIO::copyStatusMemory(const char *status_memory)
 {
     size_t key_start;
-    
+
     memcpy(status_buffer, status_memory, sizeof(status_buffer));
     status_mem_keywords.clear();
-    
+
     for (key_start = 0; key_start+80 < sizeof(status_buffer); key_start+= 80)
     {
         string line, keyword;
@@ -152,7 +152,7 @@ VegasFitsIO::copyStatusMemory(const char *status_memory)
         blk_idx = line.find_first_of(' ');
         key_end = blk_idx < eq_idx ? blk_idx : eq_idx;
         keyword = string(line, 0, key_end);
-        
+
         dbprintf("key: %s\n", keyword.c_str());
         if (keyword == "END")
             break;
@@ -167,7 +167,7 @@ VegasFitsIO::readPrimaryHeaderKeywords()
     char value[80];
     int32_t ival;
     double dval;
-    
+
     if (hgets(status_buffer, "OBJECT", sizeof(value), value) == 0)
     {
         sprintf(value, "unspecified");
@@ -225,11 +225,11 @@ VegasFitsIO::readPrimaryHeaderKeywords()
     setScanLength(scanlen);
 
     accumid_xor_mask = 0x0; // No polarity inversion (done in hpc code)
-    
+
     return true;
 }
 
-bool 
+bool
 VegasFitsIO::readStateTableKeywords()
 {
     int32_t nphases, calState[16], sigRefState[16];
@@ -238,12 +238,12 @@ VegasFitsIO::readStateTableKeywords()
     double blanking[16];
     double switch_period;
     char name[16];
-    
-    
+
+
     for (nphases=0; !done && nphases<16;)
     {
         all_columns=true;
-        sprintf(name, "_SBLK_%02d", nphases+1);   
+        sprintf(name, "_SBLK_%02d", nphases+1);
         if (hgetr8(status_buffer, name, &blanking[nphases]) == 0)
         {
             done=1;
@@ -258,63 +258,63 @@ VegasFitsIO::readStateTableKeywords()
             all_columns=false;
             continue;
         }
-        dbprintf("(%s) phase_start[%d]=%f\n", name, nphases+1, phase_start[nphases]);   
+        dbprintf("(%s) phase_start[%d]=%f\n", name, nphases+1, phase_start[nphases]);
         sprintf(name, "_SSRF_%02d", nphases+1);
         if (hgeti4(status_buffer, name, &sigRefState[nphases]) == 0)
         {
             done=1;
             all_columns=false;
-            continue;            
-        }  
-        dbprintf("(%s) sigRefState[%d]=%d\n", name, nphases+1, sigRefState[nphases]);      
+            continue;
+        }
+        dbprintf("(%s) sigRefState[%d]=%d\n", name, nphases+1, sigRefState[nphases]);
         sprintf(name, "_SCAL_%02d", nphases+1);
         if (hgeti4(status_buffer, name, &calState[nphases]) == 0)
         {
             done=1;
-            all_columns=false;                   
+            all_columns=false;
             continue;
         }
         dbprintf("(%s) calState[%d]=%d\n", name, nphases+1, calState[nphases]);
         if (all_columns == true)
             nphases++;
     }
-    
+
     int32_t numphase_param;
     if (hgeti4(status_buffer, "NUMPHASE", &numphase_param) == 0)
     {
-        vegas_error("VegasFitsIO::readStateTableKeywords", 
+        vegas_error("VegasFitsIO::readStateTableKeywords",
                     "required keyword NUMPHASES not found");
-        numphase_param = 0;            
+        numphase_param = 0;
     }
-    
+
     // If we don't find any keywords -- that is bad and we should probably tank.
     // For now we synthesize a signal phase (SIG, nocal) and continue on.
     if (nphases == 0 || numphase_param == 0)
     {
-        vegas_error("VegasFitsIO::readStateTableKeywords", 
+        vegas_error("VegasFitsIO::readStateTableKeywords",
                     "No switching states defined "
                     "defaulting to SIG/NOCAL\n"
-                    "NOTICE: Data will not be properly written to disk!");    
+                    "NOTICE: Data will not be properly written to disk!");
         return false;
     }
     if (hgetr8(status_buffer, "SWPERIOD", &switch_period) == 0)
     {
         vegas_error("VegasFitsIO::readStateTableKeywords",
                     "Required keyword SWPERIOD not found");
-        return false;           
+        return false;
     }
     // Use the lesser of NUMPHASE and the number of phase descriptions
-    setNumberPhases( min(nphases,  numphase_param) );    
+    setNumberPhases( min(nphases,  numphase_param) );
     setBlanking(blanking);
     setCalState(calState);
     setPhaseStart(phase_start);
-    setSigRefState(sigRefState);   
+    setSigRefState(sigRefState);
     setSwitchPeriod(switch_period);
-    
-    return true;
-}        
 
-bool 
+    return true;
+}
+
+bool
 VegasFitsIO::readActStateTableKeywords()
 {
     int32_t nphases;
@@ -326,12 +326,12 @@ VegasFitsIO::readActStateTableKeywords()
     int32_t esigref2[16];
     int32_t ecal[16];
     char name[16];
-    
-    
+
+
     for (nphases=0; !done && nphases<16;)
     {
         all_columns=true;
-        sprintf(name, "_AISA_%02d", nphases+1);   
+        sprintf(name, "_AISA_%02d", nphases+1);
         if (hgeti4(status_buffer, name, &isigref1[nphases]) == 0)
         {
             done=1;
@@ -344,19 +344,19 @@ VegasFitsIO::readActStateTableKeywords()
             done=1;
             all_columns=false;
             continue;
-        }       
+        }
         sprintf(name, "_AICL_%02d", nphases+1);
         if (hgeti4(status_buffer, name, &ical[nphases]) == 0)
         {
             done=1;
             all_columns=false;
-            continue;            
-        }       
+            continue;
+        }
         sprintf(name, "_AESA_%02d", nphases+1);
         if (hgeti4(status_buffer, name, &esigref1[nphases]) == 0)
         {
             done=1;
-            all_columns=false;                   
+            all_columns=false;
             continue;
         }
         sprintf(name, "_AESB_%02d", nphases+1);
@@ -364,15 +364,15 @@ VegasFitsIO::readActStateTableKeywords()
         {
             done=1;
             all_columns=false;
-            continue;            
-        }       
+            continue;
+        }
         sprintf(name, "_AECL_%02d", nphases+1);
         if (hgeti4(status_buffer, name, &ecal[nphases]) == 0)
         {
             done=1;
-            all_columns=false;                   
+            all_columns=false;
             continue;
-        }        
+        }
         if (all_columns == true)
             nphases++;
     }
@@ -380,24 +380,24 @@ VegasFitsIO::readActStateTableKeywords()
     {
         return false;
     }
-        
+
     setEsigref1(esigref1);
     setEsigref2(esigref2);
     setEcal(ecal);
     setIsigref1(isigref1);
     setIsigref2(isigref2);
     setIcal(ical);
-    
+
     return true;
-}        
+}
 
 #define NUM_PORTS 2
 #define NOISENAMELEN 8
 
 /// Note this method is rather GBT specific, so the keywords are not required
-/// to be in status memory and in that case defaults will be used to fill-in 
+/// to be in status memory and in that case defaults will be used to fill-in
 /// the table.
-bool 
+bool
 VegasFitsIO::readPortTableKeywords()
 {
     int32_t nrows;
@@ -405,16 +405,16 @@ VegasFitsIO::readPortTableKeywords()
     float meas_power[NUM_PORTS];
     char name[16];
     char tone_noise[NUM_PORTS][NOISENAMELEN];
-    
-    // BANK name 'BANKNAM' is read in the ::open() method.            
+
+    // BANK name 'BANKNAM' is read in the ::open() method.
     for (nrows=0; nrows<2; ++nrows)
     {
         all_columns=true;
         sprintf(name, "_PPWR_%02d", nrows+1);
         if (hgetr4(status_buffer, name, &meas_power[nrows]) == 0)
         {
-            meas_power[nrows] = 0.0;  
-        }        
+            meas_power[nrows] = 0.0;
+        }
         sprintf(name, "_PTNS_%02d", nrows+1);
         if (hgets(status_buffer, name, NOISENAMELEN, &tone_noise[nrows][0]) == 0)
         {
@@ -424,14 +424,14 @@ VegasFitsIO::readPortTableKeywords()
     for (int32_t i=0; i<2; ++i)
     {
         setMeasuredPower(meas_power[i], i);
-        setNoiseTone(strncasecmp("TONE", tone_noise[i], 4) == 0 ? 
-                     SwitchingSignals::tone : SwitchingSignals::noise, 
+        setNoiseTone(strncasecmp("TONE", tone_noise[i], 4) == 0 ?
+                     SwitchingSignals::tone : SwitchingSignals::noise,
                      i);
-    }        
+    }
     return true;
-}        
+}
 
-bool 
+bool
 VegasFitsIO::readSamplerTableKeywords()
 {
     int32_t nrows;
@@ -442,14 +442,14 @@ VegasFitsIO::readSamplerTableKeywords()
     double freq_res[16];
     double crpix;
     char polar_name[32];
-    
-    
+
+
     for (nrows=0; !done && nrows<16;)
     {
         all_columns=true;
-#if 0        
+#if 0
         // BANK_A
-        sprintf(name, "_MBKA_%02d", nrows+1);   
+        sprintf(name, "_MBKA_%02d", nrows+1);
         if (hgets(status_buffer, name, 16, &bank_a[nrows][0]) == 0)
         {
             done=1;
@@ -457,7 +457,7 @@ VegasFitsIO::readSamplerTableKeywords()
             continue;
         }
         // PORT_A
-        sprintf(name, "_MPTA_%02d", nrows+1);   
+        sprintf(name, "_MPTA_%02d", nrows+1);
         if (hgeti4(status_buffer, name, &port_a[nrows]) == 0)
         {
             done=1;
@@ -465,7 +465,7 @@ VegasFitsIO::readSamplerTableKeywords()
             continue;
         }
         // BANK_B
-        sprintf(name, "_MBKB_%02d", nrows+1);   
+        sprintf(name, "_MBKB_%02d", nrows+1);
         if (hgets(status_buffer, name, 16, &bank_b[nrows][0]) == 0)
         {
             done=1;
@@ -473,7 +473,7 @@ VegasFitsIO::readSamplerTableKeywords()
             continue;
         }
         // PORT_B
-        sprintf(name, "_MPTB_%02d", nrows+1);   
+        sprintf(name, "_MPTB_%02d", nrows+1);
         if (hgeti4(status_buffer, name, &port_b[nrows]) == 0)
         {
             done=1;
@@ -481,7 +481,7 @@ VegasFitsIO::readSamplerTableKeywords()
             continue;
         }
         // DATATYPE
-        sprintf(name, "_MDTP_%02d", nrows+1);   
+        sprintf(name, "_MDTP_%02d", nrows+1);
         if (hgets(status_buffer, name, 16, &datatype[nrows][0]) == 0)
         {
             done=1;
@@ -492,7 +492,7 @@ VegasFitsIO::readSamplerTableKeywords()
         // SUBBAND
         // subband[nrows] = nrows;
         /*
-        sprintf(name, "_MSBD_%02d", nrows+1);   
+        sprintf(name, "_MSBD_%02d", nrows+1);
         if (hgeti4(status_buffer, name, &subband[nrows]) == 0)
         {
             done=1;
@@ -500,8 +500,8 @@ VegasFitsIO::readSamplerTableKeywords()
             continue;
         }
         */
-        // CRVAL1  
-        sprintf(name, "_MCR1_%02d", nrows+1);   
+        // CRVAL1
+        sprintf(name, "_MCR1_%02d", nrows+1);
         if (hgetr8(status_buffer, name, &crval1[nrows]) == 0)
         {
             done=1;
@@ -510,7 +510,7 @@ VegasFitsIO::readSamplerTableKeywords()
             continue;
         }
         // CDELT1
-        sprintf(name, "_MCDL_%02d", nrows+1);   
+        sprintf(name, "_MCDL_%02d", nrows+1);
         if (hgetr8(status_buffer, name, &chandelta[nrows]) == 0)
         {
             done=1;
@@ -519,7 +519,7 @@ VegasFitsIO::readSamplerTableKeywords()
             continue;
         }
         // FREQRES
-        sprintf(name, "_MFQR_%02d", nrows+1);   
+        sprintf(name, "_MFQR_%02d", nrows+1);
         if (hgetr8(status_buffer, name, &freq_res[nrows]) == 0)
         {
             done=1;
@@ -527,7 +527,7 @@ VegasFitsIO::readSamplerTableKeywords()
             all_columns=false;
             continue;
         }
-       
+
         if (all_columns == true)
             nrows++;
     }
@@ -539,12 +539,12 @@ VegasFitsIO::readSamplerTableKeywords()
     if (hgets(status_buffer, "POLARIZE", sizeof(polar_name), polar_name) == 0)
     {
         dbprintf("%s not found\n", "POLARIZE");
-        return false;           
+        return false;
     }
     if (hgetr8(status_buffer, "CRPIX1", &crpix) == 0)
     {
         dbprintf("%s not found\n", "CRPIX1");
-        return false;           
+        return false;
     }
     setPolarization(polar_name);
     // Logic lifted from manager implementation
@@ -572,15 +572,15 @@ VegasFitsIO::readSamplerTableKeywords()
 
     dbprintf("polar=%s\n", polar_name);
     setPolarization(polar_name);
-    
+
     setReferenceChannel(crpix);
     setChannelFreqResolution(freq_res);
     setNumberSubBands(nsbbands);
     setChannelCenterFreq(crval1);
     setChannelFreqIncrement(chandelta);
-      
+
     return true;
-}        
+}
 
 int VegasFitsIO::open()//const TimeStamp &ts)
 {
@@ -590,14 +590,14 @@ int VegasFitsIO::open()//const TimeStamp &ts)
     // Only write files when scanning
     if(openFlag)
         close();
-        
+
     scan_time_clock = 0.0;
     scan_is_complete = false;
 
     readPrimaryHeaderKeywords();
-    
+
     int32_t next_hdu = 2;
-    
+
     // If keywords exsist for tables, then write the table, otherwise ignore it
     if (readPortTableKeywords())
     {
@@ -614,8 +614,8 @@ int VegasFitsIO::open()//const TimeStamp &ts)
     if (readActStateTableKeywords())
     {
         actstate_hdu = next_hdu++;
-    }    
-    
+    }
+
     // reset fpga time counter mirror to 0
     _time_counter.clear();
 
@@ -639,7 +639,7 @@ int VegasFitsIO::open()//const TimeStamp &ts)
     {
         sprintf(value, "JUNK");
     }
-    set_projectId(value);    
+    set_projectId(value);
     // create directory path
     char *namePtr = createDirectoryPath(path,pathlength,3,
                                         rootDirectory,
@@ -691,8 +691,8 @@ int VegasFitsIO::open()//const TimeStamp &ts)
     nrows = 1;
 
     // Always create the primary, with defaults if necessary
-    createPrimaryHDU();  
-    
+    createPrimaryHDU();
+
     if (port_hdu)
     {
         createPortTable();
@@ -1116,12 +1116,12 @@ void VegasFitsIO::createSamplerTable()
         {1, 2, "IMAG"},
     };
 
-    create_binary_tbl(0,		// nrows - initial number of empty rows.
-                      9,		// tfields - # of columns (max=999).
+    create_binary_tbl(0,        // nrows - initial number of empty rows.
+                      9,        // tfields - # of columns (max=999).
                       (char **)ttypes,  // column name(s)
                       (char **)tforms,  // column datatype(s)
                       (char **)tunits,  // column unit(s)
-                      (char *)"SAMPLER"	// table name
+                      (char *)"SAMPLER" // table name
         );
 
     movabs_hdu(sampler_hdu,0);
@@ -1229,12 +1229,12 @@ void VegasFitsIO::createActStateTable()
     char const *tforms[] = {"1J","1J","1J","1J","1J","1J"};
     char const *tunits[] = {"T/F","T/F","T/F","T/F","T/F","T/F"};
 
-    create_binary_tbl(0,			// nrows - initial number of empty rows.
-                      6,			// tfields - # of columns (max=999).
-                      (char **)ttypes,		// column name(s)
-                      (char **)tforms,		// column datatype(s)
-                      (char **)tunits,		// column unit(s)
-                      (char *)"ACT_STATE"	// table name
+    create_binary_tbl(0,            // nrows - initial number of empty rows.
+                      6,            // tfields - # of columns (max=999).
+                      (char **)ttypes,      // column name(s)
+                      (char **)tforms,      // column datatype(s)
+                      (char **)tunits,      // column unit(s)
+                      (char *)"ACT_STATE"   // table name
         );
 
     movabs_hdu(actstate_hdu,0);
@@ -1308,13 +1308,15 @@ void VegasFitsIO::createDataTable()
     // TOTAL_DATA_SIZE = 41 * 20 * 5 * 2 = 8200
 
     char data_form[10];
-    sprintf(data_form, "%dE", TOTAL_DATA_SIZE);
+    sprintf(data_form, "%dC", BIN_SIZE * NUM_CHANNELS);
+    //debug
+    fprintf(stderr, "data_form: %s\n", data_form);
 
     const int DATA_HDU = data_hdu;
-    const int DATA_COLS = 1;
-    char const *ttypeLags[] = {"DATA"};
-    char const *tformLags[] = {data_form};
-    char const *tunitLags[] = {"COUNTS"};
+    const int DATA_COLS = 2;
+    char const *ttypeLags[] = {"MCNT", "DATA"};
+    char const *tformLags[] = {"1J", data_form};
+    char const *tunitLags[] = {" ", " "};
 
     //                  HDU#, addtnl cols, ttypeState, tformState, tunitState
     createBaseDataTable(DATA_HDU, DATA_COLS, (char **)ttypeLags, (char **)tformLags, (char **)tunitLags);
@@ -1401,8 +1403,8 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     if(state_offset >= numberPhases)
     {
         std::cout << "Could not find state: "
-                  << " accum_cal_state=" << accum_cal_state 
-                  << " accum_sig_state=" << accum_sig_state 
+                  << " accum_cal_state=" << accum_cal_state
+                  << " accum_sig_state=" << accum_sig_state
                   << std::endl;
         int i;
         std::cout << "Known states are:" << endl;
@@ -1420,9 +1422,9 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     {
         time_ctr_40bits = chunk->getIntegrationOffset();
         _time_counter.add_lsw(time_ctr_40bits);
-        utcfrac = (double)_time_counter.get_offset() / (double)fpgaClock; 
-        // printf("new record t=%f %d\n", utcfrac, chunk->getIntegrationNumber());       
-    }    
+        utcfrac = (double)_time_counter.get_offset() / (double)fpgaClock;
+        // printf("new record t=%f %d\n", utcfrac, chunk->getIntegrationNumber());
+    }
 
     // We found the state, now calculate the offset into the data for this accum
     int num_ints = numberSubBands * numberStokes;
@@ -1456,26 +1458,36 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
 
 /// Writes a full integration of data to a row in the FITS file.
 int
-VegasFitsIO::write(float *data)
+VegasFitsIO::write(vegas_databuf_block_t *block)
 {
     int column = 1;
     MutexLock l(lock_mutex);
     l.lock();
 
     // DMJD - apparently, this is always expected in FitsIO base class (TBF)
-    double dmjd = 0.0; 
+    double dmjd = 0.0;
     write_col_dbl(column++,
                   current_row,
                   1,
                   1,
                   &dmjd);
 
-    // DATA column
-    write_col_flt(column++,
+    // MCNT column
+    write_col_int(column++,
                   current_row,
                   1,
-                  TOTAL_DATA_SIZE,
-                  data);
+                  1,
+                  &(block->header.mcnt));
+
+    // DATA column
+    // 41 * 20 * 5 = 4100
+    // data will be 8200 elements long
+    // TODO: This should not be hardcoded
+    write_col_cmp(column++,
+                  current_row,
+                  1,
+                  BIN_SIZE * NUM_CHANNELS,
+                  block->data);
 /*
 
     // DMJD column
@@ -1562,7 +1574,7 @@ VegasFitsIO::is_scan_complete()
     {
         printf("Scan ended clock=%f, scanlen=%f\n", scan_time_clock, scanLength);
     }
-    return has_ended; 
+    return has_ended;
 }
 
 void VegasFitsIO::set_scan_complete()

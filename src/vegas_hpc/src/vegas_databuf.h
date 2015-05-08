@@ -25,7 +25,7 @@ struct decprecated_vegas_databuf {
 };
 
 //#define VEGAS_DATABUF_KEY 0x00C62C70
-#define VEGAS_DATABUF_KEY 0x80194aad
+#define VEGAS_DATABUF_KEY 0x8019bbf9
 
 #define NUM_ANTENNAS 40
 
@@ -40,7 +40,7 @@ struct decprecated_vegas_databuf {
 //   except that the number of input channels will indicate the number of output channels
 //   That is, the total number of complex pairs we will be writing to shared memory
 //   is given as: BIN_SIZE * NUM_CHANNELS
-#define NUM_CHANNELS 5
+#define NUM_CHANNELS 160
 #define TOTAL_DATA_SIZE (BIN_SIZE * NUM_CHANNELS * 2)
 
 #define NUM_BLOCKS 2
@@ -54,8 +54,12 @@ typedef struct {
     int semid;          /* ID of locking semaphore set */
 } vegas_databuf_header_t;
 
+typedef struct vegas_databuf_block_header {
+	int mcnt;
+} vegas_databuf_block_header_t;
+
 typedef struct vegas_databuf_block {
-  int mcnt;
+  vegas_databuf_block_header_t header;
   // we must double the elements since CFITSIO interperates every two elements as a pair
   float data[TOTAL_DATA_SIZE];
 } vegas_databuf_block_t;
