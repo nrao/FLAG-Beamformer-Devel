@@ -1456,6 +1456,13 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
     return 1;
 }
 
+// We calculate all timestamps from the known start time and each mcnt ('packet counter')
+double VegasFitsIO::calculateBlockTime(int mcnt, double startDMJD) {
+    scan_time_clock = (double)((double)mcnt/(double)(PACKET_RATE)); 
+    printf("elapsed secs: %f\n", scan_time_clock);
+    return (startDMJD + (double)((double)scan_time_clock/(double)(24*60*60)));
+}
+
 /// Writes a full integration of data to a row in the FITS file.
 int
 VegasFitsIO::write(vegas_databuf_block_t *block)
@@ -1464,8 +1471,10 @@ VegasFitsIO::write(vegas_databuf_block_t *block)
     MutexLock l(lock_mutex);
     l.lock();
 
-    // DMJD - apparently, this is always expected in FitsIO base class (TBF)
-    double dmjd = 0.0;
+    // DMJD
+    double dmjd = calculateBlockTime(block->header.mcnt, startTime);
+    printf("dmjd: %f\n", dmjd);
+
     write_col_dbl(column++,
                   current_row,
                   1,
@@ -1569,7 +1578,8 @@ VegasFitsIO::write(vegas_databuf_block_t *block)
 bool
 VegasFitsIO::is_scan_complete()
 {
-    bool has_ended = scan_time_clock > scanLength || scan_is_complete;
+    //bool has_ended = scan_time_clock > scanLength || scan_is_complete;
+    bool has_ended = scan_time_clock >= (scanLength - INT_TIME) || scan_is_complete;
     if (has_ended)
     {
         printf("Scan ended clock=%f, scanlen=%f\n", scan_time_clock, scanLength);

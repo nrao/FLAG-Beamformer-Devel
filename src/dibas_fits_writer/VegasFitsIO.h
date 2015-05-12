@@ -33,6 +33,14 @@
 
 #define STATUS_MEMSIZE 184320
 
+// Rate (Hz) that the packets arrive from the roach
+// Each packet has it's own 'mcnt'.
+// 10 Samples in each packet.  
+#define PACKET_RATE 100
+
+// time between dumps from the GPU
+#define INT_TIME 0.5
+
 #include "FitsIO.h"
 #include "SwitchingSignals.h"
 
@@ -47,6 +55,7 @@ class DiskBufferChunk;
 #include <string>
 
 #include "Mutex.h"
+
 
 /// A GBT-like Vegas/spectral-line Fits writing class
 class VegasFitsIO : public FitsIO
@@ -262,6 +271,8 @@ protected:
     int32_t data_hdu;
     double scan_time_clock;
     int32_t accumid_xor_mask;
+
+    double calculateBlockTime(int mcnt, double startDMJD);
 };
 
 #endif

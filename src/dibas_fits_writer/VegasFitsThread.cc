@@ -64,6 +64,19 @@ double timeval_2_mjd(timeval *tv)
     return dmjd;
 }
 
+// python:
+// d, mjd = math.modf(dmjd)
+// return (86400 * (mjd - 40587)) + (86400 * d)
+unsigned long dmjd_2_secs(double dmjd) 
+{
+    unsigned long mjd = (unsigned long)dmjd;
+    double d = dmjd - mjd;
+    unsigned long secs = 86400 * (mjd - MJD_1970_EPOCH);
+    double others = d * 86400.0;
+    unsigned long total = secs + others;
+    return total;
+}
+
 int scan_finished = 0;
 static void stop_thread(int sig)
 {
@@ -185,8 +198,15 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         // use the current time
         timeval tv;
         gettimeofday(&tv, 0);
+        printf("gettimeofday: %u\n", tv.tv_sec);
         start_time = timeval_2_mjd(&tv);
+        printf("is DMJD: %f\n", start_time);
+
+        unsigned long secs = dmjd_2_secs(start_time);
+        printf("goes back to secs: %d\n", secs);
     }
+    
+
     fitsio->set_startTime(start_time);
 
     // Starttime & DATADIR must be set as it is used to determine the file name
@@ -346,8 +366,8 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 
         // Scan completed (We have more than SCANLEN of data)
 
-        //if (fitsio->is_scan_complete())
-        if (rowsWritten >= scanRows)
+        if (fitsio->is_scan_complete())
+        //if (rowsWritten >= scanRows)
         {
             printf("Ending fits writer because scan is complete\n");
             scan_finished = 1;
