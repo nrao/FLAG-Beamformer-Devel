@@ -181,6 +181,10 @@ class VegasBackend(Backend):
         """
         For some BOF's there is a status register which can flag an error state.
         """
+        # treat this as an error state
+        if self.roach is None:
+            return False
+
         val = self.roach.read_int('status')
         if val & 0x01:
             return True
@@ -737,20 +741,20 @@ class VegasBackend(Backend):
             self.start_fits_writer()
 
         # The CODD bof's don't have a status register
-        if self.needs_reset():
-            self.reset_roach()
+        #if self.needs_reset():
+        #    self.reset_roach()
 
         self.hpc_cmd('START')
         self.fits_writer_cmd('START')
 
-        status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
+        #status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
 
-        if not status:
-            self.hpc_cmd('STOP')
-            self.fits_writer_cmd('STOP')
-            raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
-
-        print "start(): waited %s for HPC program to be ready." % str(wait)
+        #if not status:
+        #    self.hpc_cmd('STOP')
+        #    self.fits_writer_cmd('STOP')
+        #    raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
+#
+#        print "start(): waited %s for HPC program to be ready." % str(wait)
 
         # now sleep until arm_time
         #        PPS        PPS

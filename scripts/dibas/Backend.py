@@ -299,11 +299,19 @@ class Backend(object):
             raise Exception("Configuration error: no field hpc_program specified in "
                             "MODE section of %s " % (self.current_mode))
 
-        process_list = [self.dibas_dir + '/exec/x86_64-linux/' + hpc_program]
+        if hpc_program == 'beamformer':
+            import shlex
+            cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I 0 -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_thread'
+            path = '/home/sandboxes/pmargani/paper/hashpipe-install/bin/'
+             
+            process_list = shlex.split(cmd)
+        else:
+            process_list = [self.dibas_dir + '/exec/x86_64-linux/' + hpc_program]
 
-        if self.mode.hpc_program_flags:
+        if self.mode.hpc_program_flags and hpc_program != 'beamformer':
             process_list = process_list + self.mode.hpc_program_flags.split()
 
+        print "process_list: ", process_list
         self.hpc_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
 
 

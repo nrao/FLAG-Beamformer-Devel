@@ -46,14 +46,23 @@ def cardlist_from_string(str):
     return cardlist
 
 
-VEGAS_STATUS_KEY = int('0x01001840', 16)
-VEGAS_STATUS_SEMID = "/vegas_status"
+#VEGAS_STATUS_KEY = int('0x01001840', 16)
+VEGAS_STATUS_KEY = int('0x40194aad', 16)
+#VEGAS_STATUS_SEMID = "/vegas_status"
+VEGAS_STATUS_SEMID = "/sem.users_pmargani_hashpipe_status_0"
 
 class vegas_status:
 
-    def __init__(self):
-        self.stat_buf = shm.SharedMemoryHandle(VEGAS_STATUS_KEY)
-        self.sem = possem.sem_open(VEGAS_STATUS_SEMID, possem.O_CREAT, 00644, 1)
+    def __init__(self, status_key = None, status_semid = None):
+
+        self.status_key = status_key if status_key is not None else VEGAS_STATUS_KEY
+        self.status_semid = status_semid if status_semid is not None else VEGAS_STATUS_SEMID
+        print "status key: %x " % self.status_key
+        print "status semid: %s" % self.status_semid
+        #self.stat_buf = shm.SharedMemoryHandle(VEGAS_STATUS_KEY)
+        #self.sem = possem.sem_open(VEGAS_STATUS_SEMID, possem.O_CREAT, 00644, 1)
+        self.stat_buf = shm.SharedMemoryHandle(self.status_key)
+        self.sem = possem.sem_open(self.status_semid, possem.O_CREAT, 00644, 1)
         self.hdr = None
         self.gbtstat = None
         self.read()

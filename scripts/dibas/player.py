@@ -42,11 +42,14 @@ from datetime import datetime, timedelta
 from ConfigData import ModeData, BankData, AutoVivification, _ip_string_to_int, _hostname_to_ip
 
 # The backends:
+#import Backend
+#import VegasBackend
 import VegasHBWBackend
 import VegasL1LBWBackend
 import VegasL8LBWBackend
 import GuppiBackend
 import GuppiCODDBackend
+import BeamformerBackend
 
 from ZMQJSONProxy import ZMQJSONProxyServer
 
@@ -66,6 +69,8 @@ class Bank(object):
 
     def __init__(self, bank_name = None, simulate = False):
 
+        print "Bank!"
+
         # Set up a dictionary of BackEnd Types. This will be used to
         # create the correct backend based on the MODENAME key in the
         # MODE sections of the configuration file:
@@ -75,7 +80,8 @@ class Bank(object):
                     "l8/lbw1"    : VegasL8LBWBackend.VegasL8LBWBackend,
                     "l8/lbw8"    : VegasL8LBWBackend.VegasL8LBWBackend,
                     "guppi-inco" : GuppiBackend.GuppiBackend,
-                    "guppi-codd" : GuppiCODDBackend.GuppiCODDBackend}
+                    "guppi-codd" : GuppiCODDBackend.GuppiCODDBackend,
+                    "beamformer" : BeamformerBackend.BeamformerBackend}
 
         self.dibas_dir = os.getenv('DIBAS_DIR')
 
@@ -100,6 +106,11 @@ class Bank(object):
 
         # This turns on the automatic reaping of dead child processes (anti-zombification)
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+
+        #print "setting backend:"
+        #self.backend = VegasBackend.Backend(self.bank_data, self.mode_data['MODE1'])
+
+        #print "status mem: ", self.backend.get_status()
 
     def __del__(self):
         """
@@ -374,7 +385,8 @@ class Bank(object):
                     self.current_mode = mode
                     new_hpc_program = self.mode_data[mode].hpc_program
 
-                    if old_hpc_program != new_hpc_program:
+                    #if old_hpc_program != new_hpc_program:
+                    if 0:
                         self.clear_shared_memory()
                         self.reformat_data_buffers(mode)
                     else:
@@ -426,7 +438,7 @@ class Bank(object):
                                            self.hpc_macs,
                                            self.simulate)
                     print "set_mode(%s): beginning wait for DAQ program" % mode
-                    self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=75))
+                    self.backend._wait_for_status('DAQSTATE', 'stopped', timedelta(seconds=1))
                     print "set_mode(%s): wait for DAQ program ended." % mode
 
                     if self.simulate:
@@ -447,6 +459,13 @@ class Bank(object):
         Returns the current operating mode for the bank.
         """
         return self.current_mode
+
+    def startin(self, inSecs, durSecs):
+        "An alternative method for running a scan, only available for Beamformer backend."
+        # HACK^3
+        assert self.current_mode == 'MODE42'
+        if self.backend:
+            self.backend.start(inSecs, durSecs)
 
     def start(self, starttime = None):
         """
