@@ -1,0 +1,4 @@
+FLAG-Beamformer-Devel
+This is a fork of the Vegas development repository. It will contain Vegas code that has been modified to support the development of the FLAG-Beamformer project.
+
+This repository is intended to be used alongside the FLAG-Beamformer-Simulator-I repository. 
