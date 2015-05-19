@@ -84,7 +84,7 @@ void signal_handler(int sig)
 }
 
 const int MAX_CMD_LEN =64;
-const char CONTROL_FIFO[] = "/tmp/tchamber/vegas_fits_control";
+const char CONTROL_FIFO[] = "/tmp/vegas_fits_control";
 
 
 extern "C" int setup_privileges();
