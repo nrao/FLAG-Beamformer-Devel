@@ -7,6 +7,8 @@ import astro_utils as astro
 #import slalib as s
 from pyslalib import slalib as s
 
+import hashpipe_key
+
 DEGTORAD = 0.017453292519943295769236907684
 RADTODEG = 57.29577951308232087679815481410
 NEW_GBT  = 1
@@ -47,22 +49,27 @@ def cardlist_from_string(str):
 
 
 #VEGAS_STATUS_KEY = int('0x01001840', 16)
-VEGAS_STATUS_KEY = int('0x40194aad', 16)
+#VEGAS_STATUS_KEY = int('0x40194aad', 16)
 #VEGAS_STATUS_SEMID = "/vegas_status"
-VEGAS_STATUS_SEMID = "/sem.users_pmargani_hashpipe_status_0"
+#VEGAS_STATUS_SEMID = "/sem.users_pmargani_hashpipe_status_0"
 
 class vegas_status:
 
     def __init__(self, status_key = None, status_semid = None):
 
-        self.status_key = status_key if status_key is not None else VEGAS_STATUS_KEY
-        self.status_semid = status_semid if status_semid is not None else VEGAS_STATUS_SEMID
+        # Get user dependend IPC key.  TBF: multiple instances
+        instance_id = 0
+        self.status_key = status_key if status_key is not None \
+            else hashpipe_key.hashpipe_status_key(instance_id)
+        self.status_semid = status_semid if status_semid is not None \
+            else hashpipe_key.hashpipe_status_semname(instance_id)
         print "status key: %x " % self.status_key
         print "status semid: %s" % self.status_semid
-        #self.stat_buf = shm.SharedMemoryHandle(VEGAS_STATUS_KEY)
-        #self.sem = possem.sem_open(VEGAS_STATUS_SEMID, possem.O_CREAT, 00644, 1)
+
         self.stat_buf = shm.SharedMemoryHandle(self.status_key)
         self.sem = possem.sem_open(self.status_semid, possem.O_CREAT, 00644, 1)
+        print "vegas_status.sem" , self.sem
+
         self.hdr = None
         self.gbtstat = None
         self.read()
