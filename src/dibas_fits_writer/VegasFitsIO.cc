@@ -1443,7 +1443,9 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
 // We calculate all timestamps from the known start time and each mcnt ('packet counter')
 double VegasFitsIO::calculateBlockTime(int mcnt, double startDMJD) {
     scan_time_clock = (double)((double)mcnt/(double)(PACKET_RATE));
+#ifdef DEBUG
     printf("elapsed secs: %f\n", scan_time_clock);
+#endif
     return (startDMJD + (double)((double)scan_time_clock/(double)(24*60*60)));
 }
 
@@ -1561,7 +1563,9 @@ VegasFitsIO::is_scan_complete()
 {
     //bool has_ended = scan_time_clock > scanLength || scan_is_complete;
     bool has_ended = scan_time_clock >= (scanLength - (float)N / (float)PACKET_RATE) || scan_is_complete;
+#ifdef DEBUG
     printf("int time: %f\n", (float)N / (float)PACKET_RATE);
+#endif
     if (has_ended)
     {
         printf("Scan ended clock=%f, scanlen=%f\n", scan_time_clock, scanLength);

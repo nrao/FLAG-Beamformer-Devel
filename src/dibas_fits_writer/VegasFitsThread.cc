@@ -288,8 +288,8 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             continue;
         }
         rx_some_data = 1;
-        printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n",
-               block, gdb, gdb->block[block].header.mcnt);
+//         printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n",
+//                block, gdb, gdb->block[block].header.mcnt);
 
 
         // For a matrix of 40x40 there will be 20 redundant values
@@ -336,16 +336,16 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             }
         }
 
-        for (i = 0; i < NUM_CHANNELS * FITS_BIN_SIZE * 2; i+=2)
-        {
-            printf("\treal[%d]: %.1f | ", i, fits_data[i]);
-            printf("imag[%d]: %.1f\n", i+1, fits_data[i+1]);
-        }
+//         for (i = 0; i < NUM_CHANNELS * FITS_BIN_SIZE * 2; i+=2)
+//         {
+//             printf("\treal[%d]: %.1f | ", i, fits_data[i]);
+//             printf("imag[%d]: %.1f\n", i+1, fits_data[i+1]);
+//         }
 
         clock_gettime(CLOCK_MONOTONIC, &fits_start);
         fitsio->write(gdb->block[block].header.mcnt, fits_data);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
-        printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
+//         printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
 
         rowsWritten++;
 
