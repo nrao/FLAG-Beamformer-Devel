@@ -288,16 +288,58 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             continue;
         }
         rx_some_data = 1;
-        printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n", block, gdb, gdb->block[block].header.mcnt);
+        printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n",
+               block, gdb, gdb->block[block].header.mcnt);
 
-        // We only want 820 complex pairs of the GPU output, because it has zeroes and redundant values that
-        //   we do not want to write to FITS.
-        // For now we will just grap the first 820 pairs (1640 floats total)
-        int i;
-        float fits_data[820 * 2];
-        for (i = 0; i < 820 * 2; i++)
+
+        // For a matrix of 40x40 there will be 20 redundant values
+//         int NONZERO_BIN_SIZE = (820 + 20);
+        int i, j;
+        int red_els = 0;
+        int els = 0;
+
+        int next_red_element = 1;
+        int inc = 8;
+
+        int fits_real_index = 0;
+        int fits_imag_index = 1;
+        float fits_data[NUM_CHANNELS * FITS_BIN_SIZE * 2];
+        for (i = 0; i < NUM_CHANNELS; i++)
         {
-            fits_data[i] = gdb->block[block].data[i];
+            // Remember we need to double the bin size because each complex pair
+            //   is actually represented as two floats
+            // This also means that we are iterating by two (since we are treating every
+            //   two elements as an atomic unit)
+            for (j = 0; j < NONZERO_BIN_SIZE * 2; j += 2)
+            {
+                // index counters
+                int gpu_real_index = (i * NONZERO_BIN_SIZE * 2) + j;
+                int gpu_imag_index = gpu_real_index + 1;
+
+                if (gpu_real_index / 2 == next_red_element)
+                {
+//                     printf("REMOVED REDUNDANT ELEMENT\n");
+                    next_red_element += inc;
+                    inc += 4;
+                    red_els++;
+                }
+                else
+                {
+                    fits_data[fits_real_index] = gdb->block[block].data[gpu_real_index];
+                    fits_data[fits_imag_index] = gdb->block[block].data[gpu_imag_index];
+
+
+                    els++;
+                    fits_real_index+=2;
+                    fits_imag_index+=2;
+                }
+            }
+        }
+
+        for (i = 0; i < NUM_CHANNELS * FITS_BIN_SIZE * 2; i+=2)
+        {
+            printf("\treal[%d]: %.1f | ", i, fits_data[i]);
+            printf("imag[%d]: %.1f\n", i+1, fits_data[i+1]);
         }
 
         clock_gettime(CLOCK_MONOTONIC, &fits_start);

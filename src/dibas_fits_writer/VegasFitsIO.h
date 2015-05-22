@@ -37,9 +37,10 @@
 // Each packet has it's own 'mcnt'.
 // 10 Samples in each packet.
 #define PACKET_RATE 3030
+#define N 303
 
 // time between dumps from the GPU
-#define INT_TIME 0.001
+// #define INT_TIME (N / PACKET_RATE)
 
 #include "FitsIO.h"
 #include "SwitchingSignals.h"

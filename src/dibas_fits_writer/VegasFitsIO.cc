@@ -1560,7 +1560,8 @@ bool
 VegasFitsIO::is_scan_complete()
 {
     //bool has_ended = scan_time_clock > scanLength || scan_is_complete;
-    bool has_ended = scan_time_clock >= (scanLength - INT_TIME) || scan_is_complete;
+    bool has_ended = scan_time_clock >= (scanLength - (float)N / (float)PACKET_RATE) || scan_is_complete;
+    printf("int time: %f\n", (float)N / (float)PACKET_RATE);
     if (has_ended)
     {
         printf("Scan ended clock=%f, scanlen=%f\n", scan_time_clock, scanLength);
