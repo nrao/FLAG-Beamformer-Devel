@@ -24,7 +24,7 @@ CUDA_COMPILE=nvcc
 
 
 C__FLAGS=-O3 -g -Wall -D_GNU_SOURCE -I. $(USER_INCLUDES) $(OPT_FLAGS)
-CXXFLAGS=-O3 -g -pthread  -Wall -I. $(USER_INCLUDES) -msse2
+CXXFLAGS=-O3 -g -pthread  -Wall -I. $(USER_INCLUDES) -msse2 -lrt
 CUDA_FLAGS= -I. $(USER_INCLUDES) -arch=sm_35 -I$(CUDA)/include
 
 EXECUTABLE=vegasFitsWriter

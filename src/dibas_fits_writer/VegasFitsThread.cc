@@ -20,6 +20,9 @@
 //# P. O. Box 2
 //# Green Bank, WV 24944-0002 USA
 
+#define ELAPSED_NS(start,stop) \
+(((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
+
 #include <stdio.h>
 #include <signal.h>
 #include <pthread.h>
@@ -27,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
+#include <sys/time.h>
 
 extern "C"
 {
@@ -67,7 +71,7 @@ double timeval_2_mjd(timeval *tv)
 // python:
 // d, mjd = math.modf(dmjd)
 // return (86400 * (mjd - 40587)) + (86400 * d)
-unsigned long dmjd_2_secs(double dmjd) 
+unsigned long dmjd_2_secs(double dmjd)
 {
     unsigned long mjd = (unsigned long)dmjd;
     double d = dmjd - mjd;
@@ -98,6 +102,8 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 {
     int rv;
     VegasFitsIO *fitsio;
+
+    timespec fits_start, fits_stop;
 
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::set_finished, args);
 
@@ -205,7 +211,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         unsigned long secs = dmjd_2_secs(start_time);
         printf("goes back to secs: %d\n", secs);
     }
-    
+
 
     fitsio->set_startTime(start_time);
 
@@ -284,7 +290,11 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         rx_some_data = 1;
         printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n", block, gdb, gdb->block[block].header.mcnt);
 
+        clock_gettime(CLOCK_MONOTONIC, &fits_start);
         fitsio->write(&(gdb->block[block]));
+        clock_gettime(CLOCK_MONOTONIC, &fits_stop);
+
+        printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
         rowsWritten++;
 
         /*

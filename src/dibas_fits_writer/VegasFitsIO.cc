@@ -1458,7 +1458,7 @@ VegasFitsIO::bufferedWrite(DiskBufferChunk *chunk, bool new_integration)
 
 // We calculate all timestamps from the known start time and each mcnt ('packet counter')
 double VegasFitsIO::calculateBlockTime(int mcnt, double startDMJD) {
-    scan_time_clock = (double)((double)mcnt/(double)(PACKET_RATE)); 
+    scan_time_clock = (double)((double)mcnt/(double)(PACKET_RATE));
     printf("elapsed secs: %f\n", scan_time_clock);
     return (startDMJD + (double)((double)scan_time_clock/(double)(24*60*60)));
 }
@@ -1473,7 +1473,7 @@ VegasFitsIO::write(vegas_databuf_block_t *block)
 
     // DMJD
     double dmjd = calculateBlockTime(block->header.mcnt, startTime);
-    printf("dmjd: %f\n", dmjd);
+//     printf("dmjd: %f\n", dmjd);
 
     write_col_dbl(column++,
                   current_row,
@@ -1489,9 +1489,6 @@ VegasFitsIO::write(vegas_databuf_block_t *block)
                   &(block->header.mcnt));
 
     // DATA column
-    // 41 * 20 * 5 = 4100
-    // data will be 8200 elements long
-    // TODO: This should not be hardcoded
     write_col_cmp(column++,
                   current_row,
                   1,

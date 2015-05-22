@@ -35,11 +35,11 @@
 
 // Rate (Hz) that the packets arrive from the roach
 // Each packet has it's own 'mcnt'.
-// 10 Samples in each packet.  
-#define PACKET_RATE 100
+// 10 Samples in each packet.
+#define PACKET_RATE 303000
 
 // time between dumps from the GPU
-#define INT_TIME 0.5
+#define INT_TIME 0.001
 
 #include "FitsIO.h"
 #include "SwitchingSignals.h"
