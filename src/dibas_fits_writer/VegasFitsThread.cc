@@ -204,12 +204,12 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         // use the current time
         timeval tv;
         gettimeofday(&tv, 0);
-        printf("gettimeofday: %u\n", tv.tv_sec);
+        printf("gettimeofday: %lu\n", tv.tv_sec);
         start_time = timeval_2_mjd(&tv);
         printf("is DMJD: %f\n", start_time);
 
         unsigned long secs = dmjd_2_secs(start_time);
-        printf("goes back to secs: %d\n", secs);
+        printf("goes back to secs: %lu\n", secs);
     }
 
 
@@ -290,11 +290,21 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         rx_some_data = 1;
         printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n", block, gdb, gdb->block[block].header.mcnt);
 
-        clock_gettime(CLOCK_MONOTONIC, &fits_start);
-        fitsio->write(&(gdb->block[block]));
-        clock_gettime(CLOCK_MONOTONIC, &fits_stop);
+        // We only want 820 complex pairs of the GPU output, because it has zeroes and redundant values that
+        //   we do not want to write to FITS.
+        // For now we will just grap the first 820 pairs (1640 floats total)
+        int i;
+        float fits_data[820 * 2];
+        for (i = 0; i < 820 * 2; i++)
+        {
+            fits_data[i] = gdb->block[block].data[i];
+        }
 
+        clock_gettime(CLOCK_MONOTONIC, &fits_start);
+        fitsio->write(gdb->block[block].header.mcnt, fits_data);
+        clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
+
         rowsWritten++;
 
         /*

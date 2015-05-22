@@ -1291,24 +1291,8 @@ void VegasFitsIO::createDataTable()
     tformLags[6] = stpspec_tform;
 */
 
-    // #define NUM_ANTENNAS 40
-    // The bin size is the number of elements in the lower trianglular
-    //   portion of the covariance matrix
-    //   (41 * 20) gives us the number of complex pair elements
-    // #define GPU_GPU_BIN_SIZE (41 * 20)
-    // #define GPU_BIN_SIZE 4
-    // This is the number of frequency channels that we will be correlating
-    //   It will be either 5, 50, or 160, and probably should always be a macro
-    //   For the purposes of this simulator we don't care about the input to the correlator
-    //   except that the number of input channels will indicate the number of output channels
-    //   That is, the total number of complex pairs we will be writing to shared memory
-    //   is given as: GPU_BIN_SIZE * NUM_CHANNELS
-    // #define NUM_CHANNELS 5
-    // #define TOTAL_DATA_SIZE (GPU_BIN_SIZE * NUM_CHANNELS * 2)
-    // TOTAL_DATA_SIZE = 41 * 20 * 5 * 2 = 8200
-
     char data_form[10];
-    sprintf(data_form, "%dC", GPU_BIN_SIZE * NUM_CHANNELS);
+    sprintf(data_form, "%dC", FITS_BIN_SIZE * NUM_CHANNELS);
     //debug
     fprintf(stderr, "data_form: %s\n", data_form);
 
@@ -1465,14 +1449,14 @@ double VegasFitsIO::calculateBlockTime(int mcnt, double startDMJD) {
 
 /// Writes a full integration of data to a row in the FITS file.
 int
-VegasFitsIO::write(vegas_databuf_block_t *block)
+VegasFitsIO::write(int mcnt, float *data)
 {
     int column = 1;
     MutexLock l(lock_mutex);
     l.lock();
 
     // DMJD
-    double dmjd = calculateBlockTime(block->header.mcnt, startTime);
+    double dmjd = calculateBlockTime(mcnt, startTime);
 //     printf("dmjd: %f\n", dmjd);
 
     write_col_dbl(column++,
@@ -1486,14 +1470,14 @@ VegasFitsIO::write(vegas_databuf_block_t *block)
                   current_row,
                   1,
                   1,
-                  &(block->header.mcnt));
+                  &mcnt);
 
     // DATA column
     write_col_cmp(column++,
                   current_row,
                   1,
-                  GPU_BIN_SIZE * NUM_CHANNELS,
-                  block->data);
+                  FITS_BIN_SIZE * NUM_CHANNELS,
+                  data);
 /*
 
     // DMJD column

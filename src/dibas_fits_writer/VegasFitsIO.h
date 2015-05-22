@@ -36,7 +36,7 @@
 // Rate (Hz) that the packets arrive from the roach
 // Each packet has it's own 'mcnt'.
 // 10 Samples in each packet.
-#define PACKET_RATE 303000
+#define PACKET_RATE 3030
 
 // time between dumps from the GPU
 #define INT_TIME 0.001
@@ -165,7 +165,7 @@ public:
     void createDataTable();
 
     int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
-    int write(vegas_databuf_block_t *block);
+    int write(int mcnt, float *data);
     bool is_scan_complete();
     void set_scan_complete();
 
