@@ -36,8 +36,8 @@
 // Rate (Hz) that the packets arrive from the roach
 // Each packet has it's own 'mcnt'.
 // 10 Samples in each packet.
-#define PACKET_RATE 303000
-#define N 303
+#define PACKET_RATE 303750
+#define N 30
 
 // time between dumps from the GPU
 // #define INT_TIME (N / PACKET_RATE)

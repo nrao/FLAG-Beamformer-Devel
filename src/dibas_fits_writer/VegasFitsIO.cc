@@ -39,6 +39,7 @@ using namespace std;
 
 static bool verbose = false;
 #define dbprintf if (verbose) printf
+#define DEBUG
 
 Mutex::Mutex()
 {
