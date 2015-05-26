@@ -292,6 +292,10 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 //                block, gdb, gdb->block[block].header.mcnt);
 
 
+        // Start the timer for how long it takes to write to FITS
+        // We are now starting this timer before the data is copied
+        //   from the gpu table to the fits table
+        clock_gettime(CLOCK_MONOTONIC, &fits_start);
         // For a matrix of 40x40 there will be 20 redundant values
 //         int NONZERO_BIN_SIZE = (820 + 20);
         int i, j;
@@ -312,7 +316,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
             //   two elements as an atomic unit)
             for (j = 0; j < NONZERO_BIN_SIZE * 2; j += 2)
             {
-                // index counters
+                // index counters for convenience
                 int gpu_real_index = (i * NONZERO_BIN_SIZE * 2) + j;
                 int gpu_imag_index = gpu_real_index + 1;
 
@@ -330,6 +334,10 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 
 
                     els++;
+                    // These variables keep track of the indices of the data table that
+                    //   will be written to FITS
+                    // Again, these must increment by 2 due to the atomic nature
+                    //   of a pair of floats in this context
                     fits_real_index+=2;
                     fits_imag_index+=2;
                 }
@@ -342,7 +350,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 //             printf("imag[%d]: %.1f\n", i+1, fits_data[i+1]);
 //         }
 
-        clock_gettime(CLOCK_MONOTONIC, &fits_start);
+
         fitsio->write(gdb->block[block].header.mcnt, fits_data);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
 //         printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
