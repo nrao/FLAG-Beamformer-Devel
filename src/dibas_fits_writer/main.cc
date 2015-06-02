@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <time.h>
 #include <sched.h>
+#include <getopt.h>
 
 #include "VegasFitsIO.h"
 #include "mainTest.h"
@@ -89,9 +90,50 @@ const char CONTROL_FIFO[] = "/tmp/tchamber/vegas_fits_control";
 
 extern "C" int setup_privileges();
 
+void usage() {
+    fprintf(stderr,
+            "Usage: vegasFitsWriter (options) \n"
+            "Options:\n"
+            "  -i n, --instance=nn         instance id\n"
+            );
+}
+
 
 int mainThread(int argc, char **argv)
 {
+
+    static struct option long_opts[] = {
+        {"help",   0, NULL, 'h'},
+        {"instance",   0, NULL, 'i'},
+        {0,0,0,0}
+    };
+
+    int opt, opti, instance_id;
+    while ((opt=getopt_long(argc,argv,"hi:",long_opts,&opti))!=-1) {
+        printf("opt: %d\n", opt);
+        switch (opt) {
+            case 'i':
+                printf("optarg: %s\n", optarg);
+                instance_id = atoi(optarg);
+                break;
+            case 'h':
+            default:
+                usage();
+                exit(0);
+                break;
+        }
+    }
+
+    /* check args */
+    /*
+    if (optind==argc) {
+        usage();
+        exit(1);
+    }
+    */
+
+    printf("processed options\n");
+
     run = 1;
     int command_fifo;
     int rv;
@@ -253,7 +295,8 @@ int mainThread(int argc, char **argv)
             else
             {
                 run = 1;
-                pthread_create(&thread_id, NULL, runGbtFitsWriter, 0);
+                // TBF: pass instance_id as an arg!
+                pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)instance_id);
             }
         }
         else if (strncasecmp(cmd,"STOP",MAX_CMD_LEN)==0 ||

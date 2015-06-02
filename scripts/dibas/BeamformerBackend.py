@@ -162,7 +162,11 @@ class BeamformerBackend(VegasBackend):
         self.instance_id = instance_id
 
     def start_hpc(self):
-        "Beamformer mode's are hashpipe plugins that require special handling"
+        """
+        Beamformer mode's are hashpipe plugins that require special handling:
+           * are not in the dibas install area
+           * need to pass on the instance id
+        """
 
         if self.test_mode:
             return
@@ -188,5 +192,22 @@ class BeamformerBackend(VegasBackend):
         print "process_list: ", process_list
         self.hpc_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
 
+    def start_fits_writer(self):
+        """
+        start_fits_writer()
+        Starts the fits writer program running. Stops any previously running instance.
+        For the beamformer, we have to pass on the instance id.
+        """
 
+        if self.test_mode:
+            return
+
+        self.stop_fits_writer()
+        fits_writer_program = "vegasFitsWriter"
+
+        cmd = self.dibas_dir + '/exec/x86_64-linux/' + fits_writer_program
+        #self.fits_writer_process = subprocess.Popen((sp_path, ), stdin=subprocess.PIPE)
+        cmd += " -i %d" % self.instance_id
+        process_list = shlex.split(cmd)
+        self.fits_writer_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
     

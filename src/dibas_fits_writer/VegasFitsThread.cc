@@ -99,6 +99,10 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     int rv;
     VegasFitsIO *fitsio;
 
+    // TBF: pass on the instance id from the args to our class member
+    int instance_id = ((int *) args);
+    printf("VegasFitsThread::run, instance_id = %d\n", instance_id);
+
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::set_finished, args);
 
     /* Set cpu affinity */
