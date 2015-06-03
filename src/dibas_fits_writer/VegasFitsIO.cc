@@ -39,7 +39,7 @@ using namespace std;
 
 static bool verbose = false;
 #define dbprintf if (verbose) printf
-#define DEBUG
+// #define DEBUG
 
 Mutex::Mutex()
 {
@@ -1461,6 +1461,8 @@ VegasFitsIO::write(int mcnt, float *data)
     // DMJD
     double dmjd = calculateBlockTime(mcnt, startTime);
 //     printf("dmjd: %f\n", dmjd);
+    // TODO: remove
+    // return 0;
 
     write_col_dbl(column++,
                   current_row,

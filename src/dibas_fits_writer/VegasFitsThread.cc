@@ -353,7 +353,8 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 
         fitsio->write(gdb->block[block].header.mcnt, fits_data);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
-//         printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
+        
+        printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
 
         rowsWritten++;
 
