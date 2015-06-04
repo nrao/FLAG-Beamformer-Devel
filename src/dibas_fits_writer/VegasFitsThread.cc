@@ -99,8 +99,9 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     int rv;
     VegasFitsIO *fitsio;
 
-    // TBF: pass on the instance id from the args to our class member
-    int instance_id = ((int *) args);
+    // pass on the instance id from the args to our class member
+    int instance_id = args->input_buffer;
+
     printf("VegasFitsThread::run, instance_id = %d\n", instance_id);
 
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::set_finished, args);
@@ -128,7 +129,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 
     /* Attach to status shared mem area */
     struct vegas_status st;
-    rv = vegas_status_attach(&st);
+    rv = vegas_status_attach(&st, instance_id);
     if (rv!=VEGAS_OK)
     {
         vegas_error("VegasFitsThread::run",
@@ -140,7 +141,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 
     const int databufid = 1; // disk buffer
     // Attach to the data buffer shared memory
-    vegas_databuf *gdb = vegas_databuf_attach(databufid);
+    vegas_databuf *gdb = vegas_databuf_attach(databufid, instance_id);
     if(gdb == 0)
     {
         vegas_error("VegasFitsThread::run", "databuffer attach error cannot continue");
@@ -180,7 +181,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         pthread_exit(0);
     }
     // Create a VegasFitsIO writer
-    fitsio = new VegasFitsIO(datadir, false);
+    fitsio = new VegasFitsIO(datadir, false, instance_id);
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::close, fitsio);
 
     // pass a copy of the status memory to the writer

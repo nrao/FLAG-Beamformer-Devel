@@ -246,10 +246,7 @@ vegas_datablock_freq_heap_data(struct vegas_databuf *d, int block_id, int heap_i
 /** Attach to the specified data buffer.
  *  Returns the address of the databuffer if successful , or zero on error.
  */
-struct vegas_databuf *vegas_databuf_attach(int databuf_id) {
-
-    // TBF: needs to be instance aware!
-    int instance_id = 0;
+struct vegas_databuf *vegas_databuf_attach(int databuf_id, int instance_id) {
 
     /* Get shared memory block */
     key_t key = hashpipe_databuf_key(instance_id);

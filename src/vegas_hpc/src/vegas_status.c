@@ -59,10 +59,8 @@ int hashpipe_status_semname(int instance_id, char * semid, size_t size)
     return rc;
 }
 
-int vegas_status_attach(struct vegas_status *s) {
+int vegas_status_attach(struct vegas_status *s, int instance_id) {
 
-    // TBF: needs to be instance aware!
-    int instance_id = 0;
     instance_id &= 0x3f;
     //int NAME_MAX = 256;
     char semid[NAME_MAX] = {'\0'};

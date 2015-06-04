@@ -106,7 +106,7 @@ void VegasFitsIO::fpga_time_counter::clear()
 /// path_prefix The environment varable to use which contains
 /// the directory prefix for the data files.
 /// simulator A boolean value which sets the 'SIMULATE' header keyword.
-VegasFitsIO::VegasFitsIO(const char *path_prefix, int simulator)
+VegasFitsIO::VegasFitsIO(const char *path_prefix, int simulator, int instance_id)
     :
     FitsIO(path_prefix, 0, "VEGAS", simulator),
     openFlag(0),
@@ -117,7 +117,8 @@ VegasFitsIO::VegasFitsIO(const char *path_prefix, int simulator)
     integration_time(0),
     fits_data(0),
     current_row(1),
-    accumid_xor_mask(0x0)
+    accumid_xor_mask(0x0),
+    instance_id(instance_id)
 {
     strcpy(theVEGASMode, "");
     for(int i = 0; i < NUMPORTS; ++i)
@@ -653,6 +654,8 @@ int VegasFitsIO::open()//const TimeStamp &ts)
         perror(path);
         exit(2);
     }
+    // NOTE: bank name is specified by status shared memory,
+    // but we need to make sure it jives with the instance id's as well.
     if (hgets(status_buffer, "BANKNAM", sizeof(value), value) == 0)
     {
         sprintf(value, "A");

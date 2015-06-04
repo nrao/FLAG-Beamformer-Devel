@@ -69,7 +69,7 @@ public:
     /// @param path_prefix is the first portion of the
     /// root directory for the FITS file path.
     /// @param simulator is a flag which sets the SIMULATE primary header keyword
-    VegasFitsIO(const char *path_prefix, int simulator = 0);
+    VegasFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0);
     ~VegasFitsIO();
 
     // This method opens the FITS file for writing.
@@ -271,6 +271,7 @@ protected:
     int32_t data_hdu;
     double scan_time_clock;
     int32_t accumid_xor_mask;
+    int instance_id;
 
     double calculateBlockTime(int mcnt, double startDMJD);
 };

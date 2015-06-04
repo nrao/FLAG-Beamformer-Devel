@@ -134,7 +134,7 @@ void vegas_conf_databuf_size(struct vegas_databuf *d, size_t new_block_size);
 /** Return a pointer to a existing shmem segment with given id.
  * Returns error if segment does not exist
  */
-struct vegas_databuf *vegas_databuf_attach(int databuf_id);
+struct vegas_databuf *vegas_databuf_attach(int databuf_id, int instance_id);
 
 /** Detach from shared mem segment */
 int vegas_databuf_detach(struct vegas_databuf *d);

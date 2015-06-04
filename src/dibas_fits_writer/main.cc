@@ -38,6 +38,18 @@
 #include <sched.h>
 #include <getopt.h>
 
+extern "C"
+{
+#include "vegas_error.h"
+#include "vegas_status.h"
+#include "vegas_databuf.h"
+#include "spead_heap.h"
+#include "fitshead.h"
+#define STATUS_KEYW "DISKSTAT"
+#include "vegas_threads.h"
+};
+
+
 #include "VegasFitsIO.h"
 #include "mainTest.h"
 
@@ -85,8 +97,6 @@ void signal_handler(int sig)
 }
 
 const int MAX_CMD_LEN =64;
-const char CONTROL_FIFO[] = "/tmp/tchamber/vegas_fits_control";
-
 
 extern "C" int setup_privileges();
 
@@ -108,13 +118,15 @@ int mainThread(int argc, char **argv)
         {0,0,0,0}
     };
 
-    int opt, opti, instance_id;
+    int opt, opti;
+    int instance_id = 0;
     while ((opt=getopt_long(argc,argv,"hi:",long_opts,&opti))!=-1) {
         printf("opt: %d\n", opt);
         switch (opt) {
             case 'i':
                 printf("optarg: %s\n", optarg);
                 instance_id = atoi(optarg);
+                printf("instance_id: %d\n", instance_id);
                 break;
             case 'h':
             default:
@@ -133,6 +145,11 @@ int mainThread(int argc, char **argv)
     */
 
     printf("processed options\n");
+
+    // create command fifo based on username and instance_id
+    char command_fifo_filename[MAX_CMD_LEN];
+    char *user = getenv("USER");
+    sprintf(command_fifo_filename, "/tmp/dibas_fits_control_%s_%d", user, instance_id);
 
     run = 1;
     int command_fifo;
@@ -153,16 +170,17 @@ int mainThread(int argc, char **argv)
 
     setup_privileges();
 
-    command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
+    //command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
+    command_fifo = open(command_fifo_filename, O_RDONLY | O_NONBLOCK);
     if (command_fifo<0)
     {
-        fprintf(stderr, "vegas_fits_writer: Error opening control fifo %s\n", CONTROL_FIFO);
+        fprintf(stderr, "vegas_fits_writer: Error opening control fifo %s\n", command_fifo_filename);
         perror("open");
         exit(1);
     }
     else
     {
-        printf("Using FITS Control FIFO: %s\n", CONTROL_FIFO);
+        printf("Using FITS Control FIFO: %s\n", command_fifo_filename);
     }
     /* Set cpu affinity */
     cpu_set_t cpuset, cpuset_orig;
@@ -246,7 +264,7 @@ int mainThread(int argc, char **argv)
         if (pfd[0].revents==POLLHUP)
         {
             close(command_fifo);
-            command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
+            command_fifo = open(command_fifo_filename, O_RDONLY | O_NONBLOCK);
             if (command_fifo<0)
             {
                 fprintf(stderr,
@@ -295,8 +313,11 @@ int mainThread(int argc, char **argv)
             else
             {
                 run = 1;
-                // TBF: pass instance_id as an arg!
-                pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)instance_id);
+                // pass instance_id as an arg!
+                vegas_thread_args *args = new vegas_thread_args;
+                args->input_buffer = instance_id;
+                pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
+
             }
         }
         else if (strncasecmp(cmd,"STOP",MAX_CMD_LEN)==0 ||

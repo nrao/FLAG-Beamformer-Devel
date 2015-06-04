@@ -36,7 +36,7 @@ extern "C" {
  * creating it if it doesn't exist.  Attaches/creates 
  * lock semaphore as well.  Returns nonzero on error.
  */
-int vegas_status_attach(struct vegas_status *s);
+int vegas_status_attach(struct vegas_status *s, int instance_id);
 
 /** Detach from shared mem segment */
 int vegas_status_detach(struct vegas_status *s); 
