@@ -31,6 +31,7 @@
 
 import time
 import shlex
+import subprocess
 from datetime import datetime, timedelta
 
 from VegasBackend import VegasBackend
