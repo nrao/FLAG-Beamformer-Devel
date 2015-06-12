@@ -20,6 +20,9 @@
 //# P. O. Box 2
 //# Green Bank, WV 24944-0002 USA
 
+#define ELAPSED_NS(start,stop) \
+  (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
+
 #ifndef VEGASFITSIO
 #define VEGASFITSIO
 
@@ -36,10 +39,10 @@
 // Rate (Hz) that the packets arrive from the roach
 // Each packet has it's own 'mcnt'.
 // 10 Samples in each packet.
-// #define PACKET_RATE 303750
-#define PACKET_RATE 9492
-// #define N 30
-#define N 4746 // from spreadsheet
+#define PACKET_RATE 303750
+// #define PACKET_RATE 9492
+#define N 30
+// #define N 4746 // from spreadsheet
 
 // time between dumps from the GPU
 // #define INT_TIME (N / PACKET_RATE)
@@ -97,77 +100,77 @@ public:
     void setMode(const char *mode);
     void setNumberChannels(int numChannels);
     void setSelfTestMode(int selfTestMode);
-    void setBaseBw(float base_bw);
-    void setNoiseSource(int noise_source);
+    // void setBaseBw(float base_bw);
+    // void setNoiseSource(int noise_source);
     void setStatusMem(std::map<std::string, std::string> &status);
-    void setBofFile(const char *);
+    // void setBofFile(const char *);
 
 public:
-    /// Read the primary header information from status shared memory
+    // Read the primary header information from status shared memory
     bool readPrimaryHeaderKeywords();
-    /// Read the switching signal configuration information from status shared memory
-    bool readStateTableKeywords();
-    /// Read the low-level switching signal configuration information from status memory
-    bool readActStateTableKeywords();
-    /// Read the port table information from status memory
-    bool readPortTableKeywords();
-    /// Read the sampler table information from status memory
-    bool readSamplerTableKeywords();
+//     /// Read the switching signal configuration information from status shared memory
+//     bool readStateTableKeywords();
+//     /// Read the low-level switching signal configuration information from status memory
+//     bool readActStateTableKeywords();
+//     /// Read the port table information from status memory
+//     bool readPortTableKeywords();
+//     /// Read the sampler table information from status memory
+//     bool readSamplerTableKeywords();
 
-public:
-    //PORT Table methods
-    //The Bank Name is set in Primary HDU.
-    //The PORT table for VEGAS will always contain 2 rows.
-    void setMeasuredPower(float measpwr, int index);
-    void setNoiseTone(int noiseTone, int index);
+// public:
+//     //PORT Table methods
+//     //The Bank Name is set in Primary HDU.
+//     //The PORT table for VEGAS will always contain 2 rows.
+//     void setMeasuredPower(float measpwr, int index);
+//     void setNoiseTone(int noiseTone, int index);
 
-public:
-    ///@{
-    /// STATE Table methods
-    void setBlanking(const double *blanking);
-    void setCalState(const int *cal_state);
-    void setPhaseStart(const double *phase_start);
-    void setSigRefState(const int *sig_ref_state);
-    void setSwitchPeriod(double switch_period);
-    ///@}
+// public:
+//     ///@{
+//     /// STATE Table methods
+//     void setBlanking(const double *blanking);
+//     void setCalState(const int *cal_state);
+//     void setPhaseStart(const double *phase_start);
+//     void setSigRefState(const int *sig_ref_state);
+//     void setSwitchPeriod(double switch_period);
+//     ///@}
 
-public:
-    /// SAMPLER Table methods
-    void setPolarization(const char *pol);
-    void setNumberStokes(int stokes);
-    void setNumberSubBands(int subbands);
-    void setReferenceChannel(float refchan);
-    void setChannelCenterFreq(const double*);
-    void setChannelFreqIncrement(const double*);
-    void setChannelFreqResolution(const double*);
-    //@}
+// public:
+//     /// SAMPLER Table methods
+//     void setPolarization(const char *pol);
+//     void setNumberStokes(int stokes);
+//     void setNumberSubBands(int subbands);
+//     void setReferenceChannel(float refchan);
+//     void setChannelCenterFreq(const double*);
+//     void setChannelFreqIncrement(const double*);
+//     void setChannelFreqResolution(const double*);
+//     //@}
 
-public:
-    /// ACT_STATE Table methods
-    void setEcal(const int *ecal);
-    void setEsigref1(const int *esr1);
-    void setEsigref2(const int *esr2);
-    void setIcal(const int *ical);
-    void setIsigref1(const int *isr1);
-    void setIsigref2(const int *isr2);
-    void setNumberPhases(int num_phases);
-    void setSwitchingSource(int source);
+// public:
+//     /// ACT_STATE Table methods
+//     void setEcal(const int *ecal);
+//     void setEsigref1(const int *esr1);
+//     void setEsigref2(const int *esr2);
+//     void setIcal(const int *ical);
+//     void setIsigref1(const int *isr1);
+//     void setIsigref2(const int *isr2);
+//     void setNumberPhases(int num_phases);
+//     void setSwitchingSource(int source);
 
-public:
+// public:
     /// DATA Table methods
-    void setFpgaClock(float fpga_clock);
-    void setRequestedIntegrationTime(float exposure);
-    void setSwPerInt(int sw_per_int);
+    // void setFpgaClock(float fpga_clock);
+    // void setRequestedIntegrationTime(float exposure);
+    // void setSwPerInt(int sw_per_int);
 
 public:
     virtual void createPrimaryHDU();
-    virtual void createPortTable();
-    virtual void createStateTable();
-    void createSamplerTable();
-    void createActStateTable();
+    // virtual void createPortTable();
+    // virtual void createStateTable();
+    // void createSamplerTable();
+    // void createActStateTable();
     void createDataTable();
 
-    int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
+    // int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
     int write(int mcnt, float *data);
     bool is_scan_complete();
     void set_scan_complete();
@@ -194,37 +197,37 @@ protected:
 
     //PORT Table
     //<group>
-    float measuredPower[NUMPORTS];
-    char  *noiseTone[NUMPORTS];
+    // float measuredPower[NUMPORTS];
+    // char  *noiseTone[NUMPORTS];
     //</group>
 
     //STATE Table
-    double blanking[MAXPHASES];
-    double phaseStart[MAXPHASES];
-    enum SwitchingSignals::CalState calState[MAXPHASES];
-    enum SwitchingSignals::SigRefState sigRefState[MAXPHASES];
-    double switchPeriod;
+    // double blanking[MAXPHASES];
+    // double phaseStart[MAXPHASES];
+    // enum SwitchingSignals::CalState calState[MAXPHASES];
+    // enum SwitchingSignals::SigRefState sigRefState[MAXPHASES];
+    // double switchPeriod;
 
     //SAMPLER Table
     //<group>
-    char polarization[256];
-    int numberStokes;
-    int numberSubBands;
-    float referenceChannel;
-    double crval1[MAXSUBBANDS];
-    double cdelt1[MAXSUBBANDS];
-    double freqres[MAXSUBBANDS];
+    // char polarization[256];
+    // int numberStokes;
+    // int numberSubBands;
+    // float referenceChannel;
+    // double crval1[MAXSUBBANDS];
+    // double cdelt1[MAXSUBBANDS];
+    // double freqres[MAXSUBBANDS];
     //</group>
 
     //ACT_STATE Table
-    int ecal[MAXPHASES];
-    int esigref1[MAXPHASES];
-    int esigref2[MAXPHASES];
-    int ical[MAXPHASES];
-    int isigref1[MAXPHASES];
-    int isigref2[MAXPHASES];
-    int numberPhases;
-    int switchingSource;
+    // int ecal[MAXPHASES];
+    // int esigref1[MAXPHASES];
+    // int esigref2[MAXPHASES];
+    // int ical[MAXPHASES];
+    // int isigref1[MAXPHASES];
+    // int isigref2[MAXPHASES];
+    // int numberPhases;
+    // int switchingSource;
 
     //DATA Table
     float fpgaClock;
@@ -247,35 +250,37 @@ protected:
     /// A class to track the fpga time_counter.
     /// The counter is only 40 bits in length, but this tracks roll-over extending the
     /// count to a full 64 bits.
-    struct fpga_time_counter
-    {
-        fpga_time_counter();
-        void add_lsw(uint64_t val);
-        uint64_t get_offset();
-        void clear();
+    // struct fpga_time_counter
+    // {
+    //     fpga_time_counter();
+    //     void add_lsw(uint64_t val);
+    //     uint64_t get_offset();
+    //     void clear();
 
-        uint64_t msw;
-        uint64_t lsw;
-        uint64_t last_lsw;
-        uint64_t delta;
-    };
+    //     uint64_t msw;
+    //     uint64_t lsw;
+    //     uint64_t last_lsw;
+    //     uint64_t delta;
+    // };
 
-    fpga_time_counter _time_counter;
-    uint64_t time_ctr_40bits;
+    // fpga_time_counter _time_counter;
+    // uint64_t time_ctr_40bits;
     std::map<std::string, std::string> _status_mem;
-    std::string _bof_file;
+    // std::string _bof_file;
 
     char status_buffer[STATUS_MEMSIZE];
     std::vector<std::string> status_mem_keywords;
-    int32_t port_hdu;
-    int32_t state_hdu;
-    int32_t sampler_hdu;
-    int32_t actstate_hdu;
+    // int32_t port_hdu;
+    // int32_t state_hdu;
+    // int32_t sampler_hdu;
+    // int32_t actstate_hdu;
     int32_t data_hdu;
     double scan_time_clock;
-    int32_t accumid_xor_mask;
+    // int32_t accumid_xor_mask;
 
     double calculateBlockTime(int mcnt, double startDMJD);
+
+    struct timespec data_w_start, data_w_stop;
 };
 
 #endif

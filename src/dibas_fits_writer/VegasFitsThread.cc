@@ -103,7 +103,9 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     int rv;
     VegasFitsIO *fitsio;
 
+    timespec loop_start, loop_stop;
     timespec fits_start, fits_stop;
+
 
     pthread_cleanup_push((void (*)(void*))&VegasFitsThread::set_finished, args);
 
@@ -190,13 +192,13 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 
     printf("status_buf: %s\n", status_buf);
 
-    int nsubband;
-    if (hgeti4(status_buf, "NSUBBAND", &nsubband))
-    {
-        fitsio->setNumberSubBands(nsubband);
-    }
+    // int nsubband;
+    // if (hgeti4(status_buf, "NSUBBAND", &nsubband))
+    // {
+    //     fitsio->setNumberSubBands(nsubband);
+    // }
 
-    fitsio->setNumberStokes(1);
+    // fitsio->setNumberStokes(1);
 
     // I'm assuming STRTDMJD is the starttime in DMJD
     if (hgetr8(status_buf, "STRTDMJD", &start_time) == 0)
@@ -247,6 +249,8 @@ VegasFitsThread::run(struct vegas_thread_args *args)
     // TBF: kluge
     int scanRows = 6;
     int rowsWritten = 0;
+    uint64_t total_loop_time = 0;
+    uint64_t total_write_time = 0;
 
     signal(SIGINT, stop_thread);
 
@@ -261,6 +265,7 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 
     while(!scan_finished && ::run)
     {
+        clock_gettime(CLOCK_MONOTONIC, &loop_start);
         // Wait for a data buffer from the HPC program
         if(vegas_databuf_wait_filled(gdb, block))
         {
@@ -351,10 +356,12 @@ VegasFitsThread::run(struct vegas_thread_args *args)
 //         }
 
 
+
         fitsio->write(gdb->block[block].header.mcnt, fits_data);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
+        total_write_time += ELAPSED_NS(fits_start, fits_stop);
         
-        printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
+        // printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
 
         rowsWritten++;
 
@@ -447,8 +454,14 @@ VegasFitsThread::run(struct vegas_thread_args *args)
         // Check for a thread cancellation
         pthread_testcancel();
 
+        clock_gettime(CLOCK_MONOTONIC, &loop_stop);
+        total_loop_time += ELAPSED_NS(loop_start, loop_stop);
+        // printf("It took %lu ns (%f seconds) for the loop to complete\n", ELAPSED_NS(loop_start, loop_stop), ELAPSED_NS(loop_start, loop_stop) / 1000000000.0);
     }
     printf("VegasFitsThread::run exiting with scan_finished=%d run=%d\n", scan_finished, ::run);
+    printf("\tWe wrote %d lines\n", rowsWritten);
+    printf("\tIt took an average of %.2f µs to complete each loop\n", total_loop_time / (double)rowsWritten / 1000);
+    printf("\tIt took an average of %.2f µs to write each row to FITS\n", total_write_time / (double)rowsWritten / 1000);
 
     fitsio->close();
 
