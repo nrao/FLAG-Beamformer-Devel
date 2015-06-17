@@ -15,8 +15,8 @@ HPC_PATH=../vegas_hpc/src/
 USER_INCLUDES += -I$(HPC_PATH)
 USER_INCLUDES += -I$(DIBAS)/dibaslibs/include
 
-SHAREDLIBRARYTARGET=libVegasFitsIO.so
-LIBRARYTARGET=libVegasFitsIO.a
+SHAREDLIBRARYTARGET=libBfFitsIO.so
+LIBRARYTARGET=libBfFitsIO.a
 C__COMPILE=gcc
 CXXCOMPILE=g++ -pthread
 AR_CMD=ar
@@ -27,12 +27,12 @@ C__FLAGS=-O3 -g -Wall -D_GNU_SOURCE -I. $(USER_INCLUDES) $(OPT_FLAGS)
 CXXFLAGS=-O3 -g -pthread  -Wall -I. $(USER_INCLUDES) -msse2 -lrt
 CUDA_FLAGS= -I. $(USER_INCLUDES) -arch=sm_35 -I$(CUDA)/include
 
-EXECUTABLE=vegasFitsWriter
+EXECUTABLE=bfFitsWriter
 
 all: $(EXECUTABLE)
 
 EXTRA_SOURCES =vegas_status.c
-EXTRA_SOURCES+=vegas_databuf.c
+EXTRA_SOURCES+=bf_databuf.c
 EXTRA_SOURCES+=vegas_error.c
 EXTRA_SOURCES+=vegas_params.c
 EXTRA_SOURCES+=vegas_thread_args.c
@@ -43,7 +43,7 @@ EXTRA_SOURCES+=hget.c
 EXTRA_SOURCES+=sla.c
 # Extra objects
 EXTRA_OBJECTS =vegas_status.o
-EXTRA_OBJECTS+=vegas_databuf.o
+EXTRA_OBJECTS+=bf_databuf.o
 EXTRA_OBJECTS+=vegas_error.o
 EXTRA_OBJECTS+=vegas_params.o
 EXTRA_OBJECTS+=vegas_thread_args.o
