@@ -653,6 +653,8 @@ int VegasFitsIO::open()//const TimeStamp &ts)
         perror(path);
         exit(2);
     }
+    // TBF: have to figure out how to fake the status memory buffer for tests
+    /*
     if (hgets(status_buffer, "BANKNAM", sizeof(value), value) == 0)
     {
         sprintf(value, "A");
@@ -660,6 +662,7 @@ int VegasFitsIO::open()//const TimeStamp &ts)
     string bnkstr(value);
     size_t p = bnkstr.find_last_not_of(' ');
     setBankName(bnkstr[p]);
+    */
 
     char *suffix = setFilename(namePtr, startTime);
     strcpy(suffix, theBank);
