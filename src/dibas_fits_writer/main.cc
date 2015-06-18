@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <time.h>
 #include <sched.h>
+#include <getopt.h>
 
 #include "VegasFitsIO.h"
 #include "mainTest.h"
@@ -48,6 +49,15 @@ int run = 0;
 int srv_run = 1;
 
 extern "C" void *runGbtFitsWriter(void *);
+
+void usage() {
+    fprintf(stderr,
+            "Usage: vegasFitsWriter (options) \n"
+            "Options:\n"
+            "  -t , --test         run a test\n"
+            );
+}
+
 
 pthread_t thread_id = 0;
 
@@ -88,7 +98,6 @@ const char CONTROL_FIFO[] = "/tmp/tchamber/vegas_fits_control";
 
 
 extern "C" int setup_privileges();
-
 
 int mainThread(int argc, char **argv)
 {
@@ -305,9 +314,47 @@ int mainThread(int argc, char **argv)
 }
 
 int main(int argc, char **argv) {
-    printf("Dibas FITS Writer main: %d\n", argc);
-/*    if (argc > 1)
+
+    static struct option long_opts[] = {
+        {"help",   0, NULL, 'h'},
+        {"test",   0, NULL, 't'},
+        {0,0,0,0}
+    };
+
+    int opt, opti;
+    bool test = false;
+
+    while ((opt=getopt_long(argc,argv,"ht",long_opts,&opti))!=-1) {
+        printf("opt: %d\n", opt);
+        switch (opt) {
+            case 't':
+                //printf("optarg: %s\n", optarg);
+                //instance_id = atoi(optarg);
+                test = true;
+                break;
+            case 'h':
+            default:
+                usage();
+                exit(0);
+                break;
+        }
+    }
+
+    printf("processed options\n");
+
+    if (test)
         mainTest(argc, argv);
-    else */
+    else 
+        mainThread(argc, argv);
+    return (0);
+}
+
+/*
+int main(int argc, char **argv) {
+    printf("Dibas FITS Writer main: %d\n", argc);
+    if (argc > 1)
+        mainTest(argc, argv);
+    else 
         mainThread(argc, argv);
 }
+*/
