@@ -645,7 +645,7 @@ int BfFitsIO::open()//const TimeStamp &ts)
     char *namePtr = createDirectoryPath(path,pathlength,3,
                                         rootDirectory,
                                         projectId,
-                                        "VEGAS");
+                                        "BF");
     // create directory path and check accessibility
     int retval = mkdirp(path,0775);
     // error?
@@ -660,7 +660,7 @@ int BfFitsIO::open()//const TimeStamp &ts)
     }
     string bnkstr(value);
     size_t p = bnkstr.find_last_not_of(' ');
-    setBankName(bnkstr[p]);
+    // setBankName(bnkstr[p]);
 
     char *suffix = setFilename(namePtr, startTime);
     strcpy(suffix, theBank);
@@ -680,7 +680,7 @@ int BfFitsIO::open()//const TimeStamp &ts)
 
     sprintf(theFilePath, "./%s/%s/%s",
             projectId,
-            "VEGAS",
+            "BF",
             namePtr);
 
     printf("Opening file: %s\n", theFilePath);
@@ -773,6 +773,7 @@ void BfFitsIO::setMode(const char *mode)
 
 void BfFitsIO::setBankName(const char bank)
 {
+    printf("Setting bank name to %c\n", bank);
     theBank[0] = bank;
     theBank[1] = '\0';
 }
