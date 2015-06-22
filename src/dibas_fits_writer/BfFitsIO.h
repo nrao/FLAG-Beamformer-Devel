@@ -117,7 +117,7 @@ public:
     int write(int mcnt, float *data);
     bool is_scan_complete();
     void set_scan_complete();
-    void parseGpuCovMatrix(const float *gpu_matrix, float *fits_matrix);
+    void parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_matrix);
 
 protected:
     int openFlag;

@@ -1589,8 +1589,19 @@ BfFitsIO::set_scan_complete()
     scan_is_complete = true;
 }
 
+// This function takes the GPU's covariance matrix output (64x64)
+//   and parses it into a consolidated format suitable for writing to FITS.
+// There are two "steps" here.
+// 1. We know that only the first NONZERO_BIN_SIZE elements are non-zero
+//    That is, xGPU will only be writing data to this number of elements.
+//    So, for each frequency bin, we can simply stop processing after
+//    we have processed NONZERO_BIN_SIZE elements in each frequency bin.
+// 2. We know that there will be NUM_ANTENNAS/2 redundant elements in
+//    each frequency bin. That is, of the NONZERO_BIN_SIZE elements,
+//    some will be duplicates. These are slightly more difficult to remove.
+//    This is done with the next_red_element index tracker, etc.
 void
-BfFitsIO::parseGpuCovMatrix(const float *gpu_matrix, float *fits_matrix)
+BfFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_matrix)
 {
     // Counts number of redundant elements encountered
     int red_els = 0;
