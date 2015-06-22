@@ -2,3 +2,23 @@ FLAG-Beamformer-Devel
 This is a fork of the Vegas development repository. It will contain Vegas code that has been modified to support the development of the FLAG-Beamformer project.
 
 This repository is intended to be used alongside the FLAG-Beamformer-Simulator-I repository. 
+
+A brief overview of the contents as ther pertain to the FLAG-Beamformer project:
+
+We are using this repo to accomplish two main things: NRAO-specific FITS formatting and easy usage of the Dealer/Player implementation provided by DIBAS. This has allowed us to very easily make a proof-of-concept Beamformer FITS implementation, although the code requires siginificant work to reach production.
+
+The NRAO's ygor library contains a FitsIO class that wraps the cfitsio library and outputs FITS files that conform to NRAO standards. This repo contains a FITS writer that subclasses FitsIO and adds Vegas-specific functionality to it. This FITS writer has been refactored and modified to output FLAG-Beamformer-specific FITS files.
+
+The VegasFitsIO subclass defines the FITS operations, while the VegasFitsThread is responsible for running the scan and making the write calls.
+
+Most of the change has ocurred in dibas_fits_writer, notably:
+	main.cc
+	VegasFitsIO.{h,cc}
+	VegasFitsThread.{h,cc}
+
+There were also changes to some of the vegas_hpc code, notably:
+	vegas_databuf.{h,c}
+
+The vegas_databuf struct is a 1:1 copy of the gpu_output_databuf struct over in the hashpipe repository. Eventually it would obviously make more sense to inherit the type(s) from a common header, but this led to a quicker proof-of-concept.
+
+Note that vegas_hpc contains C code that is very, very similar to hashpipe code.

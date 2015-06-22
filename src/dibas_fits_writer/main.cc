@@ -38,7 +38,7 @@
 #include <sched.h>
 #include <getopt.h>
 
-#include "VegasFitsIO.h"
+#include "BfFitsIO.h"
 #include "mainTest.h"
 
 // #include "vegas_threads.h"

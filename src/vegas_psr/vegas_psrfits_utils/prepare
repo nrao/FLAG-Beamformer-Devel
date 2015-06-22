@@ -1,2 +1,0 @@
-#! /bin/csh
-autoreconf --install --force
