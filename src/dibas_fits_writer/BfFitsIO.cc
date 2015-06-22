@@ -1297,6 +1297,7 @@ void BfFitsIO::createDataTable()
 */
 
     char data_form[10];
+    // This dictates the size of the FITS data table
     sprintf(data_form, "%dC", FITS_BIN_SIZE * NUM_CHANNELS);
     //debug
     fprintf(stderr, "data_form: %s\n", data_form);
@@ -1482,7 +1483,7 @@ BfFitsIO::write(int mcnt, float *data)
                   &mcnt);
 
     clock_gettime(CLOCK_MONOTONIC, &data_w_start);
-    // DATA column2
+    // DATA column
     write_col_cmp(column++,
                   current_row,
                   1,
@@ -1567,7 +1568,7 @@ BfFitsIO::write(int mcnt, float *data)
     return getStatus();
 }
 
-/// Check to see if the scan end time has been seen in the data
+// This checks to see if we have reached the desired scan time
 bool
 BfFitsIO::is_scan_complete()
 {
@@ -1634,6 +1635,9 @@ BfFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_mat
             if (gpu_real_index / 2 == next_red_element)
             {
                 next_red_element += inc;
+                // Due to the nature of the "matrix of 2x2 submatrices" structure,
+                //   the next redundant element will always be 4 elements after the
+                //   current one 
                 inc += 4;
                 red_els++;
             }
