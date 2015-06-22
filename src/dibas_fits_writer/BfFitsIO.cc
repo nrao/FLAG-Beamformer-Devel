@@ -660,6 +660,7 @@ int BfFitsIO::open()//const TimeStamp &ts)
     }
     string bnkstr(value);
     size_t p = bnkstr.find_last_not_of(' ');
+    // We disable this to allow us to set our own bank name directly
     // setBankName(bnkstr[p]);
 
     char *suffix = setFilename(namePtr, startTime);
