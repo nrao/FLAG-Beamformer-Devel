@@ -583,6 +583,7 @@ BfFitsIO::readPrimaryHeaderKeywords()
 //     return true;
 // }
 
+// This opens a FITS file for writing
 int BfFitsIO::open()//const TimeStamp &ts)
 {
     char rootpath[256];
@@ -679,7 +680,8 @@ int BfFitsIO::open()//const TimeStamp &ts)
         cerr << path << endl ;
     }
 
-    sprintf(theFilePath, "./%s/%s/%s",
+    sprintf(theFilePath, "%s/%s/%s/%s",
+            rootpath,
             projectId,
             "BF",
             namePtr);
@@ -1581,8 +1583,62 @@ BfFitsIO::is_scan_complete()
     return has_ended;
 }
 
-void BfFitsIO::set_scan_complete()
+void
+BfFitsIO::set_scan_complete()
 {
     scan_is_complete = true;
 }
 
+void
+BfFitsIO::parseGpuCovMatrix(const float *gpu_matrix, float *fits_matrix)
+{
+    // Counts number of redundant elements encountered
+    int red_els = 0;
+    // Counts total number of elements encountered
+    int els = 0;
+
+    // Holds index of next redundant element
+    int next_red_element = 1;
+    // The next_red_element will be inc indices away from
+    //   the previously found redundant element
+    // We start at 8 because we know that the 
+    int inc = 8;
+
+    int fits_real_index = 0;
+    int fits_imag_index = 1;
+    
+    int i, j;
+    for (i = 0; i < NUM_CHANNELS; i++)
+    {
+        // Remember we need to double the bin size because each complex pair
+        //   is actually represented as two floats
+        // This also means that we are iterating by two (since we are treating every
+        //   two elements as an atomic unit)
+        for (j = 0; j < NONZERO_BIN_SIZE * 2; j += 2)
+        {
+            // index counters for convenience
+            int gpu_real_index = (i * NONZERO_BIN_SIZE * 2) + j;
+            int gpu_imag_index = gpu_real_index + 1;
+
+            if (gpu_real_index / 2 == next_red_element)
+            {
+                next_red_element += inc;
+                inc += 4;
+                red_els++;
+            }
+            else
+            {
+                fits_matrix[fits_real_index] = gpu_matrix[gpu_real_index];
+                fits_matrix[fits_imag_index] = gpu_matrix[gpu_imag_index];
+
+                els++;
+                // These variables keep track of the indices of the data table that
+                //   will be written to FITS
+                // Again, these must increment by 2 due to the atomic nature
+                //   of a pair of floats in this context
+                fits_real_index+=2;
+                fits_imag_index+=2;
+            }
+        }
+    }
+}

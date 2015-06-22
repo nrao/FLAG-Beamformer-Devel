@@ -117,6 +117,7 @@ public:
     int write(int mcnt, float *data);
     bool is_scan_complete();
     void set_scan_complete();
+    void parseGpuCovMatrix(const float *gpu_matrix, float *fits_matrix);
 
 protected:
     int openFlag;
@@ -164,6 +165,7 @@ protected:
     double calculateBlockTime(int mcnt, double startDMJD);
 
     struct timespec data_w_start, data_w_stop;
+
 };
 
 #endif

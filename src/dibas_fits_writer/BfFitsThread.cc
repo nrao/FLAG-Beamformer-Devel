@@ -304,60 +304,11 @@ BfFitsThread::run(struct vegas_thread_args *args)
         // For a matrix of 40x40 there will be 20 redundant values
 //         int NONZERO_BIN_SIZE = (820 + 20);
         int i, j;
-        int red_els = 0;
-        int els = 0;
+        float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
 
-        int next_red_element = 1;
-        int inc = 8;
+        fitsio->parseGpuCovMatrix(gdb->block[block].data, fits_matrix);
 
-        int fits_real_index = 0;
-        int fits_imag_index = 1;
-        float fits_data[NUM_CHANNELS * FITS_BIN_SIZE * 2];
-        for (i = 0; i < NUM_CHANNELS; i++)
-        {
-            // Remember we need to double the bin size because each complex pair
-            //   is actually represented as two floats
-            // This also means that we are iterating by two (since we are treating every
-            //   two elements as an atomic unit)
-            for (j = 0; j < NONZERO_BIN_SIZE * 2; j += 2)
-            {
-                // index counters for convenience
-                int gpu_real_index = (i * NONZERO_BIN_SIZE * 2) + j;
-                int gpu_imag_index = gpu_real_index + 1;
-
-                if (gpu_real_index / 2 == next_red_element)
-                {
-//                     printf("REMOVED REDUNDANT ELEMENT\n");
-                    next_red_element += inc;
-                    inc += 4;
-                    red_els++;
-                }
-                else
-                {
-                    fits_data[fits_real_index] = gdb->block[block].data[gpu_real_index];
-                    fits_data[fits_imag_index] = gdb->block[block].data[gpu_imag_index];
-
-
-                    els++;
-                    // These variables keep track of the indices of the data table that
-                    //   will be written to FITS
-                    // Again, these must increment by 2 due to the atomic nature
-                    //   of a pair of floats in this context
-                    fits_real_index+=2;
-                    fits_imag_index+=2;
-                }
-            }
-        }
-
-//         for (i = 0; i < NUM_CHANNELS * FITS_BIN_SIZE * 2; i+=2)
-//         {
-//             printf("\treal[%d]: %.1f | ", i, fits_data[i]);
-//             printf("imag[%d]: %.1f\n", i+1, fits_data[i+1]);
-//         }
-
-
-
-        fitsio->write(gdb->block[block].header.mcnt, fits_data);
+        fitsio->write(gdb->block[block].header.mcnt, fits_matrix);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         total_write_time += ELAPSED_NS(fits_start, fits_stop);
         
