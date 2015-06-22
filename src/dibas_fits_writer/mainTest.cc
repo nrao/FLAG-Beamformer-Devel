@@ -51,20 +51,28 @@ int mainTest(int argc, char **argv)
      
     printf("status: %d\n", status);
 
-    const int num_els = 209920;
+    const int num_chans = 128;
+    const int bin_size = 820;
+    const int sizeof_chan = 820 * 2;
+    const int num_els = num_chans * bin_size * 2;
+
+
     double data[num_els];
-    float trunc_data[num_els];
+    float trunc_data[(num_chans - 8) * bin_size * 2];
 
     fits_read_col(fptr, TDOUBLE, 1, 1, 1, num_els, NULL, data, NULL, &status);
 
     printf("status: %d\n", status);
 
     // Now we need to convert all of these doubles to floats because that's how they're handled in the BF system currently
-    int i;
-    for (i = 0; i < num_els; i++)
+    // We are also chopping off the first and last 4 channels here, by starting/stopping the loop 4 channels late/early
+    int i, j;
+    for (i = 0, j = 4 * sizeof_chan; j < num_els - (4 * sizeof_chan); i++, j++)
     {
-    	trunc_data[i] = (float)data[i];
+    	trunc_data[i] = (float)data[j];
     }
+
+
 
     // No longer relevant; it appears that we are not losing any precision
     // // Now let's compare the values to see how badly we've messed them up
@@ -92,7 +100,9 @@ int mainTest(int argc, char **argv)
     double start_time = 0;
     timeval tv;
     gettimeofday(&tv, 0);
-    start_time = this_timeval_2_mjd(&tv);    
+    start_time = this_timeval_2_mjd(&tv);
+
+
 
     for (i=0; i<10; i++)
     {
@@ -113,6 +123,8 @@ int mainTest(int argc, char **argv)
 
         fitsio->set_startTime(start_time);
         fitsio->open();
+
+
         
         printf("Sending pointer to element number %d\n", i * num_els / 10);
         fitsio->write(0, trunc_data + (i * num_els / 10));
