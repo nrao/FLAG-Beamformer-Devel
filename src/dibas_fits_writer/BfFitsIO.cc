@@ -1657,3 +1657,24 @@ BfFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_mat
         }
     }
 }
+
+
+double BfFitsIO::timeval_2_mjd(timeval *tv)
+{
+    double dmjd = tv->tv_sec/86400 + MJD_1970_EPOCH;
+    dmjd += (tv->tv_sec % 86400)/86400.0;
+    return dmjd;
+}
+
+// python:
+// d, mjd = math.modf(dmjd)
+// return (86400 * (mjd - 40587)) + (86400 * d)
+unsigned long BfFitsIO::dmjd_2_secs(double dmjd)
+{
+    unsigned long mjd = (unsigned long)dmjd;
+    double d = dmjd - mjd;
+    unsigned long secs = 86400 * (mjd - MJD_1970_EPOCH);
+    double others = d * 86400.0;
+    unsigned long total = secs + others;
+    return total;
+}

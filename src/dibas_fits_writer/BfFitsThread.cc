@@ -47,7 +47,7 @@ extern "C"
 #include "BfFitsIO.h"
 #include "BfFitsThread.h"
 
-static int verbose = false;
+// static int verbose = false;
 #define dbprintf if(verbose) printf
 
 
@@ -60,26 +60,7 @@ static int verbose = false;
     pthread_cleanup_push((void (*)(void*))vegas_status_unlock, s); \
     vegas_status_lock(s)
 
-#define MJD_1970_EPOCH (40587)
-double timeval_2_mjd(timeval *tv)
-{
-    double dmjd = tv->tv_sec/86400 + MJD_1970_EPOCH;
-    dmjd += (tv->tv_sec % 86400)/86400.0;
-    return dmjd;
-}
 
-// python:
-// d, mjd = math.modf(dmjd)
-// return (86400 * (mjd - 40587)) + (86400 * d)
-unsigned long dmjd_2_secs(double dmjd)
-{
-    unsigned long mjd = (unsigned long)dmjd;
-    double d = dmjd - mjd;
-    unsigned long secs = 86400 * (mjd - MJD_1970_EPOCH);
-    double others = d * 86400.0;
-    unsigned long total = secs + others;
-    return total;
-}
 
 int scan_finished = 0;
 static void stop_thread(int sig)
@@ -207,10 +188,10 @@ BfFitsThread::run(struct vegas_thread_args *args)
         timeval tv;
         gettimeofday(&tv, 0);
         printf("gettimeofday: %lu\n", tv.tv_sec);
-        start_time = timeval_2_mjd(&tv);
+        start_time = BfFitsIO::timeval_2_mjd(&tv);
         printf("is DMJD: %f\n", start_time);
 
-        unsigned long secs = dmjd_2_secs(start_time);
+        unsigned long secs = BfFitsIO::dmjd_2_secs(start_time);
         printf("goes back to secs: %lu\n", secs);
     }
 
@@ -238,16 +219,16 @@ BfFitsThread::run(struct vegas_thread_args *args)
     }
 
     int block = 0;
-    int last_int = -2;
-    bool data_waiting = false;
-    bool new_integration = true;
+    // int last_int = -2;
+    // bool data_waiting = false;
+    // bool new_integration = true;
     int num_accum_timeouts = 0;
     char scan_status[96];
     int rx_some_data = 0;
     scan_finished = 0;
 
     // TBF: kluge
-    int scanRows = 6;
+    // int scanRows = 6;
     int rowsWritten = 0;
     uint64_t total_loop_time = 0;
     uint64_t total_write_time = 0;
@@ -303,9 +284,11 @@ BfFitsThread::run(struct vegas_thread_args *args)
         clock_gettime(CLOCK_MONOTONIC, &fits_start);
         // For a matrix of 40x40 there will be 20 redundant values
 //         int NONZERO_BIN_SIZE = (820 + 20);
-        int i, j;
+        // int i, j;
         float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
 
+        // This parses the GPU's covariance matrix output into a format viable
+        //   for writing to FITS. 
         fitsio->parseGpuCovMatrix(gdb->block[block].data, fits_matrix);
 
         fitsio->write(gdb->block[block].header.mcnt, fits_matrix);

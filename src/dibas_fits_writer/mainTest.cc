@@ -31,41 +31,12 @@ extern "C"
 #include "mainTest.h"
 #include "BfFitsIO.h"
 
-#define THIS_MJD_1970_EPOCH (40587)
-double this_timeval_2_mjd(timeval *tv)
-{
-    double dmjd = tv->tv_sec/86400 + THIS_MJD_1970_EPOCH;
-    dmjd += (tv->tv_sec % 86400)/86400.0;
-    return dmjd;
-}
-
 int mainTest(int argc, char **argv)
 {
-
-    // std::vector<float> test;
-    // for (int i = 0; i < 10; i++)
-    //     test.push_back(i);
-    // std::vector<float> other_test (test.begin() + 4, test.end() - 4);
-
-    // std::cout << "test" << std::endl;
-    // for (auto it = test.begin(); it != test.end(); ++it)
-    //     std::cout << *it << std::endl;
-
-    // std::cout << "other test" << std::endl;
-    // for (auto it = other_test.begin(); it != other_test.end(); ++it)
-    //     std::cout << *it << std::endl;
-
-    // std::cout << "things and toehr thaingasd gjas " << std::endl;
-    // std::cout << other_test.back() << std::endl;
-    // std::cout << *(test.end() - 4 - 1) << std::endl;
-
-    // return 0;
-
-
     printf("Beamformer FITS Festival!\n");
 
     fitsfile *fptr;
-    std::string filename("/home/scratch/npingel/FLAG/data/TGBT14B_913_04/PafSoftCorrel/2015_01_26_09:47:21.fits");
+    const std::string filename("/home/scratch/npingel/FLAG/data/TGBT14B_913_04/PafSoftCorrel/2015_01_26_09:47:21.fits");
     int status = 0;
     int iomode = READONLY;
     fits_open_file(&fptr, filename.c_str(), iomode, &status);
@@ -73,6 +44,7 @@ int mainTest(int argc, char **argv)
     if (status)
         printf("bad status: %d\n", status);
 
+    // Look at the second table (which is the first data table)
     fits_movabs_hdu(fptr, 2, NULL, &status);
      
     if (status)
@@ -92,18 +64,6 @@ int mainTest(int argc, char **argv)
     //   send a pointer to fits_data.data() so that we can put the elements
     //   directly into the vector
     fits_read_col(fptr, TFLOAT, 1, 1, 1, num_floats, NULL, fits_data.data(), NULL, &status);
-    
-    // float test[num_floats];
-    // fits_read_col(fptr, TFLOAT, 1, 1, 1, num_floats, NULL, test, NULL, &status);
-
-    // for (int i = 0; i < num_floats; i++)
-    // {
-    //     if (fits_data[i] != test[i])
-    //         std::cout << "wut" << std::endl;
-    // }
-
-    // return 0;
-
 
     if (status)
         printf("bad status: %d\n", status);
@@ -142,44 +102,32 @@ int mainTest(int argc, char **argv)
     // TBF: then convert to the 10 GPU's frequency space and write each to its own FITS file
     
     BfFitsIO *fitsio;
-    // char fitsfile[256];
-    // char banks[10] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'};
 
     const int num_banks = 10;
     char banks[num_banks];
-    char ch;
+    // char ch;
     // Give every bank a sequential letter representation
+    // Right now this will yield: {A, B, ... , J}
     for (int i = 0, ch = 'A'; i < num_banks; i++, ch++)
     	banks[i] = ch;
     
-    // Get the current time as an MJD for use in the FITS file names
     double start_time = 0;
     timeval tv;
     gettimeofday(&tv, 0);
-    start_time = this_timeval_2_mjd(&tv);
+    // Get the current time as an MJD for use in the FITS file names
+    start_time = BfFitsIO::timeval_2_mjd(&tv);
 
     for (int i = 0; i < 10; i++)
     {
-        //sprintf(fitsfile, "/tmp/2015_01_26_09:47:21%s.fits" , banks[0]);
-        //printf("fitsfile: %s\n", fitsfile);
-
         // Create a BfFitsIO writer
         fitsio = new BfFitsIO("/tmp", false);
 
         printf("setting bank: %c, %d\n", banks[i], i);
         fitsio->setBankName(banks[i]); //, 1);
 
-        // Min. values to set 
-        // fitsio->setNumberStokes(1);
-        // fitsio->setNumberSubBands(2);
-        // fitsio->setNumberChannels(256);
-        
-
         fitsio->set_startTime(start_time);
         fitsio->open();
 
-
-        
         printf("Sending pointer to element number %d\n", i * num_floats / 10);
         fitsio->write(0, fits_data.data() + (i * num_floats / 10));
         
@@ -232,7 +180,7 @@ int mainTest(int argc, char **argv)
 //     // use the current time
 //     timeval tv;
 //     gettimeofday(&tv, 0);
-//     start_time = this_timeval_2_mjd(&tv);    
+//     start_time = timeval_2_mjd(&tv);    
 //     printf("start: %f\n", start_time);
 //     fitsio->set_startTime(start_time);
 

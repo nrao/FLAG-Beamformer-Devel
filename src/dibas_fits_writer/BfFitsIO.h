@@ -47,6 +47,8 @@
 // time between dumps from the GPU
 // #define INT_TIME (N / PACKET_RATE)
 
+#define MJD_1970_EPOCH (40587)    
+
 #include "FitsIO.h"
 #include "SwitchingSignals.h"
 
@@ -118,6 +120,8 @@ public:
     bool is_scan_complete();
     void set_scan_complete();
     void parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_matrix);
+    static double timeval_2_mjd(timeval *tv);
+    static unsigned long dmjd_2_secs(double dmjd);
 
 protected:
     int openFlag;
