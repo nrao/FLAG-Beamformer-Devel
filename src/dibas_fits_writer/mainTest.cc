@@ -15,6 +15,7 @@
 #include <sched.h>
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 
 extern "C"
 {
@@ -40,6 +41,27 @@ double this_timeval_2_mjd(timeval *tv)
 
 int mainTest(int argc, char **argv)
 {
+
+    // std::vector<float> test;
+    // for (int i = 0; i < 10; i++)
+    //     test.push_back(i);
+    // std::vector<float> other_test (test.begin() + 4, test.end() - 4);
+
+    // std::cout << "test" << std::endl;
+    // for (auto it = test.begin(); it != test.end(); ++it)
+    //     std::cout << *it << std::endl;
+
+    // std::cout << "other test" << std::endl;
+    // for (auto it = other_test.begin(); it != other_test.end(); ++it)
+    //     std::cout << *it << std::endl;
+
+    // std::cout << "things and toehr thaingasd gjas " << std::endl;
+    // std::cout << other_test.back() << std::endl;
+    // std::cout << *(test.end() - 4 - 1) << std::endl;
+
+    // return 0;
+
+
     printf("Beamformer FITS Festival!\n");
 
     fitsfile *fptr;
@@ -48,10 +70,13 @@ int mainTest(int argc, char **argv)
     int iomode = READONLY;
     fits_open_file(&fptr, filename.c_str(), iomode, &status);
     
-    printf("status: %d\n", status);
+    if (status)
+        printf("bad status: %d\n", status);
+
     fits_movabs_hdu(fptr, 2, NULL, &status);
      
-    printf("status: %d\n", status);
+    if (status)
+        printf("bad status: %d\n", status);
 
     const int num_chans = 128; // number of channels
     const int bin_size = 820; // number of complex pair elements in a bin/channel
@@ -59,30 +84,66 @@ int mainTest(int argc, char **argv)
     const int num_floats = num_chans * chan_size; // total number of floats
 
 
-    double data[num_floats];
-    float trunc_data[(num_chans - 8) * bin_size * 2];
-
-    fits_read_col(fptr, TDOUBLE, 1, 1, 1, num_floats, NULL, data, NULL, &status);
-
-    printf("status: %d\n", status);
-
-    data[10000] = (float)434.3;
-
-    // Now we need to convert all of these doubles to floats because that's how they're handled in the BF system currently
-    // We are also chopping off the first and last 4 channels here, by starting/stopping the loop 4 channels late/early
-    for (int i = 0, j = (4 * chan_size); j < (num_floats - (4 * chan_size)); i++, j++)
-    {
-    	trunc_data[i] = (float)data[j];
-        // Check for loss of precision
-        if (trunc_data[i] != data[j])
-        {
-            std::cout << "Loss of precision!" << std::endl;
-            std::cout << std::setprecision (15) << "Old: " << data[j] << " | New: " << trunc_data[i] << std::endl;
-        }
-    }
-
+    // Create a standard vector that contains the correct number of elements (initialized to 0)
+    std::vector<float> fits_data (num_floats, 0);
+    // Read the data from the PAF comm. data as floats into fits_data
+    // A std::vector has a 'data' segment, but it also has some metadata
+    // This means that we can't just send a pointer to the vector; we must
+    //   send a pointer to fits_data.data() so that we can put the elements
+    //   directly into the vector
+    fits_read_col(fptr, TFLOAT, 1, 1, 1, num_floats, NULL, fits_data.data(), NULL, &status);
     
-    return 0;
+    // float test[num_floats];
+    // fits_read_col(fptr, TFLOAT, 1, 1, 1, num_floats, NULL, test, NULL, &status);
+
+    // for (int i = 0; i < num_floats; i++)
+    // {
+    //     if (fits_data[i] != test[i])
+    //         std::cout << "wut" << std::endl;
+    // }
+
+    // return 0;
+
+
+    if (status)
+        printf("bad status: %d\n", status);
+
+    // At this point we should have all of the data we want stored in a vector. Let's check:
+    std::cout << "\n\"initial\" fits_data:" << std::endl;
+    std::cout << "\tnumber of elements: " << fits_data.size() << std::endl;
+    std::cout << "\tnumber of channels: " << fits_data.size() / chan_size << std::endl;
+
+    // Now let's copy over the data that we want into a new vector,
+    //   leaving behind the first and last 4 channels
+    // Let's set an iterator that "points" to the beginning of the 120 channels we want to keep
+    // std::vector<float>::const_iterator trunc_begin = fits_data.begin() + (4 * chan_size);
+    // // Then an iterator that "points" to the end of the 120 channels we want to keep
+    // std::vector<float>::const_iterator trunc_end = trunc_begin + num_floats;
+    // // Then we copy the data over into a new vector with this constructor call
+    // std::vector<float> trunc_data(trunc_begin, trunc_end);
+
+    std::vector<float> trunc_data = fits_data;
+
+    // Erase the first 4 channels
+    trunc_data.erase(trunc_data.begin(), trunc_data.begin() + (4 * chan_size));
+    // Erase the last 4 channels
+    trunc_data.erase(trunc_data.end() - (4 * chan_size), trunc_data.end());
+
+    // At this point we should have removed the first and last 4 channels. Let's check:
+    std::cout << "\n\"truncated\" fits_data:" << std::endl;
+    std::cout << "\tnumber of elements: " << trunc_data.size() << std::endl;
+    std::cout << "\tnumber of channels: " << trunc_data.size() / chan_size << std::endl << std::endl;
+
+    // Check to make sure that all of the elements have been copied over correctly
+    // Basically we start at the first element of the 5th channel in the fits_data,
+    //   which is where we should have started copying the data
+    for (auto fits_it = fits_data.begin() + (4 * chan_size), trunc_it = trunc_data.begin();
+         trunc_it != trunc_data.end();
+         fits_it++, trunc_it++)
+    {
+        if (*fits_it != *trunc_it)
+            std::cout << "Error copying data over" << std::endl;
+    }
 
     // TBF: parse the FISHFITS data to convert to input and frequency space
     // TBF: then convert to the 10 GPU's frequency space and write each to its own FITS file
@@ -127,7 +188,7 @@ int mainTest(int argc, char **argv)
 
         
         printf("Sending pointer to element number %d\n", i * num_floats / 10);
-        fitsio->write(0, trunc_data + (i * num_floats / 10));
+        fitsio->write(0, fits_data.data() + (i * num_floats / 10));
         
         fitsio->close();
         delete fitsio;
