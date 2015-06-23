@@ -116,18 +116,11 @@ int mainTest(int argc, char **argv)
     // Now let's copy over the data that we want into a new vector,
     //   leaving behind the first and last 4 channels
     // Let's set an iterator that "points" to the beginning of the 120 channels we want to keep
-    // std::vector<float>::const_iterator trunc_begin = fits_data.begin() + (4 * chan_size);
-    // // Then an iterator that "points" to the end of the 120 channels we want to keep
-    // std::vector<float>::const_iterator trunc_end = trunc_begin + num_floats;
-    // // Then we copy the data over into a new vector with this constructor call
-    // std::vector<float> trunc_data(trunc_begin, trunc_end);
-
-    std::vector<float> trunc_data = fits_data;
-
-    // Erase the first 4 channels
-    trunc_data.erase(trunc_data.begin(), trunc_data.begin() + (4 * chan_size));
-    // Erase the last 4 channels
-    trunc_data.erase(trunc_data.end() - (4 * chan_size), trunc_data.end());
+    std::vector<float>::const_iterator trunc_begin = fits_data.begin() + (4 * chan_size);
+    // Then an iterator that "points" to the end of the 120 channels we want to keep
+    std::vector<float>::const_iterator trunc_end = fits_data.end() - (4 * chan_size);
+    // Then we copy the data over into a new vector with this constructor call
+    std::vector<float> trunc_data(trunc_begin, trunc_end);
 
     // At this point we should have removed the first and last 4 channels. Let's check:
     std::cout << "\n\"truncated\" fits_data:" << std::endl;
