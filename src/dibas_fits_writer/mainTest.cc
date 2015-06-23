@@ -13,6 +13,8 @@
 #include <errno.h>
 #include <time.h>
 #include <sched.h>
+#include <iostream>
+#include <iomanip>
 
 extern "C"
 {
@@ -51,39 +53,39 @@ int mainTest(int argc, char **argv)
      
     printf("status: %d\n", status);
 
-    const int num_chans = 128;
-    const int bin_size = 820;
-    const int sizeof_chan = 820 * 2;
-    const int num_els = num_chans * bin_size * 2;
+    const int num_chans = 128; // number of channels
+    const int bin_size = 820; // number of complex pair elements in a bin/channel
+    const int chan_size = bin_size * 2; // number of floats in a channel
+    const int num_floats = num_chans * chan_size; // total number of floats
 
 
-    double data[num_els];
+    double data[num_floats];
     float trunc_data[(num_chans - 8) * bin_size * 2];
 
-    fits_read_col(fptr, TDOUBLE, 1, 1, 1, num_els, NULL, data, NULL, &status);
+    fits_read_col(fptr, TDOUBLE, 1, 1, 1, num_floats, NULL, data, NULL, &status);
 
     printf("status: %d\n", status);
 
+    data[10000] = (float)434.3;
+
     // Now we need to convert all of these doubles to floats because that's how they're handled in the BF system currently
     // We are also chopping off the first and last 4 channels here, by starting/stopping the loop 4 channels late/early
-    int i, j;
-    for (i = 0, j = 4 * sizeof_chan; j < num_els - (4 * sizeof_chan); i++, j++)
+    for (int i = 0, j = (4 * chan_size); j < (num_floats - (4 * chan_size)); i++, j++)
     {
     	trunc_data[i] = (float)data[j];
+        // Check for loss of precision
+        if (trunc_data[i] != data[j])
+        {
+            std::cout << "Loss of precision!" << std::endl;
+            std::cout << std::setprecision (15) << "Old: " << data[j] << " | New: " << trunc_data[i] << std::endl;
+        }
     }
 
-
-
-    // No longer relevant; it appears that we are not losing any precision
-    // // Now let's compare the values to see how badly we've messed them up
-    // for (i = 0; i < 10; i++)
-    // {
-    // 	printf("double: data[%d] =       %f\n", i, data[i]);
-    // 	printf("float:  trunc_data[%d] = %f\n", i, trunc_data[i]);
-    // }
+    
+    return 0;
 
     // TBF: parse the FISHFITS data to convert to input and frequency space
-    // TBF: then convert to the 10 GPU's frequency space and write each to it's own FITS file
+    // TBF: then convert to the 10 GPU's frequency space and write each to its own FITS file
     
     BfFitsIO *fitsio;
     // char fitsfile[256];
@@ -91,10 +93,10 @@ int mainTest(int argc, char **argv)
 
     const int num_banks = 10;
     char banks[num_banks];
-    char c;
+    char ch;
     // Give every bank a sequential letter representation
-    for (i = 0, c = 'A'; i < num_banks; i++, c++)
-    	banks[i] = c;
+    for (int i = 0, ch = 'A'; i < num_banks; i++, ch++)
+    	banks[i] = ch;
     
     // Get the current time as an MJD for use in the FITS file names
     double start_time = 0;
@@ -102,9 +104,7 @@ int mainTest(int argc, char **argv)
     gettimeofday(&tv, 0);
     start_time = this_timeval_2_mjd(&tv);
 
-
-
-    for (i=0; i<10; i++)
+    for (int i = 0; i < 10; i++)
     {
         //sprintf(fitsfile, "/tmp/2015_01_26_09:47:21%s.fits" , banks[0]);
         //printf("fitsfile: %s\n", fitsfile);
@@ -126,8 +126,8 @@ int mainTest(int argc, char **argv)
 
 
         
-        printf("Sending pointer to element number %d\n", i * num_els / 10);
-        fitsio->write(0, trunc_data + (i * num_els / 10));
+        printf("Sending pointer to element number %d\n", i * num_floats / 10);
+        fitsio->write(0, trunc_data + (i * num_floats / 10));
         
         fitsio->close();
         delete fitsio;
