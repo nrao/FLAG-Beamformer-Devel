@@ -31,9 +31,10 @@ extern "C"
 #include "mainTest.h"
 #include "BfFitsIO.h"
 
-int mainTest(int argc, char **argv)
+int mainTest(bool cov_mode, int argc, char **argv)
 {
-    printf("Beamformer FITS Festival!\n");
+    printf("Beamformer FITS Festival! Cov. Matrix mode? %d\n", cov_mode);
+    return(0);
 
     fitsfile *fptr;
     const std::string filename("/home/scratch/npingel/FLAG/data/TGBT14B_913_04/PafSoftCorrel/2015_01_26_09:47:21.fits");

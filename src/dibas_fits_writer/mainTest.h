@@ -1,1 +1,1 @@
-int mainTest(int argc, char **argv);
+int mainTest(bool cov_mode, int argc, char **argv);
