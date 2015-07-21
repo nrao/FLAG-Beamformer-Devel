@@ -1296,9 +1296,9 @@ void BfFitsIO::createDataTable()
     tformLags[6] = stpspec_tform;
 */
 
-    char data_form[10];
+    //char data_form[10];
     // This dictates the size of the FITS data table
-    sprintf(data_form, "%dC", FITS_BIN_SIZE * NUM_CHANNELS);
+    //sprintf(data_form, "%dC", FITS_BIN_SIZE * NUM_CHANNELS);
     //debug
     fprintf(stderr, "data_form: %s\n", data_form);
 
@@ -1455,9 +1455,10 @@ double BfFitsIO::calculateBlockTime(int mcnt, double startDMJD) {
     return (startDMJD + (double)((double)scan_time_clock/(double)(24*60*60)));
 }
 
+
 /// Writes a full integration of data to a row in the FITS file.
 int
-BfFitsIO::write(int mcnt, float *data)
+BfFitsIO::writeRow(int mcnt, float *data)
 {
     int column = 1;
     MutexLock l(lock_mutex);
@@ -1487,7 +1488,7 @@ BfFitsIO::write(int mcnt, float *data)
     write_col_cmp(column++,
                   current_row,
                   1,
-                  FITS_BIN_SIZE * NUM_CHANNELS,
+                  data_size, //FITS_BIN_SIZE * NUM_CHANNELS,
                   data);
      clock_gettime(CLOCK_MONOTONIC, &data_w_stop);
      // printf("It took %lu ns (%f seconds) to write the data table to FITS\n", ELAPSED_NS(data_w_start, data_w_stop), ELAPSED_NS(data_w_start, data_w_stop) / 1000000000.0);

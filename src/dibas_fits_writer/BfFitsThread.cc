@@ -45,6 +45,8 @@ extern "C"
 
 #include "DiskBufferChunk.h"
 #include "BfFitsIO.h"
+#include "BfPulsarFitsIO.h"
+#include "BfCovFitsIO.h"
 #include "BfFitsThread.h"
 
 // static int verbose = false;
@@ -193,10 +195,15 @@ BfFitsThread::run(struct vegas_thread_args *args)
         vegas_error("Vegas FITS writer", "DATADIR status memory keyword not set");
         pthread_exit(0);
     }
-    // TBF: which sublcass to create?
-    // Create a BfFitsIO writer
-    fitsio = new BfFitsIO(datadir, false);
+    // Create a BfFitsIO writer subclass based on mode
+    if (cov_mode)
+        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false);
+    else    
+        fitsio = (BfFitsIO *) new BfPulsarFitsIO(datadir, false);
+
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio);
+
+    printf("abstract: %d\n", fitsio->myAbstract());
 
     // pass a copy of the status memory to the writer
     fitsio->copyStatusMemory(status_buf);
@@ -314,23 +321,27 @@ BfFitsThread::run(struct vegas_thread_args *args)
         // For a matrix of 40x40 there will be 20 redundant values
 //         int NONZERO_BIN_SIZE = (820 + 20);
         // int i, j;
-        float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
+        //float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
 
         // This parses the GPU's covariance matrix output into a format viable
         //   for writing to FITS. 
-        if (cov_mode)
-            fitsio->parseGpuCovMatrix(((bf_databuf *)gdb)->block[block].data, fits_matrix);
+        //if (cov_mode)
+        //    fitsio->parseGpuCovMatrix(((bf_databuf *)gdb)->block[block].data, fits_matrix);
 
         // collect some mode dependent info about the databuffer blocks
         int mcnt, n_block;
+        float *data;
         if (cov_mode) {
             mcnt = ((bf_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bf_databuf *)gdb)->header.n_block;
+            data = ((bf_databuf *)gdb)->block[block].data;
         } else {
             mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
+            data = ((bfp_databuf *)gdb)->block[block].data;
         }    
-        fitsio->write(mcnt, fits_matrix);
+        //fitsio->write(mcnt, fits_matrix);
+        fitsio->write(mcnt, data);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         total_write_time += ELAPSED_NS(fits_start, fits_stop);
         

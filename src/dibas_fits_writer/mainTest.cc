@@ -30,12 +30,28 @@ extern "C"
 
 #include "mainTest.h"
 #include "BfFitsIO.h"
+#include "BfCovFitsIO.h"
+#include "BfPulsarFitsIO.h"
 
 int mainTest(bool cov_mode, int argc, char **argv)
 {
     printf("Beamformer FITS Festival! Cov. Matrix mode? %d\n", cov_mode);
-    return(0);
+    int rv = 0;
+    if (cov_mode)
+        rv = mainTestCov(argc, argv);
+    else    
+        rv = mainTestPulsar(argc, argv);
+    return rv;    
+}
 
+// TBF
+int mainTestPulsar(int argc, char **argv)
+{
+    return 0;
+}
+
+int mainTestCov(int argc, char **argv)
+{
     fitsfile *fptr;
     const std::string filename("/home/scratch/npingel/FLAG/data/TGBT14B_913_04/PafSoftCorrel/2015_01_26_09:47:21.fits");
     int status = 0;
@@ -102,7 +118,7 @@ int mainTest(bool cov_mode, int argc, char **argv)
     // TBF: parse the FISHFITS data to convert to input and frequency space
     // TBF: then convert to the 10 GPU's frequency space and write each to its own FITS file
     
-    BfFitsIO *fitsio;
+    BfCovFitsIO *fitsio;
 
     const int num_banks = 10;
     char banks[num_banks];
@@ -121,7 +137,7 @@ int mainTest(bool cov_mode, int argc, char **argv)
     for (int i = 0; i < 10; i++)
     {
         // Create a BfFitsIO writer
-        fitsio = new BfFitsIO("/tmp", false);
+        fitsio = new BfCovFitsIO("/tmp", false);
 
         printf("setting bank: %c, %d\n", banks[i], i);
         fitsio->setBankName(banks[i]); //, 1);
@@ -130,7 +146,7 @@ int mainTest(bool cov_mode, int argc, char **argv)
         fitsio->open();
 
         printf("Sending pointer to element number %d\n", i * num_floats / 10);
-        fitsio->write(0, fits_data.data() + (i * num_floats / 10));
+        fitsio->writeRow(0, fits_data.data() + (i * num_floats / 10));
         
         fitsio->close();
         delete fitsio;
