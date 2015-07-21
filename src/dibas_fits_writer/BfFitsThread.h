@@ -50,8 +50,11 @@ public:
     static void status_detach(vegas_status *st);
     static void setExitStatus(vegas_status *st);
     static void databuf_detach(bf_databuf *);
+    static void databuf_detach(void *);
     static void free_sdfits(vegas_status *st);
     static void close(BfFitsIO *f);
+
+    //virtual void *databuf_attach(int id) = 0;
 
 protected:
 

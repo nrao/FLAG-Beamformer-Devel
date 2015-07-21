@@ -81,6 +81,9 @@ void *runGbtFitsWriter(void *ptr)
 void *
 BfFitsThread::run(struct vegas_thread_args *args)
 {
+    // TBF: from args
+    bool cov_mode = true;
+
     int rv;
     BfFitsIO *fitsio;
 
@@ -124,13 +127,40 @@ BfFitsThread::run(struct vegas_thread_args *args)
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::setExitStatus, &st);
 
     const int databufid = 1; // disk buffer
-    // Attach to the data buffer shared memory
-    bf_databuf *gdb = bf_databuf_attach(databufid);
+
+    // Attach to the data buffer shared memory.
+    // Different modes are taken into account due to the different buffer sizes
+    void *gdb;
+    int shmid, semid;
+    if (cov_mode) {
+        gdb = (void *)bf_databuf_attach(databufid);
+        if (gdb != 0)
+            semid = ((bf_databuf *)gdb)->header.semid;
+    } else {
+        gdb = (void *)bfp_databuf_attach(databufid);
+        if (gdb != 0)
+            semid = ((bfp_databuf *)gdb)->header.semid;
+    }
+
+    // If we couldn't attach, exit
     if(gdb == 0)
     {
         vegas_error("BfFitsThread::run", "databuffer attach error cannot continue");
         pthread_exit(NULL);
     }
+
+    // collect information about mode specific databuffer
+    /*
+    int shmid, semid;
+    if (cov_mode)
+    {
+        semid = ((bf_databuf *)gdb)->header.semid;
+    } else {
+        semid = ((bfp_databuf *)gdb)->header.semid;
+    }
+    */
+
+    // make sure we detach from this buffer when the thread exits
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::databuf_detach, gdb);
 
     /* Set the thread  status to init */
@@ -164,6 +194,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         vegas_error("Vegas FITS writer", "DATADIR status memory keyword not set");
         pthread_exit(0);
     }
+    // TBF: which sublcass to create?
     // Create a BfFitsIO writer
     fitsio = new BfFitsIO(datadir, false);
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio);
@@ -194,7 +225,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
         unsigned long secs = BfFitsIO::dmjd_2_secs(start_time);
         printf("goes back to secs: %lu\n", secs);
     }
-
 
     fitsio->set_startTime(start_time);
 
@@ -248,7 +278,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     {
         clock_gettime(CLOCK_MONOTONIC, &loop_start);
         // Wait for a data buffer from the HPC program
-        if(bf_databuf_wait_filled(gdb, block))
+        if (databuf_wait_filled(semid, block))
         {
             printf("Timed out\n");
             // Waiting timed out - check the scan status
@@ -289,9 +319,19 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
         // This parses the GPU's covariance matrix output into a format viable
         //   for writing to FITS. 
-        fitsio->parseGpuCovMatrix(gdb->block[block].data, fits_matrix);
+        if (cov_mode)
+            fitsio->parseGpuCovMatrix(((bf_databuf *)gdb)->block[block].data, fits_matrix);
 
-        fitsio->write(gdb->block[block].header.mcnt, fits_matrix);
+        // collect some mode dependent info about the databuffer blocks
+        int mcnt, n_block;
+        if (cov_mode) {
+            mcnt = ((bf_databuf *)gdb)->block[block].header.mcnt;
+            n_block = ((bf_databuf *)gdb)->header.n_block;
+        } else {
+            mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
+            n_block = ((bfp_databuf *)gdb)->header.n_block;
+        }    
+        fitsio->write(mcnt, fits_matrix);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         total_write_time += ELAPSED_NS(fits_start, fits_stop);
         
@@ -368,13 +408,13 @@ BfFitsThread::run(struct vegas_thread_args *args)
         */
 
         // Free the datablock for the HPC program
-        if(bf_databuf_set_free(gdb, block))
+        if(databuf_set_free(semid, block))
         {
             vegas_warn("BfFitsThread::run", "failed to set block free");
             printf("block=%d\n", block);
         }
 
-        block = (block + 1) % gdb->header.n_block;
+        block = (block + 1) % n_block;
 
         // Scan completed (We have more than SCANLEN of data)
 
@@ -404,7 +444,8 @@ BfFitsThread::run(struct vegas_thread_args *args)
     hputs(st.buf, STATUS_KEYW, "exiting");
     vegas_status_unlock_safe(&st);
 
-    bf_databuf_detach(gdb);
+    // cleanup on exit
+    databuf_detach(gdb);
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
@@ -432,6 +473,12 @@ BfFitsThread::setExitStatus(vegas_status *st)
     vegas_status_lock(st);
     hputs(st->buf, STATUS_KEYW, "exiting");
     vegas_status_unlock(st);
+}
+
+void
+BfFitsThread::databuf_detach(void *db)
+{
+    databuf_detach(db);
 }
 
 void
