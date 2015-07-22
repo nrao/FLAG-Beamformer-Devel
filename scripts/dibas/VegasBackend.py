@@ -104,6 +104,8 @@ class VegasBackend(Backend):
         self.ss.set_spec_tick(self.spec_tick)
         self.ss.set_hwexposr(self.hwexposr)
 
+        self.fits_writer_program = "vegasFitsWriter"
+
     def cleanup(self):
         """
         This explicitly cleans up any child processes. This will be called
@@ -824,9 +826,10 @@ class VegasBackend(Backend):
             return
 
         self.stop_fits_writer()
-        fits_writer_program = "vegasFitsWriter"
+        #fits_writer_program = "vegasFitsWriter"
 
-        sp_path = self.dibas_dir + '/exec/x86_64-linux/' + fits_writer_program
+        sp_path = self.dibas_dir + '/exec/x86_64-linux/' + self.fits_writer_program
+        print "starting bfFitsWriter sp_path", sp_path
         self.fits_writer_process = subprocess.Popen((sp_path, ), stdin=subprocess.PIPE)
 
 
