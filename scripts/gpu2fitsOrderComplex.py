@@ -105,8 +105,9 @@ cmpSz = 2 # real and imaginary parts
 
 # start off w/ Fits array being all zero
 # and the size of the lower triangle of the input matrix
-fitsArraySize = (M*(M+1))/2 * cmpSz
+fitsArraySize = ((M*(M+1))/2) * cmpSz
 fitsArray = [0 for i in range(fitsArraySize)]
+print "fits size: ", fitsArraySize
 
 # The larger GPU array (redundant values) has values equal to it's indicies
 gpuArraySize = fitsArraySize + (M/2 * cmpSz)
@@ -139,9 +140,24 @@ for bRow in range(m):
             #else:
             #    print "  redundant: ", x, y
 
-print "fits Array: ", fitsArray        
+#print "fits Array: ", fitsArray        
 #fitsArrayFourInputs = [0, 2, 3, 4, 5, 8, 6, 7, 10, 11]
 fitsArrayFourInputs = [0, 1, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 12, 13, 14, 15, 20, 21, 22, 23]
 fitsArrayTwoInputs = fitsArrayFourInputs[:6]
 #assert fitsArrayTwoInputs == fitsArray
-assert fitsArrayFourInputs == fitsArray 
+#assert fitsArrayFourInputs == fitsArray 
+
+# Thomas:
+import numpy as np
+newGpuArray = np.zeros(gpuArraySize)
+
+#counter = 0
+#for gpu_index in fitsArrayFourInputs:
+#    newGpuArray[gpu_index] = fitsArray[counter]
+#    counter += 1
+
+# Paul:
+for i, gpu_index in enumerate(fitsArrayFourInputs):
+    newGpuArray[gpu_index] = fitsArray[i]
+
+print "new GPU array: ", newGpuArray
