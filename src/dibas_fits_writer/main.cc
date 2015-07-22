@@ -37,6 +37,16 @@
 #include <time.h>
 #include <sched.h>
 #include <getopt.h>
+extern "C"
+{
+#include "vegas_error.h"
+#include "vegas_status.h"
+#include "bf_databuf.h"
+#include "spead_heap.h"
+#include "fitshead.h"
+#define STATUS_KEYW "DISKSTAT"
+#include "vegas_threads.h"
+};
 
 #include "BfFitsIO.h"
 #include "mainTest.h"
@@ -263,7 +273,9 @@ int mainThread(bool cov_mode, int argc, char **argv)
             else
             {
                 run = 1;
-                pthread_create(&thread_id, NULL, runGbtFitsWriter, 0);
+                struct vegas_thread_args vargs;
+                vargs.cov_mode = cov_mode;
+                pthread_create(&thread_id, NULL, runGbtFitsWriter, &vargs);
             }
         }
         else if (strncasecmp(cmd,"STOP",MAX_CMD_LEN)==0 ||
