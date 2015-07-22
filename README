@@ -22,3 +22,4 @@ There were also changes to some of the vegas_hpc code, notably:
 The vegas_databuf struct is a 1:1 copy of the gpu_output_databuf struct over in the hashpipe repository. Eventually it would obviously make more sense to inherit the type(s) from a common header, but this led to a quicker proof-of-concept.
 
 Note that vegas_hpc contains C code that is very, very similar to hashpipe code.
+Akshaya was here.
