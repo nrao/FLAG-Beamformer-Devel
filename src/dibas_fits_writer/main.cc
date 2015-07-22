@@ -37,6 +37,16 @@
 #include <time.h>
 #include <sched.h>
 #include <getopt.h>
+extern "C"
+{
+#include "vegas_error.h"
+#include "vegas_status.h"
+#include "bf_databuf.h"
+#include "spead_heap.h"
+#include "fitshead.h"
+#define STATUS_KEYW "DISKSTAT"
+#include "vegas_threads.h"
+};
 
 #include "BfFitsIO.h"
 #include "mainTest.h"
@@ -55,6 +65,7 @@ void usage() {
             "Usage: vegasFitsWriter (options) \n"
             "Options:\n"
             "  -t , --test         run a test\n"
+            "  -m , --mode         'c' for Cov. Matrix, 'p' for Pulsar\n"
             );
 }
 
@@ -99,7 +110,7 @@ const char CONTROL_FIFO[] = "/tmp/tchamber/vegas_fits_control";
 
 extern "C" int setup_privileges();
 
-int mainThread(int argc, char **argv)
+int mainThread(bool cov_mode, int argc, char **argv)
 {
     run = 1;
     int command_fifo;
@@ -262,7 +273,9 @@ int mainThread(int argc, char **argv)
             else
             {
                 run = 1;
-                pthread_create(&thread_id, NULL, runGbtFitsWriter, 0);
+                struct vegas_thread_args vargs;
+                vargs.cov_mode = cov_mode;
+                pthread_create(&thread_id, NULL, runGbtFitsWriter, &vargs);
             }
         }
         else if (strncasecmp(cmd,"STOP",MAX_CMD_LEN)==0 ||
@@ -318,19 +331,23 @@ int main(int argc, char **argv) {
     static struct option long_opts[] = {
         {"help",   0, NULL, 'h'},
         {"test",   0, NULL, 't'},
+        {"mode",   1, NULL, 'm'},
         {0,0,0,0}
     };
 
     int opt, opti;
     bool test = false;
-
-    while ((opt=getopt_long(argc,argv,"ht",long_opts,&opti))!=-1) {
-        printf("opt: %d\n", opt);
+    bool cov_mode = true;
+    char cov_mode_value = 'c';
+    while ((opt=getopt_long(argc,argv,"htm:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 't':
                 //printf("optarg: %s\n", optarg);
                 //instance_id = atoi(optarg);
                 test = true;
+                break;
+            case 'm':    
+                cov_mode = (cov_mode_value == *optarg);
                 break;
             case 'h':
             default:
@@ -340,21 +357,10 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("processed options\n");
 
     if (test)
-        mainTest(argc, argv);
+        mainTest(cov_mode, argc, argv);
     else 
-        mainThread(argc, argv);
+        mainThread(cov_mode, argc, argv);
     return (0);
 }
-
-/*
-int main(int argc, char **argv) {
-    printf("Dibas FITS Writer main: %d\n", argc);
-    if (argc > 1)
-        mainTest(argc, argv);
-    else 
-        mainThread(argc, argv);
-}
-*/

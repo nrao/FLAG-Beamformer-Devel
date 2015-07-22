@@ -31,6 +31,7 @@
 
 import time
 import shlex
+import subprocess
 from datetime import datetime, timedelta
 
 from VegasBackend import VegasBackend
@@ -75,6 +76,8 @@ class BeamformerBackend(VegasBackend):
         self.clear_switching_states()
         self.add_switching_state(1.0, blank = False, cal = False, sig_ref_1 = False)
         self.start_hpc()
+
+        self.fits_writer_program = 'bfFitsWriter'
         self.start_fits_writer()
 
     def start(self, inSecs, durSecs):

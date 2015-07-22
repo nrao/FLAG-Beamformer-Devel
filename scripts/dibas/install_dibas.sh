@@ -162,7 +162,7 @@ install_vegas_daq()
     cd src
     for i in  \
         vegas_hpc/src/vegas_hpc_server \
-        dibas_fits_writer/vegasFitsWriter ;
+        dibas_fits_writer/bfFitsWriter ;
     do
         if [ -x  $i ]; then
             j=`basename $i`

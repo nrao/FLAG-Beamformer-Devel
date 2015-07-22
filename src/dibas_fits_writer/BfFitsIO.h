@@ -80,6 +80,8 @@ public:
     BfFitsIO(const char *path_prefix, int simulator = 0);
     ~BfFitsIO();
 
+    virtual int myAbstract() = 0;
+
     // This method opens the FITS file for writing.
     // The FitsIO status is returned.
     // <group>
@@ -116,10 +118,10 @@ public:
     void createDataTable();
 
     // int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
-    int write(int mcnt, float *data);
+    int writeRow(int mcnt, float *data);
+    virtual int write(int mcnt, float *data) = 0;
     bool is_scan_complete();
     void set_scan_complete();
-    void parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_matrix);
     static double timeval_2_mjd(timeval *tv);
     static unsigned long dmjd_2_secs(double dmjd);
 
@@ -169,6 +171,9 @@ protected:
     double calculateBlockTime(int mcnt, double startDMJD);
 
     struct timespec data_w_start, data_w_stop;
+
+    int data_size;
+    char data_form[256];
 
 };
 

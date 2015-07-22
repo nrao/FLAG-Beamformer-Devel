@@ -50,6 +50,11 @@ struct decprecated_bf_databuf {
 // #define NUM_CHANNELS 160
 #define TOTAL_GPU_DATA_SIZE (GPU_BIN_SIZE * NUM_CHANNELS * 2)
 
+// For pulsar mode 
+#define NUM_PULSAR_CHANNELS 50
+#define NUM_BEAMS 7
+#define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS)
+
 #define NUM_BLOCKS 4
 
 typedef struct {
@@ -71,10 +76,24 @@ typedef struct bf_databuf_block {
   float data[TOTAL_GPU_DATA_SIZE];
 } bf_databuf_block_t;
 
+typedef struct bfp_databuf_block {
+  bf_databuf_block_header_t header;
+  // we must double the elements since CFITSIO interperates every two elements as a pair
+  float data[TOTAL_GPU_PULSAR_DATA_SIZE];
+} bfp_databuf_block_t;
+
+// Covariance Matrix outputmode
 struct bf_databuf {
         bf_databuf_header_t header;
         bf_databuf_block_t block[NUM_BLOCKS];
 };
+
+// Pulsar outputmode
+struct bfp_databuf {
+        bf_databuf_header_t header;
+        bfp_databuf_block_t block[NUM_BLOCKS];
+};
+
 /* union for semaphore ops. */
 union semun {
     int val;
@@ -142,9 +161,13 @@ void vegas_conf_databuf_size(struct bf_databuf *d, size_t new_block_size);
  * Returns error if segment does not exist
  */
 struct bf_databuf *bf_databuf_attach(int databuf_id);
+struct bfp_databuf *bfp_databuf_attach(int databuf_id);
+int databuf_get_shmid(int databuf_id);
 
 /** Detach from shared mem segment */
+int databuf_detach(void *d);
 int bf_databuf_detach(struct bf_databuf *d);
+int bfp_databuf_detach(struct bfp_databuf *d);
 
 /** Clear out either the whole databuf (set all sems to 0,
  * clear all header blocks) or a single FITS-style
@@ -195,9 +218,13 @@ int bf_databuf_total_status(struct bf_databuf *d);
  * it is already in that state.
  */
 int bf_databuf_wait_filled(struct bf_databuf *d, int block_id);
+int bfp_databuf_wait_filled(struct bfp_databuf *d, int block_id);
+int databuf_wait_filled(int semid, int block_id);
 int bf_databuf_set_filled(struct bf_databuf *d, int block_id);
 int bf_databuf_wait_free(struct bf_databuf *d, int block_id);
 int bf_databuf_set_free(struct bf_databuf *d, int block_id);
+int bfp_databuf_set_free(struct bfp_databuf *d, int block_id);
+int databuf_set_free(int semid, int block_id);
 
 #ifdef __cplusplus /* C++ prototypes */
 }

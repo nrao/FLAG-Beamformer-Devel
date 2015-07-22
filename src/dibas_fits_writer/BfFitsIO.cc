@@ -1296,9 +1296,9 @@ void BfFitsIO::createDataTable()
     tformLags[6] = stpspec_tform;
 */
 
-    char data_form[10];
+    //char data_form[10];
     // This dictates the size of the FITS data table
-    sprintf(data_form, "%dC", FITS_BIN_SIZE * NUM_CHANNELS);
+    //sprintf(data_form, "%dC", FITS_BIN_SIZE * NUM_CHANNELS);
     //debug
     fprintf(stderr, "data_form: %s\n", data_form);
 
@@ -1455,9 +1455,10 @@ double BfFitsIO::calculateBlockTime(int mcnt, double startDMJD) {
     return (startDMJD + (double)((double)scan_time_clock/(double)(24*60*60)));
 }
 
+
 /// Writes a full integration of data to a row in the FITS file.
 int
-BfFitsIO::write(int mcnt, float *data)
+BfFitsIO::writeRow(int mcnt, float *data)
 {
     int column = 1;
     MutexLock l(lock_mutex);
@@ -1487,7 +1488,7 @@ BfFitsIO::write(int mcnt, float *data)
     write_col_cmp(column++,
                   current_row,
                   1,
-                  FITS_BIN_SIZE * NUM_CHANNELS,
+                  data_size, //FITS_BIN_SIZE * NUM_CHANNELS,
                   data);
      clock_gettime(CLOCK_MONOTONIC, &data_w_stop);
      // printf("It took %lu ns (%f seconds) to write the data table to FITS\n", ELAPSED_NS(data_w_start, data_w_stop), ELAPSED_NS(data_w_start, data_w_stop) / 1000000000.0);
@@ -1589,75 +1590,6 @@ BfFitsIO::set_scan_complete()
 {
     scan_is_complete = true;
 }
-
-// This function takes the GPU's covariance matrix output (64x64)
-//   and parses it into a consolidated format suitable for writing to FITS.
-// There are two "steps" here.
-// 1. We know that only the first NONZERO_BIN_SIZE elements are non-zero
-//    That is, xGPU will only be writing data to this number of elements.
-//    So, for each frequency bin, we can simply stop processing after
-//    we have processed NONZERO_BIN_SIZE elements in each frequency bin.
-// 2. We know that there will be NUM_ANTENNAS/2 redundant elements in
-//    each frequency bin. That is, of the NONZERO_BIN_SIZE elements,
-//    some will be duplicates. These are slightly more difficult to remove.
-//    This is done with the next_red_element index tracker, etc.
-void
-BfFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_matrix)
-{
-    // Counts number of redundant elements encountered
-    int red_els = 0;
-    // Counts total number of elements encountered
-    int els = 0;
-
-    // Holds index of next redundant element
-    int next_red_element = 1;
-    // The next_red_element will be inc indices away from
-    //   the previously found redundant element
-    // We start at 8 because we know that the 
-    int inc = 8;
-
-    int fits_real_index = 0;
-    int fits_imag_index = 1;
-    
-    int i, j;
-    for (i = 0; i < NUM_CHANNELS; i++)
-    {
-        // Remember we need to double the bin size because each complex pair
-        //   is actually represented as two floats
-        // This also means that we are iterating by two (since we are treating every
-        //   two elements as an atomic unit)
-        for (j = 0; j < NONZERO_BIN_SIZE * 2; j += 2)
-        {
-            // index counters for convenience
-            int gpu_real_index = (i * NONZERO_BIN_SIZE * 2) + j;
-            int gpu_imag_index = gpu_real_index + 1;
-
-            if (gpu_real_index / 2 == next_red_element)
-            {
-                next_red_element += inc;
-                // Due to the nature of the "matrix of 2x2 submatrices" structure,
-                //   the next redundant element will always be 4 elements after the
-                //   current one 
-                inc += 4;
-                red_els++;
-            }
-            else
-            {
-                fits_matrix[fits_real_index] = gpu_matrix[gpu_real_index];
-                fits_matrix[fits_imag_index] = gpu_matrix[gpu_imag_index];
-
-                els++;
-                // These variables keep track of the indices of the data table that
-                //   will be written to FITS
-                // Again, these must increment by 2 due to the atomic nature
-                //   of a pair of floats in this context
-                fits_real_index+=2;
-                fits_imag_index+=2;
-            }
-        }
-    }
-}
-
 
 double BfFitsIO::timeval_2_mjd(timeval *tv)
 {

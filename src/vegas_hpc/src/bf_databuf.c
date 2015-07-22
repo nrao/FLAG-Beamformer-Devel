@@ -56,6 +56,14 @@ void vegas_conf_databuf_size(struct bf_databuf *d, size_t new_block_size)
 
 /** Detach from the shared memory databuffer */
 int bf_databuf_detach(struct bf_databuf *d) {
+    return databuf_detach(d);
+}
+
+int bfp_databuf_detach(struct bfp_databuf *d) {
+    return databuf_detach(d);
+}
+
+int databuf_detach(void *d) {
     int rv = shmdt(d);
     if (rv!=0) {
         vegas_error("vegas_status_detach", "shmdt error");
@@ -248,28 +256,9 @@ vegas_datablock_freq_heap_data(struct bf_databuf *d, int block_id, int heap_id)
  */
 struct bf_databuf *bf_databuf_attach(int databuf_id) {
 
-    // TBF: needs to be instance aware!
-    int instance_id = 0;
-
-    /* Get shared memory block */
-    key_t key = hashpipe_databuf_key(instance_id);
-    //if(key == HASHPIPE_KEY_ERROR) {
-    if(key == -1) {
-        //hashpipe_error(__FUNCTION__, "hashpipe_databuf_key error");
-        vegas_error("bf_databuf_attach", "hashpipe_databuf_key error");
+    int shmid = databuf_get_shmid(databuf_id);
+    if (shmid == -1)
         return NULL;
-    }
-    printf("bf_databuf shmget key: %x\n" , key);
-    
-    /* Get shmid */
-    int shmid;
-    shmid = shmget(key + databuf_id - 1, 0, 0666);
-    if (shmid==-1) {
-        // Doesn't exist, exit quietly otherwise complain
-        if (errno!=ENOENT)
-            vegas_error("bf_databuf_attach", "shmget error");
-        return(NULL);
-    }
 
     /* Attach */
     struct bf_databuf *d;
@@ -282,6 +271,56 @@ struct bf_databuf *bf_databuf_attach(int databuf_id) {
     return(d);
 
 }
+
+struct bfp_databuf *bfp_databuf_attach(int databuf_id) {
+
+    int shmid = databuf_get_shmid(databuf_id);
+    if (shmid == -1)
+        return NULL;
+
+    // Attach
+    struct bfp_databuf *d;
+    d = shmat(shmid, NULL, 0);
+    if (d==(void *)-1) {
+        vegas_error("bf_databuf_attach", "shmat error");
+        return(NULL);
+    }
+
+    return(d);
+}
+
+/** Retreive the shared memory ID for the given data buffer id 
+ */
+int databuf_get_shmid(int databuf_id) {
+
+    // TBF: needs to be instance aware!
+    int instance_id = 0;
+
+    // Get shared memory block
+    key_t key = hashpipe_databuf_key(instance_id);
+    //if(key == HASHPIPE_KEY_ERROR) {
+    if(key == -1) {
+        //hashpipe_error(__FUNCTION__, "hashpipe_databuf_key error");
+        vegas_error("bf_databuf_attach", "hashpipe_databuf_key error");
+        //return NULL;
+        return -1;
+    }
+    printf("bf_databuf shmget key: %x\n" , key);
+    
+    // Get shmid
+    int shmid;
+    shmid = shmget(key + databuf_id - 1, 0, 0666);
+    if (shmid==-1) {
+        // Doesn't exist, exit quietly otherwise complain
+        if (errno!=ENOENT)
+            vegas_error("bf_databuf_attach", "shmget error");
+        //return(NULL);
+        return(-1);
+    }
+
+    return(shmid);
+}
+
 
 int bf_databuf_block_status(struct bf_databuf *d, int block_id) {
     return(semctl(d->header.semid, block_id, GETVAL));
@@ -333,7 +372,14 @@ int bf_databuf_wait_free(struct bf_databuf *d, int block_id) {
      * step 1: wait for val=1 then decrement (semop=-1)
      * step 2: increment by 1 (semop=1)
      */
+int bfp_databuf_wait_filled(struct bfp_databuf *d, int block_id) {
+    return databuf_wait_filled(d->header.semid, block_id);
+}
 int bf_databuf_wait_filled(struct bf_databuf *d, int block_id) {
+    return databuf_wait_filled(d->header.semid, block_id);
+}
+
+int databuf_wait_filled(int semid, int block_id) {
     int rv;
     struct sembuf op[2];
     op[0].sem_num = op[1].sem_num = block_id;
@@ -343,7 +389,8 @@ int bf_databuf_wait_filled(struct bf_databuf *d, int block_id) {
     struct timespec timeout;
     timeout.tv_sec = 0;
     timeout.tv_nsec = 250000000;
-    rv = semtimedop(d->header.semid, op, 2, &timeout);
+    //rv = semtimedop(d->header.semid, op, 2, &timeout);
+    rv = semtimedop(semid, op, 2, &timeout);
     if (rv==-1) { 
         if (errno==EAGAIN) return(VEGAS_TIMEOUT);
         // Don't complain on a signal interruption
@@ -360,16 +407,26 @@ int bf_databuf_wait_filled(struct bf_databuf *d, int block_id) {
      * the value to zero.
      */
 int bf_databuf_set_free(struct bf_databuf *d, int block_id) {
+    return databuf_set_free(d->header.semid, block_id);
+}
+
+int bfp_databuf_set_free(struct bfp_databuf *d, int block_id) {
+    return databuf_set_free(d->header.semid, block_id);
+}
+
+int databuf_set_free(int semid, int block_id) {
     int rv;
     union semun arg;
     arg.val = 0;
-    rv = semctl(d->header.semid, block_id, SETVAL, arg);
+    //rv = semctl(d->header.semid, block_id, SETVAL, arg);
+    rv = semctl(semid, block_id, SETVAL, arg);
     if (rv==-1) { 
         vegas_error("bf_databuf_set_free", "semctl error");
         return(VEGAS_ERR_SYS);
     }
     return(0);
 }
+
 
     /** This function should always succeed regardless of the current
      * state of the specified databuf.  So we use semctl (not semop) to set
