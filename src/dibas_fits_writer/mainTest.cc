@@ -50,7 +50,63 @@ int mainTestPulsar(int argc, char **argv)
     return 0;
 }
 
+/* Test basic functionality of the BfCovFitsIO class */
 int mainTestCov(int argc, char **argv)
+{
+    BfCovFitsIO *fitsio = new BfCovFitsIO("/tmp", false);
+    fitsio->setBankName('A'); //, 1);
+
+    double start_time = 0;
+    timeval tv;
+    gettimeofday(&tv, 0);
+    // Get the current time as an MJD for use in the FITS file names
+    start_time = BfFitsIO::timeval_2_mjd(&tv);
+
+    fitsio->set_startTime(start_time);
+    fitsio->open();
+
+    const int num_chans = 128; // number of channels
+    const int bin_size = 820; // number of complex pair elements in a bin/channel
+    const int chan_size = bin_size * 2; // number of floats in a channel
+    const int num_floats = num_chans * chan_size; // total number of floats
+
+    // Create a standard vector that contains the correct number of elements (initialized to 0)
+    std::vector<float> fits_data (num_floats, 0);
+
+    // now test out simple writeRow
+    fitsio->writeRow(0, fits_data.data());
+
+    // now test out more complicated shit
+    // create some fake GPU data: 64 x 64 x 2 matrix in 1-d
+    int numChan = 5;
+    int M = 40;
+    int cmpSz = 2;
+    int covDataSz = ((M * (M + 1))/2);
+    int gpuDataSz = covDataSz + (M/2);
+    int fitsSz = covDataSz * cmpSz * numChan;
+    int gpuSz = gpuDataSz  * cmpSz * numChan;
+    float gpu_matrix[gpuSz];
+    float fits[fitsSz];
+    // init the gpu matrix
+    int i = 0;
+    for (i = 0; i<gpuSz; i++)
+        gpu_matrix[i] = (float)i;
+    //for (i = 0; i<10; i++)
+    //    printf("%f\n", fits_data[i]);
+    printf("M: %d, # chans: %d, Gpu Data Size: %d, Fits Data Size: %d\n", M, numChan, gpuDataSz, covDataSz);
+    printf("Parse!\n");
+    fitsio->parseGpuCovMatrix(gpu_matrix, gpuDataSz, fits, covDataSz, numChan);    
+    //for (i = 0; i<fitsSz; i++)
+    //    printf("fits[%d] = %f\n", i, fits[i]);
+    
+    // if that worked, try to write w/ it
+    //fitsio->write(1, gpu_matrix);
+
+    // cleanup 
+    fitsio->close();
+}
+
+int fishFits2CovFitsTest(int argc, char **argv)
 {
     fitsfile *fptr;
     const std::string filename("/home/scratch/npingel/FLAG/data/TGBT14B_913_04/PafSoftCorrel/2015_01_26_09:47:21.fits");
