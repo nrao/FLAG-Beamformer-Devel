@@ -33,6 +33,7 @@ extern "C"
 #include "BfCovFitsIO.h"
 #include "BfPulsarFitsIO.h"
 #include "FakePulsarFile.h"
+#include "FakePulsarToFits.h"
 
 int mainTest(bool cov_mode, int argc, char **argv)
 {
@@ -48,8 +49,13 @@ int mainTest(bool cov_mode, int argc, char **argv)
 // TBF
 int mainTestPulsar(int argc, char **argv)
 {
-    FakePulsarFile *f = new FakePulsarFile("./smallFakePulsar.ascii");
-    f->parse();
+    //FakePulsarFile *f = new FakePulsarFile("./smallFakePulsar.ascii");
+    //f->parse();
+
+    FakePulsarToFits *f = new FakePulsarToFits();
+    f->setNumBeams(1);
+    f->addFile("./smallFakePulsar.ascii");
+    f->convertToFits();
     return 0;
 }
 

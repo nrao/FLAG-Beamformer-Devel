@@ -20,37 +20,28 @@
 //# P. O. Box 2
 //# Green Bank, WV 24944-0002 USA
 
-#ifndef FAKEPULSARFILE
-#define FAKEPULSARFILE
+#ifndef FAKEPULSARTOFITS
+#define FAKEPULSARTOFITS
 
-using namespace::std;
-
-#include <string>
 #include <vector>
 
-/*
- A class responsible for reading, and parsing an ascii file produced
- by the 'fake' program.
-*/
-class FakePulsarFile 
+#include "FakePulsarFile.h"
+#include "BfPulsarFitsIO.h"
+
+class FakePulsarToFits 
 {
 public:
-    FakePulsarFile(const char *path);
-    bool parse();
-    bool readFile();
-    inline vector<vector<float>> getData() { return data; }
-    inline int getNumSamples() { return fileNumSamples; }
-    inline int getNumChans() { return fileNumChans; }
-private:
-    // TBF: can't get these functions to link!
-    //vector<string> &splitThis(const string &s, char delim, vector<string> &elems);
-    //vector<string> splitThat(const string &s, char delim);
-    string filename;
-    int fileNumSamples;
-    int fileNumChans;
-    vector<string> fileLines;
-    vector<vector<float>> data;
+    FakePulsarToFits();
+    bool convertToFits();
+    bool addFiles(const char* dir);
+    bool addFile(const char* path);
+    inline void setNumBeams(int b) { numBeams = b; }
 
+private:
+    bool parseFiles();
+    vector<FakePulsarFile *> files;
+    vector<BfPulsarFitsIO *> fitsio;
+    int numBeams;
 };
 
 #endif
