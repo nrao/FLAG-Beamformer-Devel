@@ -83,7 +83,7 @@ void *runGbtFitsWriter(void *ptr)
 void *
 BfFitsThread::run(struct vegas_thread_args *args)
 {
-    bool cov_mode = args->cov_mode;
+    bool cov_mode = (bool)args->cov_mode;
 
     int rv;
     BfFitsIO *fitsio;
