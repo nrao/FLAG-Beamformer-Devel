@@ -15,9 +15,9 @@ struct vegas_thread_args {
     pthread_cond_t finished_c;
     pthread_mutex_t finished_m;
     cpu_set_t cpuset;
-    // added for Beamformer modes
-    bool cov_mode;
+    int cov_mode;
 };
+
 void vegas_thread_args_init(struct vegas_thread_args *a);
 void vegas_thread_args_destroy(struct vegas_thread_args *a);
 void vegas_thread_set_finished(struct vegas_thread_args *a);
