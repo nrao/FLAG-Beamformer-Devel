@@ -32,6 +32,7 @@ extern "C"
 #include "BfFitsIO.h"
 #include "BfCovFitsIO.h"
 #include "BfPulsarFitsIO.h"
+#include "FakePulsarFile.h"
 
 int mainTest(bool cov_mode, int argc, char **argv)
 {
@@ -47,6 +48,8 @@ int mainTest(bool cov_mode, int argc, char **argv)
 // TBF
 int mainTestPulsar(int argc, char **argv)
 {
+    FakePulsarFile *f = new FakePulsarFile("./smallFakePulsar.ascii");
+    f->parse();
     return 0;
 }
 
