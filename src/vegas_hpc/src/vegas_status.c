@@ -65,7 +65,8 @@ int vegas_status_attach(struct vegas_status *s) {
     int instance_id = 0;
     instance_id &= 0x3f;
     //int NAME_MAX = 256;
-    char semid[NAME_MAX] = {'\0'};
+    //char semid[NAME_MAX] = {'\0'};
+    char semid[256] = {'\0'};
 
     /* Get shared memory block */
     key_t key = hashpipe_status_key(instance_id);
