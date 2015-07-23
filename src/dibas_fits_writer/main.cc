@@ -274,7 +274,7 @@ int mainThread(bool cov_mode, int argc, char **argv)
             {
                 run = 1;
                 struct vegas_thread_args vargs;
-                vargs.cov_mode = cov_mode;
+                vargs.cov_mode = (int)cov_mode;
                 pthread_create(&thread_id, NULL, runGbtFitsWriter, &vargs);
             }
         }
