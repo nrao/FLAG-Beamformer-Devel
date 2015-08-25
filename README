@@ -23,3 +23,5 @@ The vegas_databuf struct is a 1:1 copy of the gpu_output_databuf struct over in 
 
 Note that vegas_hpc contains C code that is very, very similar to hashpipe code.
 Akshaya was here.
+
+Paul was here.
