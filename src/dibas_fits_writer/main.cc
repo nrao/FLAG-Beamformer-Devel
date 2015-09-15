@@ -64,8 +64,9 @@ void usage() {
     fprintf(stderr,
             "Usage: vegasFitsWriter (options) \n"
             "Options:\n"
-            "  -t , --test         run a test\n"
-            "  -m , --mode         'c' for Cov. Matrix, 'p' for Pulsar\n"
+            "  -t , --test          run a test\n"
+            "  -m , --mode          'c' for Cov. Matrix, 'p' for Pulsar\n"
+            "  -i n, --instance=nn  instance id\n"
             );
 }
 
@@ -105,13 +106,53 @@ void signal_handler(int sig)
 }
 
 const int MAX_CMD_LEN =64;
-const char CONTROL_FIFO[] = "/tmp/tchamber/vegas_fits_control";
-
 
 extern "C" int setup_privileges();
 
-int mainThread(bool cov_mode, int argc, char **argv)
+int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
 {
+
+    /*
+    static struct option long_opts[] = {
+        {"help",   0, NULL, 'h'},
+        {"mode",   0, NULL, 'm'},
+        {"instance",   0, NULL, 'i'},
+        {0,0,0,0}
+    };
+
+    int opt, opti;
+    int instance_id = 0;
+    while ((opt=getopt_long(argc,argv,"hm:i:",long_opts,&opti))!=-1) {
+        printf("opt: %d\n", opt);
+        switch (opt) {
+            case 'i':
+                printf("optarg: %s\n", optarg);
+                instance_id = atoi(optarg);
+                printf("instance_id: %d\n", instance_id);
+                break;
+            case 'h':
+            default:
+                usage();
+                exit(0);
+                break;
+        }
+    }
+    */
+
+    /* check args */
+    /*
+    if (optind==argc) {
+        usage();
+        exit(1);
+    }
+    */
+
+
+    // create command fifo based on username and instance_id
+    char command_fifo_filename[MAX_CMD_LEN];
+    char *user = getenv("USER");
+    sprintf(command_fifo_filename, "/tmp/dibas_fits_control_%s_%d", user, instance_id);
+
     run = 1;
     int command_fifo;
     int rv;
@@ -131,16 +172,17 @@ int mainThread(bool cov_mode, int argc, char **argv)
 
     setup_privileges();
 
-    command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
+    //command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
+    command_fifo = open(command_fifo_filename, O_RDONLY | O_NONBLOCK);
     if (command_fifo<0)
     {
-        fprintf(stderr, "vegas_fits_writer: Error opening control fifo %s\n", CONTROL_FIFO);
+        fprintf(stderr, "vegas_fits_writer: Error opening control fifo %s\n", command_fifo_filename);
         perror("open");
         exit(1);
     }
     else
     {
-        printf("Using FITS Control FIFO: %s\n", CONTROL_FIFO);
+        printf("Using FITS Control FIFO: %s\n", command_fifo_filename);
     }
     /* Set cpu affinity */
     cpu_set_t cpuset, cpuset_orig;
@@ -224,7 +266,7 @@ int mainThread(bool cov_mode, int argc, char **argv)
         if (pfd[0].revents==POLLHUP)
         {
             close(command_fifo);
-            command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
+            command_fifo = open(command_fifo_filename, O_RDONLY | O_NONBLOCK);
             if (command_fifo<0)
             {
                 fprintf(stderr,
@@ -273,9 +315,12 @@ int mainThread(bool cov_mode, int argc, char **argv)
             else
             {
                 run = 1;
-                struct vegas_thread_args vargs;
-                vargs.cov_mode = (int)cov_mode;
-                pthread_create(&thread_id, NULL, runGbtFitsWriter, &vargs);
+                // pass on args 
+                vegas_thread_args *args = new vegas_thread_args;
+                args->input_buffer = instance_id;
+                args->cov_mode = (int)cov_mode;
+                pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
+
             }
         }
         else if (strncasecmp(cmd,"STOP",MAX_CMD_LEN)==0 ||
@@ -332,22 +377,25 @@ int main(int argc, char **argv) {
         {"help",   0, NULL, 'h'},
         {"test",   0, NULL, 't'},
         {"mode",   1, NULL, 'm'},
+        {"instance",   1, NULL, 'i'},
         {0,0,0,0}
     };
 
     int opt, opti;
+    int instance_id = 0;
     bool test = false;
     bool cov_mode = true;
     char cov_mode_value = 'c';
-    while ((opt=getopt_long(argc,argv,"htm:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"htm:i:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 't':
-                //printf("optarg: %s\n", optarg);
-                //instance_id = atoi(optarg);
                 test = true;
                 break;
             case 'm':    
                 cov_mode = (cov_mode_value == *optarg);
+                break;
+            case 'i':    
+                instance_id = atoi(optarg);
                 break;
             case 'h':
             default:
@@ -361,6 +409,6 @@ int main(int argc, char **argv) {
     if (test)
         mainTest(cov_mode, argc, argv);
     else 
-        mainThread(cov_mode, argc, argv);
+        mainThread(cov_mode, instance_id, argc, argv);
     return (0);
 }

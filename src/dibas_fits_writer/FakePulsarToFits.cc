@@ -60,7 +60,7 @@ bool FakePulsarToFits::convertToFits()
     for (i=0; i < numBeams; i++)
     {
         //fitsio.push_back(new BfPulsarFitsIO("/tmp", false));
-        fits = new BfPulsarFitsIO("/tmp", false);
+        fits = new BfPulsarFitsIO("/tmp", false, i);
 
         // TBF: how to specify start time otherwise?
         double start_time = 0;

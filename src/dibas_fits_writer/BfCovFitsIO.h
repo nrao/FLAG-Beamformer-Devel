@@ -28,7 +28,7 @@
 class BfCovFitsIO : public BfFitsIO
 {
 public:
-    BfCovFitsIO(const char *path_prefix, int simulator = 0);
+    BfCovFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0);
     void parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_matrix);
     void parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, float *const fits_matrix, int fits_size, int num_channels);
     int write(int mcnt, float *data);

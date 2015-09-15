@@ -77,7 +77,7 @@ public:
     /// @param path_prefix is the first portion of the
     /// root directory for the FITS file path.
     /// @param simulator is a flag which sets the SIMULATE primary header keyword
-    BfFitsIO(const char *path_prefix, int simulator = 0);
+    BfFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0);
     ~BfFitsIO();
 
     virtual int myAbstract() = 0;
@@ -175,6 +175,7 @@ protected:
     int data_size;
     char data_form[256];
 
+    int instance_id;
 };
 
 #endif

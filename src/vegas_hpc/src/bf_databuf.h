@@ -160,9 +160,14 @@ void vegas_conf_databuf_size(struct bf_databuf *d, size_t new_block_size);
 /** Return a pointer to a existing shmem segment with given id.
  * Returns error if segment does not exist
  */
-struct bf_databuf *bf_databuf_attach(int databuf_id);
-struct bfp_databuf *bfp_databuf_attach(int databuf_id);
-int databuf_get_shmid(int databuf_id);
+//<<<<<<< HEAD:src/vegas_hpc/src/bf_databuf.h
+//struct bf_databuf *bf_databuf_attach(int databuf_id);
+//struct bfp_databuf *bfp_databuf_attach(int databuf_id);
+//int databuf_get_shmid(int databuf_id);
+//=======
+struct bf_databuf *bf_databuf_attach(int databuf_id, int instance_id);
+struct bfp_databuf *bfp_databuf_attach(int databuf_id, int instance_id);
+int databuf_get_shmid(int databuf_id, int instance_id);
 
 /** Detach from shared mem segment */
 int databuf_detach(void *d);

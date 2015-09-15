@@ -92,6 +92,11 @@ BfFitsThread::run(struct vegas_thread_args *args)
     timespec fits_start, fits_stop;
 
 
+    // pass on the instance id from the args to our class member
+    int instance_id = args->input_buffer;
+
+    printf("VegasFitsThread::run, instance_id = %d\n", instance_id);
+
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::set_finished, args);
 
     /* Set cpu affinity */
@@ -117,7 +122,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
     /* Attach to status shared mem area */
     struct vegas_status st;
-    rv = vegas_status_attach(&st);
+    rv = vegas_status_attach(&st, instance_id);
     if (rv!=VEGAS_OK)
     {
         vegas_error("BfFitsThread::run",
@@ -134,11 +139,11 @@ BfFitsThread::run(struct vegas_thread_args *args)
     void *gdb;
     int shmid, semid;
     if (cov_mode) {
-        gdb = (void *)bf_databuf_attach(databufid);
+        gdb = (void *)bf_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bf_databuf *)gdb)->header.semid;
     } else {
-        gdb = (void *)bfp_databuf_attach(databufid);
+        gdb = (void *)bfp_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bfp_databuf *)gdb)->header.semid;
     }
@@ -197,13 +202,11 @@ BfFitsThread::run(struct vegas_thread_args *args)
     }
     // Create a BfFitsIO writer subclass based on mode
     if (cov_mode)
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false);
+        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id);
     else    
-        fitsio = (BfFitsIO *) new BfPulsarFitsIO(datadir, false);
+        fitsio = (BfFitsIO *) new BfPulsarFitsIO(datadir, false, instance_id);
 
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio);
-
-    printf("abstract: %d\n", fitsio->myAbstract());
 
     // pass a copy of the status memory to the writer
     fitsio->copyStatusMemory(status_buf);

@@ -254,9 +254,10 @@ vegas_datablock_freq_heap_data(struct bf_databuf *d, int block_id, int heap_id)
 /** Attach to the specified data buffer.
  *  Returns the address of the databuffer if successful , or zero on error.
  */
-struct bf_databuf *bf_databuf_attach(int databuf_id) {
+//<<<<<<< HEAD:src/vegas_hpc/src/bf_databuf.c
+struct bf_databuf *bf_databuf_attach(int databuf_id, int instance_id) {
 
-    int shmid = databuf_get_shmid(databuf_id);
+    int shmid = databuf_get_shmid(databuf_id, instance_id);
     if (shmid == -1)
         return NULL;
 
@@ -272,9 +273,9 @@ struct bf_databuf *bf_databuf_attach(int databuf_id) {
 
 }
 
-struct bfp_databuf *bfp_databuf_attach(int databuf_id) {
+struct bfp_databuf *bfp_databuf_attach(int databuf_id, int instance_id) {
 
-    int shmid = databuf_get_shmid(databuf_id);
+    int shmid = databuf_get_shmid(databuf_id, instance_id);
     if (shmid == -1)
         return NULL;
 
@@ -291,10 +292,13 @@ struct bfp_databuf *bfp_databuf_attach(int databuf_id) {
 
 /** Retreive the shared memory ID for the given data buffer id 
  */
-int databuf_get_shmid(int databuf_id) {
+int databuf_get_shmid(int databuf_id, int instance_id) {
 
-    // TBF: needs to be instance aware!
-    int instance_id = 0;
+//    // TBF: needs to be instance aware!
+//    int instance_id = 0;
+//=======
+//struct vegas_databuf *vegas_databuf_attach(int databuf_id, int instance_id) {
+//>>>>>>> instances:src/vegas_hpc/src/vegas_databuf.c
 
     // Get shared memory block
     key_t key = hashpipe_databuf_key(instance_id);

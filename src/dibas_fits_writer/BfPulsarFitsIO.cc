@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include "BfPulsarFitsIO.h"
 
-BfPulsarFitsIO::BfPulsarFitsIO(const char *path_prefix, int simulator) : BfFitsIO(path_prefix, simulator)
+BfPulsarFitsIO::BfPulsarFitsIO(const char *path_prefix, int simulator, int instance_id) : BfFitsIO(path_prefix, simulator, instance_id)
 {
     // What distinquishes modes is their data format
     data_size = NUM_BEAMS * NUM_PULSAR_CHANNELS;

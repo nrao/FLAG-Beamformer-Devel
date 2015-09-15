@@ -25,7 +25,7 @@
 
 #include "BfCovFitsIO.h"
 
-BfCovFitsIO::BfCovFitsIO(const char *path_prefix, int simulator) : BfFitsIO(path_prefix, simulator)
+BfCovFitsIO::BfCovFitsIO(const char *path_prefix, int simulator, int instance_id) : BfFitsIO(path_prefix, simulator, instance_id)
 {
     // What distinquishes modes is their data format
     data_size = FITS_BIN_SIZE * NUM_CHANNELS;

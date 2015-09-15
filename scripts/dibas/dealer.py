@@ -409,6 +409,10 @@ class Dealer(object):
         st = datetime_to_tuple(starttime,)
         return self._pexecute("start", delay, [st])
 
+    def startin(self, startin, scanlen):
+        "Convinient way to run a scan in testing mode"
+        return self._pexecute("startin", 15, [startin, scanlen])
+
     def stop(self):
         """
         Stops a running scan, or exits monitor mode.

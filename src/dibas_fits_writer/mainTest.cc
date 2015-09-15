@@ -202,7 +202,7 @@ int fishFits2CovFitsTest(int argc, char **argv)
     for (int i = 0; i < 10; i++)
     {
         // Create a BfFitsIO writer
-        fitsio = new BfCovFitsIO("/tmp", false);
+        fitsio = new BfCovFitsIO("/tmp", false, i);
 
         printf("setting bank: %c, %d\n", banks[i], i);
         fitsio->setBankName(banks[i]); //, 1);
