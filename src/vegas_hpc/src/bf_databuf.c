@@ -31,7 +31,7 @@ struct bf_databuf *bf_databuf_create(int n_block, size_t block_size,
  * Resizes the blocks within the specified databuf. The number of blocks
  * are automatically changed, so that the total buffer size remains constant.
  */
-void vegas_conf_databuf_size(struct bf_databuf *d, size_t new_block_size)
+void bf_conf_databuf_size(struct bf_databuf *d, size_t new_block_size)
 {
 
     /* Calculate number of data blocks that can fit into the existing buffer */
@@ -100,7 +100,7 @@ void bf_databuf_clear(struct bf_databuf *d) {
 
 }
 
-void vegas_fitsbuf_clear(char *buf) {
+void bf_fitsbuf_clear(char *buf) {
     char *end, *ptr;
     end = ksearch(buf, "END");
     if (end!=NULL) {

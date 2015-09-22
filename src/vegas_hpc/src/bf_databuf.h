@@ -155,7 +155,7 @@ extern "C" {
  */
 //struct bf_databuf *bf_databuf_create(int n_block, size_t block_size,
 //        int databuf_id, int buf_type);
-void vegas_conf_databuf_size(struct bf_databuf *d, size_t new_block_size);
+void bf_conf_databuf_size(struct bf_databuf *d, size_t new_block_size);
 
 /** Return a pointer to a existing shmem segment with given id.
  * Returns error if segment does not exist
@@ -179,7 +179,7 @@ int bfp_databuf_detach(struct bfp_databuf *d);
  * header block.
  */
 void bf_databuf_clear(struct bf_databuf *d);
-void vegas_fitsbuf_clear(char *buf);
+void bf_fitsbuf_clear(char *buf);
 
 /** These return pointers to the header, the index or the data area for
  * the given block_id.

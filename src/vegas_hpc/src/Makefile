@@ -43,10 +43,11 @@ CUDA_LIBS = -L$(CUDA)/lib64 -lcufft -lcuda -lcudart -lrt -lm -lpthread
 # Don't bother building programs we don't need for the Dibas FITS writer code.
 #PROGS = check_bf_databuf check_vegas_status clean_vegas_shmem
 PROGS = check_vegas_status 
-OBJS  = hashpipe_ipckey.o vegas_status.o bf_databuf.o vegas_udp.o vegas_error.o \
+OBJS  = hashpipe_ipckey.o vegas_status.o vegas_databuf.o vegas_udp.o vegas_error.o \
 	vegas_params.o vegas_time.o vegas_thread_args.o \
 	write_sdfits.o misc_utils.o \
-	hget.o hput.o sla.o privilege_management.o SwitchingStateMachine.o l8lbw1_fixups.o
+	hget.o hput.o sla.o privilege_management.o SwitchingStateMachine.o bf_databuf.o
+	#hget.o hput.o sla.o privilege_management.o SwitchingStateMachine.o l8lbw1_fixups.o bf_databuf.o
 THREAD_PROGS = test_net_thread vegas_hpc_hbw
 THREAD_OBJS  = vegas_net_thread.o vegas_rawdisk_thread.o \
 	        vegas_sdfits_thread.o vegas_accum_thread.o \
