@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
     int instance_id = 0;
     struct vegas_status s;
 
-    rv = vegas_status_attach(&s, instance_id);
+    rv = vegas_status_attach_inst(&s, instance_id);
     if (rv!=VEGAS_OK) {
         fprintf(stderr, "Error connecting to shared mem.\n");
         perror(NULL);

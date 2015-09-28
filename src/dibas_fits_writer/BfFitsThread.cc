@@ -122,7 +122,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
     /* Attach to status shared mem area */
     struct vegas_status st;
-    rv = vegas_status_attach(&st, instance_id);
+    rv = vegas_status_attach_inst(&st, instance_id);
     if (rv!=VEGAS_OK)
     {
         vegas_error("BfFitsThread::run",

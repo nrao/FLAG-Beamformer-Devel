@@ -59,7 +59,12 @@ int hashpipe_status_semname(int instance_id, char * semid, size_t size)
     return rc;
 }
 
-int vegas_status_attach(struct vegas_status *s, int instance_id) {
+
+int vegas_status_attach(struct vegas_status *s) {
+    return vegas_status_attach_inst(s, 0);
+}
+
+int vegas_status_attach_inst(struct vegas_status *s, int instance_id) {
 
     instance_id &= 0x3f;
     //int NAME_MAX = 256;
