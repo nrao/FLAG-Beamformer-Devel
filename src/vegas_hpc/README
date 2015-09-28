@@ -2,3 +2,14 @@ vegas_hpc - Data aquisition software for VEGAS
 
 See https://casper.berkeley.edu/wiki/GBT_guppi_installattion for 
 installation instructions.
+
+
+  272  cd /home/sandboxes/rcreager/DIBAS/vegas_devel/src
+  273  export VEGAS=`pwd`
+  274  cd vegas_hpc
+  275  dir
+  276  source vegas_spec-hpc.bash
+  277  cd src
+  278  rm *
+  279  git checkout -- *
+  280  make 
