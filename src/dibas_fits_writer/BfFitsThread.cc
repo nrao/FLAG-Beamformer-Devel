@@ -458,7 +458,8 @@ BfFitsThread::run(struct vegas_thread_args *args)
     vegas_status_unlock_safe(&st);
 
     // cleanup on exit
-    databuf_detach(gdb);
+    //databuf_detach(gdb);
+    // TBF: is this the correct number of pops?
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
