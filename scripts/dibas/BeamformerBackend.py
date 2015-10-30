@@ -63,9 +63,8 @@ class BeamformerBackend(VegasBackend):
 
         # In the Beamformer, there are 2 GPUs, so we run multiple instances
         # of the 'pipeline': more then one player!
-        if instance_id is None:
-            self.instance_id = theBank.instance_id
-        else:
+        # should be set in base class ...
+        if instance_id is not None:
             self.instance_id = instance_id
 
         self.progdev()

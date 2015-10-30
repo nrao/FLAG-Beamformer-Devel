@@ -175,6 +175,18 @@ class Bank(object):
             if host in hpchost or hpchost in host:
                 return i.upper()
 
+    def bank2inst(self, bank):
+        """
+        Converts either the string or char bank name to an integer
+        'instance id' for use with hashpipe and shared memory.
+        Ex: 'BANKC' -> 3
+        Ex: 'D' -> 4
+        """
+        if len(bank) > 1:
+            # BANKC -> C
+            bank = bank[-1]
+        return ord(bank) - ord('A')
+
     def read_config_file(self, filename):
         """
         read_config_file(filename)
@@ -223,7 +235,7 @@ class Bank(object):
             # Get config info on this bank's ROACH2. Normally there is 1
             # ROACH per Player/HPC node, so this is it.
             self.bank_data = self.banks[self.bank_name]
-            self.instance_id = self.bank_data.instance_id
+            self.instance_id = self.bank2inst(self.bank_name) #self.bank_data.instance_id
 
             # Get config info on all modes
             modes = [s for s in config.sections() if 'MODE' in s]

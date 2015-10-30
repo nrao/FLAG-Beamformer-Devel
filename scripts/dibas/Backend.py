@@ -136,7 +136,8 @@ class Backend(object):
             else:
                 self.i2c = None
 
-            self.status = vegas_status(instance_id = theBank.instance_id)
+            self.instance_id = self.bank2inst(theBank.name)
+            self.status = vegas_status(instance_id = self.instance_id)
 
         self.status_mem_local = {}
         self.roach_registers_local = {}
@@ -221,6 +222,18 @@ class Backend(object):
         # Note: If redefined, in a derived class, be careful to include the code below.
         self.stop_hpc()
 
+
+    def bank2inst(self, bank):
+        """
+        Converts either the string or char bank name to an integer
+        'instance id' for use with hashpipe and shared memory.
+        Ex: 'BANKC' -> 3
+        Ex: 'D' -> 4
+        """
+        if len(bank) > 1:
+            # BANKC -> C
+            bank = bank[-1]
+        return ord(bank) - ord('A')
 
     def getI2CValue(self, addr, nbytes):
         """getI2CValue(addr, nbytes, data):

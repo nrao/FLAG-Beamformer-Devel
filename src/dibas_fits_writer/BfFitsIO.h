@@ -176,6 +176,7 @@ protected:
     char data_form[256];
 
     int instance_id;
+    char inst2bank(int instance_id);
 };
 
 #endif

@@ -31,6 +31,7 @@
 #include <iostream>
 #include <math.h>
 #include <stdlib.h>
+#include <cassert>
 
 #include "fitshead.h"
 #include "vegas_error.h"
@@ -126,12 +127,8 @@ BfFitsIO::BfFitsIO(const char *path_prefix, int simulator, int instance_id)
     // {
     //     noiseTone[i] = new char[256];
     // }
-    // TBF: better way to do this?
-    if (instance_id == 1) {
-        setBankName('B');
-    } else {
-        setBankName('A');
-    }    
+    setBankName(inst2bank(instance_id));
+        
 }
 
 BfFitsIO::~BfFitsIO()
@@ -141,6 +138,18 @@ BfFitsIO::~BfFitsIO()
     //     delete [] noiseTone[i];
     // }
     close();
+}
+
+// brute force method of maping instance_ids to bank names
+// TBF: kind of wierd since the top-level has the bank name,
+// converts this to an instance id, then passes this on to 
+// this FITS writer.
+char
+BfFitsIO::inst2bank(int instance_id) {
+    assert (instance_id >= 0);
+    assert (instance_id <= 9);
+    char banks[] = {'A','B','C','D','E','F','G','H','I','J'};
+    return banks[instance_id];
 }
 
 void
