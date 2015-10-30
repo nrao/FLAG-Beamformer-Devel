@@ -126,6 +126,12 @@ BfFitsIO::BfFitsIO(const char *path_prefix, int simulator, int instance_id)
     // {
     //     noiseTone[i] = new char[256];
     // }
+    // TBF: better way to do this?
+    if (instance_id == 1) {
+        setBankName('B');
+    } else {
+        setBankName('A');
+    }    
 }
 
 BfFitsIO::~BfFitsIO()

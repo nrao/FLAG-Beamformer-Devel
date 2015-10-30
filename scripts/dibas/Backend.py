@@ -136,7 +136,7 @@ class Backend(object):
             else:
                 self.i2c = None
 
-            self.status = vegas_status()
+            self.status = vegas_status(instance_id = theBank.instance_id)
 
         self.status_mem_local = {}
         self.roach_registers_local = {}

@@ -353,7 +353,7 @@ class BankData(ConfigData):
                "katcp_ip=%s, katcp_port=%s, synth=%s, synth_port=%s, synth_ref=%s, " \
                "synth_ref_freq=%s, synth_vco_range=%s, synth_rf_level=%s, " \
                "synth_options=%s, mac_base=%s, shmkvpairs=%s, roach_kvpairs=%s, " \
-               "i_am_master=%s)" \
+               "i_am_master=%s, instance_id=%d)" \
             % (self.name,
                self.has_roach,
                self.datahost,
@@ -372,7 +372,8 @@ class BankData(ConfigData):
                str(self.mac_base),
                str(self.shmkvpairs),
                str(self.roach_kvpairs),
-               str(self.i_am_master))
+               str(self.i_am_master),
+               self.instance_id)
 
     def _parse_filter_bw_bits(self, fbw_string):
         """Given a comma delimited string of filter bandwidh kv pairs, creates
@@ -408,6 +409,7 @@ class BankData(ConfigData):
         data_destination_host = self._get_string(bank, 'data_destination_host')
         self.dest_port = self._get_int(bank, 'data_destination_port')
         self.dataport = self._get_int(bank, 'data_source_port')
+        self.instance_id = self._get_int(bank, 'instance_id')
 
         # the following are mandatory only if 'self.has_roach' is True
         if not self.has_roach:

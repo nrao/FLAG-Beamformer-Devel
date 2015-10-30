@@ -54,7 +54,7 @@ class BeamformerBackend(VegasBackend):
 
     """
 
-    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False, instance_id = 0):
+    def __init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test = False, instance_id = None):
         """
         Creates an instance of BeamformerBackend
         """
@@ -63,7 +63,10 @@ class BeamformerBackend(VegasBackend):
 
         # In the Beamformer, there are 2 GPUs, so we run multiple instances
         # of the 'pipeline': more then one player!
-        self.instance_id = 0
+        if instance_id is None:
+            self.instance_id = theBank.instance_id
+        else:
+            self.instance_id = instance_id
 
         self.progdev()
         self.net_config()

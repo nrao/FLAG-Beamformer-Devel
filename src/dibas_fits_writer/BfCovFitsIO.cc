@@ -105,7 +105,7 @@ BfCovFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, floa
     //for (i = 0; i < NUM_CHANNELS; i++)
     for (i = 0; i < num_channels; i++)
     {
-        printf("i: %d\n", i);
+        //printf("i: %d\n", i);
         // Remember we need to double the bin size because each complex pair
         //   is actually represented as two floats
         // This also means that we are iterating by two (since we are treating every

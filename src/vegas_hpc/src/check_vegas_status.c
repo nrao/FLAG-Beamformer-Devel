@@ -12,18 +12,8 @@
 
 int main(int argc, char *argv[]) {
 
-    int rv;
-    int instance_id = 0;
-    struct vegas_status s;
 
-    rv = vegas_status_attach_inst(&s, instance_id);
-    if (rv!=VEGAS_OK) {
-        fprintf(stderr, "Error connecting to shared mem.\n");
-        perror(NULL);
-        exit(1);
-    }
-
-    vegas_status_lock(&s);
+    printf("check_vegas_status!\n");
 
     /* Loop over cmd line to fill in params */
     static struct option long_opts[] = {
@@ -36,6 +26,7 @@ int main(int argc, char *argv[]) {
         {"quiet",  0, NULL, 'q'},
         {"clear",  0, NULL, 'C'},
         {"del",    0, NULL, 'D'},
+        {"instance",    1, NULL, 'I'},
         {0,0,0,0}
     };
     int opt,opti;
@@ -44,8 +35,36 @@ int main(int argc, char *argv[]) {
     double dbltmp;
     int inttmp;
     int quiet=0, clear=0;
-    while ((opt=getopt_long(argc,argv,"k:g:s:f:d:i:qCD",long_opts,&opti))!=-1) {
+    int instance_id = 0;
+
+    // first get the 'I option
+    while ((opt=getopt_long(argc,argv,"k:g:s:f:d:i:I:qCD",long_opts,&opti))!=-1) {
         switch (opt) {
+            case 'I':
+                instance_id = atoi(optarg);
+                printf("instance_id: %d\n", instance_id);
+                break;
+        }
+   }
+
+    printf("now instance_id: %d\n", instance_id);
+    int rv;
+    struct vegas_status s;
+
+    rv = vegas_status_attach_inst(&s, instance_id);
+    if (rv!=VEGAS_OK) {
+        fprintf(stderr, "Error connecting to shared mem.\n");
+        perror(NULL);
+        exit(1);
+    }
+
+    vegas_status_lock(&s);
+
+    while ((opt=getopt_long(argc,argv,"k:g:s:f:d:i:I:qCD",long_opts,&opti))!=-1) {
+        switch (opt) {
+            //case 'I':
+            //    instance_id = optarg;
+            //    break;
             case 'k':
                 key = optarg;
                 break;

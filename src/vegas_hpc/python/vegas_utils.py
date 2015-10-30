@@ -55,10 +55,11 @@ def cardlist_from_string(str):
 
 class vegas_status:
 
-    def __init__(self, status_key = None, status_semid = None):
+    def __init__(self, status_key = None, status_semid = None, instance_id = None):
 
         # Get user dependend IPC key.  TBF: multiple instances
-        instance_id = 0
+        if instance_id is None:
+            instance_id = 0
         self.status_key = status_key if status_key is not None \
             else hashpipe_key.hashpipe_status_key(instance_id)
         self.status_semid = status_semid if status_semid is not None \

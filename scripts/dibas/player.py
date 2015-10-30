@@ -132,7 +132,8 @@ class Bank(object):
         This method clears the status shared memory segment if necessary.
         """
         if not self.simulate:
-            os.system(self.dibas_dir + '/bin/x86_64-linux/check_vegas_status -C')
+            print "player clearing shared memory!"
+            os.system(self.dibas_dir + '/bin/x86_64-linux/check_vegas_status -C -I %d' % self.instance_id)
         # print 'not cleaning status memory -- fix this'
 
     def reformat_data_buffers(self, mode):
@@ -222,6 +223,7 @@ class Bank(object):
             # Get config info on this bank's ROACH2. Normally there is 1
             # ROACH per Player/HPC node, so this is it.
             self.bank_data = self.banks[self.bank_name]
+            self.instance_id = self.bank_data.instance_id
 
             # Get config info on all modes
             modes = [s for s in config.sections() if 'MODE' in s]
@@ -385,10 +387,10 @@ class Bank(object):
                     self.current_mode = mode
                     new_hpc_program = self.mode_data[mode].hpc_program
 
-                    #if old_hpc_program != new_hpc_program:
-                    if 0:
+                    if old_hpc_program != new_hpc_program:
+                    #if 0:
                         self.clear_shared_memory()
-                        self.reformat_data_buffers(mode)
+                        #self.reformat_data_buffers(mode)
                     else:
                         print 'Not reformatting buffers'
 
