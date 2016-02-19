@@ -32,8 +32,6 @@ extern "C"
 #include "BfFitsIO.h"
 #include "BfCovFitsIO.h"
 #include "BfPulsarFitsIO.h"
-#include "FakePulsarFile.h"
-#include "FakePulsarToFits.h"
 
 int mainTest(bool cov_mode, int argc, char **argv)
 {
@@ -49,76 +47,113 @@ int mainTest(bool cov_mode, int argc, char **argv)
 // TBF
 int mainTestPulsar(int argc, char **argv)
 {
-    //FakePulsarFile *f = new FakePulsarFile("./smallFakePulsar.ascii");
-    //f->parse();
-
-    FakePulsarToFits *f = new FakePulsarToFits();
-    f->setNumBeams(1);
-    f->addFile("./smallFakePulsar.ascii");
-    f->convertToFits();
     return 0;
 }
 
 /* Test basic functionality of the BfCovFitsIO class */
 int mainTestCov(int argc, char **argv)
 {
-    BfCovFitsIO *fitsio = new BfCovFitsIO("/tmp", false);
-    fitsio->setBankName('A'); //, 1);
+    fitsfile *fptr;
+    const std::string filename("/home/scratch/npingel/FLAG/TestDataOrig/FrontendTests/TGBT14B_913_04_CORREL/PafSoftCorrelReorder/2015_01_26_09:54:41.fits");
+    int status = 0;
+    int iomode = READONLY;
+    fits_open_file(&fptr, filename.c_str(), iomode, &status);
 
-    double start_time = 0;
-    timeval tv;
-    gettimeofday(&tv, 0);
-    // Get the current time as an MJD for use in the FITS file names
-    start_time = BfFitsIO::timeval_2_mjd(&tv);
+    if (status)
+      printf("bad status: %d\n", status);
 
-    fitsio->set_startTime(start_time);
-    fitsio->open();
-
-    const int num_chans = 128; // number of channels
-    const int bin_size = 820; // number of complex pair elements in a bin/channel
-    const int chan_size = bin_size * 2; // number of floats in a channel
-    const int num_floats = num_chans * chan_size; // total number of floats
-
-    // Create a standard vector that contains the correct number of elements (initialized to 0)
-    std::vector<float> fits_data (num_floats, 0);
-
-    // now test out simple writeRow
-    fitsio->writeRow(0, fits_data.data());
-
-    // now test out more complicated shit
-    // create some fake GPU data: 64 x 64 x 2 matrix in 1-d
-    int numChan = 5;
-    int M = 40;
-    int cmpSz = 2;
-    int covDataSz = ((M * (M + 1))/2);
-    int gpuDataSz = covDataSz + (M/2);
-    int fitsSz = covDataSz * cmpSz * numChan;
-    int gpuSz = gpuDataSz  * cmpSz * numChan;
-    float gpu_matrix[gpuSz];
-    float fits[fitsSz];
-    // init the gpu matrix
-    int i = 0;
-    for (i = 0; i<gpuSz; i++)
-        gpu_matrix[i] = (float)i;
-    //for (i = 0; i<10; i++)
-    //    printf("%f\n", fits_data[i]);
-    printf("M: %d, # chans: %d, Gpu Data Size: %d, Fits Data Size: %d\n", M, numChan, gpuDataSz, covDataSz);
-    printf("Parse!\n");
-    fitsio->parseGpuCovMatrix(gpu_matrix, gpuDataSz, fits, covDataSz, numChan);    
-    //for (i = 0; i<fitsSz; i++)
-    //    printf("fits[%d] = %f\n", i, fits[i]);
+    // Look at the second table (which is the first data table)
+    fits_movabs_hdu(fptr, 2, NULL, &status);
     
-    // if that worked, try to write w/ it
-    //fitsio->write(1, gpu_matrix);
+    if (status)
+      printf("bad status: %d\n", status);
+    
+    const int cmpSz = 2; //real & imag
+    const int M = 40; // num of antenna data streams
+    const int num_chans = 160; // number of channels
+    const int fits_bin_size = ((M * (M+1))/2); // number of complex pair elements in a bin/channel for fits
+    const int init_gpu_bin_size = 2112; //number of complex float pairs in raw gpu (with zeros and redun. values)
+    const int gpu_bin_size = ((M * (M+1))/2)+M/2; //number of complex pair elements in a bin/channel for raw gpu (without zeros but with redun. values) 
+    const int fits_chan_size = fits_bin_size * cmpSz; // number of floats in a channel for fits
+    const int gpu_chan_size = gpu_bin_size * cmpSz; 
+    const int init_gpu_chan_size = init_gpu_bin_size * cmpSz; 
+    const int fits_num_floats = num_chans * fits_chan_size; // total number of floats for fits
+    const int init_gpu_num_floats = num_chans * init_gpu_chan_size; //total number of initial floats for gpu
+    const int gpu_num_floats = num_chans * gpu_bin_size;
+    const int num_gpu = 10; //total number of gpus
+    char banks[num_gpu];
+    // Give every bank a sequential letter representation
+    // Right now this will yield: {A, B, ... , J}
+    for (int i = 0, ch = 'A'; i < num_gpu; i++, ch++)
+    	banks[i] = ch;
+        
+    // Create a standard vector that contains the correct number of elements (initialized to 0)
+    std::vector<float> raw_gpu_data (init_gpu_num_floats*10, 0);
 
-    // cleanup 
-    fitsio->close();
+    // Read the data from the PAF comm. data as floats into fits_data
+    // A std::vector has a 'data' segment, but it also has some metadata
+    // This means that we can't just send a pointer to the vector; we must
+    //   send a pointer to fits_data.data() so that we can put the elements
+    //   directly into the vector
+    fits_read_col(fptr, TFLOAT, 1, 1, 1, init_gpu_num_floats*10, NULL, raw_gpu_data.data(), NULL, &status);
+
+    if (status)
+        printf("bad status: %d\n", status);
+
+    // At this point we should have all of the data we want stored in a vector. Let's check:
+    std::cout << "\n\"initial\" gpu_data:" << std::endl;
+    std::cout << "\tnumber of elements: " << raw_gpu_data.size() << std::endl;
+    std::cout << "\tnumber of channels: " << raw_gpu_data.size() / init_gpu_chan_size << std::endl;
+    
+    //Now, let's iterate over the read-in, reordered file to parse, and remove redundant values/zeros. 
+    for (int i = 0; i < num_gpu; i++){ 
+      printf("Sending pointer to element number %d\n", i * init_gpu_num_floats);
+        // Now let's copy over the data that we want into a new vector
+        std::vector<float>::const_iterator trunc_begin = raw_gpu_data.begin()+(i * num_chans * init_gpu_chan_size);
+        // Then an iterator that "points" to the end of the 160 channels we want to keep
+	std::vector<float>::const_iterator trunc_end = raw_gpu_data.begin()+((i+1) * num_chans * init_gpu_chan_size);
+        // Then we copy the data over into a new vector with this constructor call
+        std::vector<float> trunc_data(trunc_begin, trunc_end);
+	
+	BfCovFitsIO *fitsio = new BfCovFitsIO("/tmp", false);
+	fitsio->setBankName(banks[i]); 
+	double start_time = 0;
+	timeval tv;
+	gettimeofday(&tv, 0);
+	// Get the current time as an MJD for use in the FITS file names
+	start_time = BfFitsIO::timeval_2_mjd(&tv);
+
+	fitsio->set_startTime(start_time);
+	fitsio->open();
+	//fitsio->writeRow(0, trunc_data.data());
+
+    // Possible check that may not be required 
+    //for (auto fits_it = fits_data.begin(), trunc_it = trunc_data.begin();
+    //     trunc_it != trunc_data.end();
+    //     fits_it++, trunc_it++)
+    //{
+    //    if (*fits_it != *trunc_it)
+    //        std::cout << "Error copying data over" << std::endl;
+    //}
+
+    // NMP: with the truncated data above, send to function that removes redun. and zero values:
+	float fits[fits_num_floats];
+	printf("M: %d, # chans: %d, Gpu Data Size: %d, Fits Data Size: %d\n", M, num_chans,gpu_bin_size, fits_bin_size);
+	printf("Parse!\n");
+	//fitsio->parseGpuCovMatrix(trunc_data.data(), gpu_bin_size, fits,fits_bin_size,num_chans);     
+        fitsio->parseAndReorderGpuCovMatrix(trunc_data.data(),init_gpu_bin_size,fits, fits_bin_size,num_chans);
+	fitsio->writeRow(0,fits);
+	fitsio->close();
+	delete fitsio;
+    }
+    return EXIT_SUCCESS;
 }
+
 
 int fishFits2CovFitsTest(int argc, char **argv)
 {
     fitsfile *fptr;
-    const std::string filename("/home/scratch/npingel/FLAG/data/TGBT14B_913_04/PafSoftCorrel/2015_01_26_09:47:21.fits");
+    const std::string filename("/home/scratch/npingel/FLAG/TestDataOrig/FrontendTests/TGBT14B_913_04_CORREL/PafSoftCorrelReorder/2015_01_26_09:54:41.fits");
     int status = 0;
     int iomode = READONLY;
     fits_open_file(&fptr, filename.c_str(), iomode, &status);
@@ -202,7 +237,7 @@ int fishFits2CovFitsTest(int argc, char **argv)
     for (int i = 0; i < 10; i++)
     {
         // Create a BfFitsIO writer
-        fitsio = new BfCovFitsIO("/tmp", false, i);
+        fitsio = new BfCovFitsIO("/tmp", false);
 
         printf("setting bank: %c, %d\n", banks[i], i);
         fitsio->setBankName(banks[i]); //, 1);

@@ -25,11 +25,12 @@
 
 #include "BfCovFitsIO.h"
 
-BfCovFitsIO::BfCovFitsIO(const char *path_prefix, int simulator, int instance_id) : BfFitsIO(path_prefix, simulator, instance_id)
+BfCovFitsIO::BfCovFitsIO(const char *path_prefix, int simulator,int instance_id) : BfFitsIO(path_prefix, simulator, instance_id)
 {
     // What distinquishes modes is their data format
-    data_size = FITS_BIN_SIZE * NUM_CHANNELS;
-    sprintf(data_form, "%dC", data_size);
+      data_size = FITS_BIN_SIZE * NUM_CHANNELS;
+      //data_size = 2112*5;
+      sprintf(data_form, "%dC", data_size);
 }
 
 // example implementation of abstract method
@@ -43,11 +44,12 @@ int BfCovFitsIO::write(int mcnt, float *data) {
     // For a matrix of 40x40 there will be 20 redundant values
     float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
     printf("about to parse data\n");
-    parseGpuCovMatrix(data, fits_matrix);
-
+    //parseGpuCovMatrix(data, fits_matrix);
+    parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS);
     //testthis(fits_matrix);
     printf("about to write parsed data\n");
     writeRow(mcnt, fits_matrix);
+    //writeRow(mcnt, data);
     printf("done writing data\n");
     return 1;
 }    
@@ -61,7 +63,44 @@ BfCovFitsIO::testthis(float *const fits_matrix)
     for (i = 0; i<sz; i++)
         fits_matrix[i] = (float)i;
 }
-
+void
+BfCovFitsIO::parseAndReorderGpuCovMatrix(float const *const gpu_matrix, int gpu_corr_num, float *const fits_matrix, int fits_corr_num, int num_channels)
+{
+//read in .dat file
+	int gpuToNativeMap[820];
+	FILE *fptr= NULL;
+	fptr = fopen("/users/npingel/FLAG/bf/repos/FLAG-Beamformer-Devel/docs/gpuToNativeMap.dat","rb");
+	for (int i=0; i < 820; i++)
+	{
+ 	fscanf(fptr,"%d",&gpuToNativeMap[i]);
+	//printf("array element:  %d\n", gpuToNativeMap[i]);
+	}
+	fclose(fptr);
+	for (int z = 0; z < num_channels; z++)
+	//for (int z=0; z < 1; z++)
+	{
+		int fits_pos = z*fits_corr_num*2;	
+		//printf("fits_pos: %f\n", fits_pos);
+		for (int j = 0; j < fits_corr_num; j++)
+		{
+			int gpu_pos = z*gpu_corr_num*2;
+			int gpu_idx_real = gpuToNativeMap[j]*2;
+		//	printf("gpu_pos: %d\n", gpu_pos);
+		//	printf("gpu_idx: %d\n", gpu_idx);
+			int corr_idx_real = gpu_pos+gpu_idx_real;
+			int corr_idx_imag = corr_idx_real+1;
+			int fits_idx_real = fits_pos+(j*2);
+			int fits_idx_imag = fits_idx_real+1;
+			int corr_val_real = gpu_matrix[corr_idx_real];
+			int corr_val_imag = gpu_matrix[corr_idx_imag];
+			fits_matrix[fits_idx_real] = corr_val_real;
+			fits_matrix[fits_idx_imag] = corr_val_imag;
+		//	printf("%f\n",fits_matrix[fits_Idx]);
+		//	int corrVal = fits_matrix[fits_Idx];
+		//	printf("correlation: %d\n", corrVal);				
+		}
+	}
+}
 // This function takes the GPU's covariance matrix output (64x64)
 //   and parses it into a consolidated format suitable for writing to FITS.
 // There are two "steps" here.
@@ -78,12 +117,19 @@ BfCovFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_
 {
     //parseGpuCovMatrix(gpu_matrix, NONZERO_BIN_SIZE, fits_matrix, FITS_BIN_SIZE, NUM_CHANNELS); 
     // this is not right, but avoids current bug from crashing things!
-    parseGpuCovMatrix(gpu_matrix, FITS_BIN_SIZE, fits_matrix, FITS_BIN_SIZE, NUM_CHANNELS); 
+   parseGpuCovMatrix(gpu_matrix, 840, fits_matrix, 820, 160); 
 }
 
 void
 BfCovFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, float *const fits_matrix, int fits_size, int num_channels)
 {
+
+    int i;
+    for (i=0; i < 4100; i++){
+	int gpuVal = gpu_matrix[i];
+	printf("gpu matrix element value: %d\n",gpuVal);
+}
+/* 
     // Counts number of redundant elements encountered
     int red_els = 0;
     // Counts total number of elements encountered
@@ -101,7 +147,6 @@ BfCovFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, floa
     
     int fits_data_sz = num_channels * fits_size * 2;
     int i, j;
-    float value;
     //for (i = 0; i < NUM_CHANNELS; i++)
     for (i = 0; i < num_channels; i++)
     {
@@ -109,12 +154,15 @@ BfCovFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, floa
         // Remember we need to double the bin size because each complex pair
         //   is actually represented as two floats
         // This also means that we are iterating by two (since we are treating every
-        //   two elements as an atomic unit)
+        //   two elements as an atomic unit))
+        
+	//int next_red_element = 1+(i*2112);
+        //int inc=8;
         for (j = 0; j < gpu_size * 2; j += 2)
-        //for (j = 0; j < NONZERO_FITS_BIN_SIZE * 2; j += 2)
+	//for (j = 0; j < NONZERO_FITS_BIN_SIZE * 2; j += 2)
         {
             // index counters for convenience
-            int gpu_real_index = (i * gpu_size * 2) + j;
+            int gpu_real_index = (i * 2112 * 2) + j;
             int gpu_imag_index = gpu_real_index + 1;
 
             if (gpu_real_index / 2 == next_red_element)
@@ -147,7 +195,9 @@ BfCovFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, floa
                 fits_imag_index+=2;
             }
         }
+
     }
+*/
 }
 
 
