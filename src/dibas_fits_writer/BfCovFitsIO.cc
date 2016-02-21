@@ -91,8 +91,8 @@ BfCovFitsIO::parseAndReorderGpuCovMatrix(float const *const gpu_matrix, int gpu_
 			int corr_idx_imag = corr_idx_real+1;
 			int fits_idx_real = fits_pos+(j*2);
 			int fits_idx_imag = fits_idx_real+1;
-			int corr_val_real = gpu_matrix[corr_idx_real];
-			int corr_val_imag = gpu_matrix[corr_idx_imag];
+			float corr_val_real = gpu_matrix[corr_idx_real];
+			float corr_val_imag = gpu_matrix[corr_idx_imag];
 			fits_matrix[fits_idx_real] = corr_val_real;
 			fits_matrix[fits_idx_imag] = corr_val_imag;
 		//	printf("%f\n",fits_matrix[fits_Idx]);
