@@ -30,7 +30,7 @@
 FakePulsarToFits::FakePulsarToFits()
 {
 
-    // TBF
+// Defining arrays
 
 }
 

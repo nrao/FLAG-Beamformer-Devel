@@ -23,6 +23,10 @@
 #ifndef BFPULSARFITSIO
 #define BFPULSARFITSIO
 
+#define NUM_BEAMS  7
+#define NUM_PULSAR_CHANNELS 50
+#define NUM_STOKES 3
+
 #include "BfFitsIO.h"
 
 class BfPulsarFitsIO : public BfFitsIO
@@ -31,6 +35,9 @@ public:
     BfPulsarFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0);
     int write(int mcnt, float *data);
     int myAbstract();
+    void testthis(float *const psrdata);
+	int writeRow(int mcnt, float *data);
+
 };
 
 #endif

@@ -84,7 +84,6 @@ void *
 BfFitsThread::run(struct vegas_thread_args *args)
 {
     bool cov_mode = (bool)args->cov_mode;
-
     int rv;
     BfFitsIO *fitsio;
 
@@ -142,7 +141,8 @@ BfFitsThread::run(struct vegas_thread_args *args)
         gdb = (void *)bf_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bf_databuf *)gdb)->header.semid;
-    } else {
+    } 
+    else {
         gdb = (void *)bfp_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bfp_databuf *)gdb)->header.semid;
@@ -203,7 +203,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     // Create a BfFitsIO writer subclass based on mode
     if (cov_mode)
         fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id);
-    else    
+    else   
         fitsio = (BfFitsIO *) new BfPulsarFitsIO(datadir, false, instance_id);
 
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio);
@@ -338,7 +338,8 @@ BfFitsThread::run(struct vegas_thread_args *args)
             mcnt = ((bf_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bf_databuf *)gdb)->header.n_block;
             data = ((bf_databuf *)gdb)->block[block].data;
-        } else {
+        } 
+        else {
             mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
             data = ((bfp_databuf *)gdb)->block[block].data;

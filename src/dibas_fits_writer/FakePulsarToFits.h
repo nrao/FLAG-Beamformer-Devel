@@ -35,7 +35,8 @@ public:
     bool convertToFits();
     bool addFiles(const char* dir);
     bool addFile(const char* path);
-    inline void setNumBeams(int b) { numBeams = b; }
+    inline void setNumBeams(int b) { numBeams = b; };
+    void changestruct(float *array, int ts, int NumChan);
 
 private:
     bool parseFiles();

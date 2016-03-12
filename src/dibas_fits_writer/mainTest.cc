@@ -16,6 +16,7 @@
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+//#include<process.h>
 
 extern "C"
 {
@@ -52,10 +53,14 @@ int mainTestPulsar(int argc, char **argv)
     //FakePulsarFile *f = new FakePulsarFile("./smallFakePulsar.ascii");
     //f->parse();
 
-    FakePulsarToFits *f = new FakePulsarToFits();
-    f->setNumBeams(1);
-    f->addFile("./smallFakePulsar.ascii");
-    f->convertToFits();
+//    FakePulsarToFits *f = new FakePulsarToFits();
+//    f->setNumBeams(1);
+//    f->addFile("./smallFakePulsar.ascii");
+//    f->convertToFits();
+
+    char EXECDIR[128] = "/users/krajwade/bf/repos/FLAG-Beamformer-Devel/FakePulsar/FakeRsr2Fits";
+
+    system(EXECDIR);
     return 0;
 }
 
@@ -113,6 +118,7 @@ int mainTestCov(int argc, char **argv)
 
     // cleanup 
     fitsio->close();
+    return(0);
 }
 
 int fishFits2CovFitsTest(int argc, char **argv)

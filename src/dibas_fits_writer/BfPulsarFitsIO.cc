@@ -26,15 +26,73 @@
 BfPulsarFitsIO::BfPulsarFitsIO(const char *path_prefix, int simulator, int instance_id) : BfFitsIO(path_prefix, simulator, instance_id)
 {
     // What distinquishes modes is their data format
-    data_size = NUM_BEAMS * NUM_PULSAR_CHANNELS;
+    data_size = NUM_BEAMS * NUM_PULSAR_CHANNELS*NUM_STOKES;
     sprintf(data_form, "%dE", data_size);
 }
 
+int
+BfPulsarFitsIO::writeRow(int mcnt, float *data)
+{
+    int column = 1;
+    MutexLock l(lock_mutex);
+    l.lock();
+
+    // TODO: Make current_row a local variable or come up with a 
+    // reason it shouldn't be
+
+    // DMJD column
+    double dmjd = calculateBlockTime(mcnt, startTime);
+    write_col_dbl(column++,
+                  current_row,
+                  1,
+                  1,
+                  &dmjd);
+
+    // MCNT column
+    write_col_int(column++,
+                  current_row,
+                  1,
+                  1,
+                  &mcnt);
+
+    clock_gettime(CLOCK_MONOTONIC, &data_w_start);
+    // DATA column
+    fprintf(stderr, "DATA 1: %f\n", data[1]);
+    write_col_flt(column++,
+                  current_row,
+                  1,
+                  data_size, //FITS_BIN_SIZE * NUM_CHANNELS,
+                  data);
+     clock_gettime(CLOCK_MONOTONIC, &data_w_stop);
+
+    ++current_row;
+
+    l.unlock();
+    report_error(stderr, getStatus());
+    return getStatus();
+ }
+
 int BfPulsarFitsIO::write(int mcnt, float *data) {
+    
+    printf("about to parse data\n");
+    printf("writing data\n");    
     writeRow(mcnt, data);
+    printf("Done writing data\n");
+    return 1;
+}
+
+
+void
+BfPulsarFitsIO::testthis(float *const psrdata)
+{
+
+    int sz = NUM_BEAMS * NUM_PULSAR_CHANNELS;
+    int i = 0;
+    for (i = 0; i<sz; i++)
+        psrdata[i] = (float)i;
 }
 
 // example implementation of abstract method
 int BfPulsarFitsIO::myAbstract() {
     return 0;
-}    
+}

@@ -151,7 +151,8 @@ int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
     // create command fifo based on username and instance_id
     char command_fifo_filename[MAX_CMD_LEN];
     char *user = getenv("USER");
-    sprintf(command_fifo_filename, "/tmp/dibas_fits_control_%s_%d", user, instance_id);
+    sprintf(command_fifo_filename, "/tmp/fits_fifo_%s_%d", user, instance_id);
+    printf("%s\n",command_fifo_filename);
 
     run = 1;
     int command_fifo;
@@ -371,6 +372,10 @@ int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
     exit(0);
 }
 
+
+
+
+
 int main(int argc, char **argv) {
 
     static struct option long_opts[] = {
@@ -408,7 +413,9 @@ int main(int argc, char **argv) {
 
     if (test)
         mainTest(cov_mode, argc, argv);
-    else 
+    if(cov_mode)
         mainThread(cov_mode, instance_id, argc, argv);
+    else
+        mainThread(false, instance_id, argc, argv);
     return (0);
 }
