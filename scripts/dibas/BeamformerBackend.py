@@ -32,6 +32,7 @@
 import time
 import shlex
 import subprocess
+import os
 from datetime import datetime, timedelta
 
 from VegasBackend import VegasBackend
@@ -183,11 +184,15 @@ class BeamformerBackend(VegasBackend):
             raise Exception("Configuration error: no field hpc_program specified in "
                             "MODE section of %s " % (self.current_mode))
 
-        # TBF: remove the special handling of beamformer
+        
+	# TBF: remove the special handling of beamformer
         if hpc_program == 'beamformer':
             cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_thread' % self.instance_id
-             
-            process_list = shlex.split(cmd)
+            ## Reset gpu FIFO
+	    user = os.getenv("USER")
+	    os.system('rm -f /tmp/gpu_fifo_'+user+'_%d' % self.instance_id) 
+            os.system('touch /tmp/gpu_fifo_'+user+'_%d' % self.instance_id)
+	    process_list = shlex.split(cmd)
         else:
             process_list = [self.dibas_dir + '/exec/x86_64-linux/' + hpc_program]
 
@@ -196,6 +201,21 @@ class BeamformerBackend(VegasBackend):
 
         print "process_list: ", process_list
         self.hpc_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
+	
+	# TBF: remove the special handling of beamformer
+        #if hpc_program == 'SpectralBeamformer':
+        #    cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_thread' % self.instance_id
+
+        #    process_list = shlex.split(cmd)
+        #else:
+        #    process_list = [self.dibas_dir + '/exec/x86_64-linux/' + hpc_program]
+
+        #if self.mode.hpc_program_flags and hpc_program != 'SpectralBeamformer':
+        #    process_list = process_list + self.mode.hpc_program_flags.split()
+
+        #print "process_list: ", process_list
+        #self.hpc_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
+
 
     def start_fits_writer(self):
         """
@@ -209,11 +229,15 @@ class BeamformerBackend(VegasBackend):
 
         self.stop_fits_writer()
         fits_writer_program = "bfFitsWriter"
+	## Reset FITS FIFO
+        user = os.getenv("USER")
+        os.system('rm -f /tmp/fits_fifo_'+user+'_%d' % self.instance_id)
+        os.system('touch /tmp/fits_fifo_'+user+'_%d' % self.instance_id)
 
         cmd = self.dibas_dir + '/exec/x86_64-linux/' + fits_writer_program
         #self.fits_writer_process = subprocess.Popen((sp_path, ), stdin=subprocess.PIPE)
         cmd += " -i %d" % self.instance_id
-        cmd += " -m c" 
+        #cmd += " -m c" 
         process_list = shlex.split(cmd)
         self.fits_writer_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
     
