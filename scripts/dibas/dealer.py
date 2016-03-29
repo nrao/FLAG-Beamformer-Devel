@@ -359,6 +359,36 @@ class Dealer(object):
         es = es.replace(tzinfo=pytz.utc)
         return es
 
+    def set_cov_mode(self,num):
+      
+      if num == 1:
+ 
+        string = 'PAF_CAL'
+        cmd = 'hashpipe_check_status -k COVMODE -s %s'% string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd) 
+
+      elif num == 2:
+        string = 'FRB'
+        cmd = 'hashpipe_check_status -k COVMODE -s %s' % string 
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd)
+
+      elif num == 3:
+        string = 'HI'
+        cmd = 'hashpipe_check_status -k COVMODE -s %s' % string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd)
+ 
+      else:
+     
+        string = 'NONE'
+        print 'Correct mode not found'
+        cmd = 'hashpipe_check_status -k COVMODE -f %s' % string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd) 
+
+
     def start(self, starttime = None):
         """start(self, starttime = None)
 

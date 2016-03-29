@@ -81,7 +81,8 @@ class Bank(object):
                     "l8/lbw8"    : VegasL8LBWBackend.VegasL8LBWBackend,
                     "guppi-inco" : GuppiBackend.GuppiBackend,
                     "guppi-codd" : GuppiCODDBackend.GuppiCODDBackend,
-                    "beamformer" : BeamformerBackend.BeamformerBackend}
+                    "beamformer" : BeamformerBackend.BeamformerBackend,
+                    "pulsar_beamformer" : BeamformerBackend.BeamformerBackend}
 
         self.dibas_dir = os.getenv('DIBAS_DIR')
 
@@ -476,8 +477,8 @@ class Bank(object):
 
     def startin(self, inSecs, durSecs):
         "An alternative method for running a scan, only available for Beamformer backend."
-        # HACK^3
-        assert self.current_mode == 'MODE42'
+        mode = self.get_mode()
+        assert self.current_mode == mode
         if self.backend:
             self.backend.start(inSecs, durSecs)
 

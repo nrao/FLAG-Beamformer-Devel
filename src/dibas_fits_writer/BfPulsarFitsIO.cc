@@ -57,7 +57,6 @@ BfPulsarFitsIO::writeRow(int mcnt, float *data)
 
     clock_gettime(CLOCK_MONOTONIC, &data_w_start);
     // DATA column
-    fprintf(stderr, "DATA 1: %f\n", data[1]);
     write_col_flt(column++,
                   current_row,
                   1,

@@ -257,7 +257,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         pthread_exit(0);
     }
 
-    int block = 0;
+    int block = 0,num_iter=0;
     // int last_int = -2;
     // bool data_waiting = false;
     // bool new_integration = true;
@@ -340,9 +340,11 @@ BfFitsThread::run(struct vegas_thread_args *args)
             data = ((bf_databuf *)gdb)->block[block].data;
         } 
         else {
-            mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
+           // mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
+            mcnt = num_iter*N;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
             data = ((bfp_databuf *)gdb)->block[block].data;
+            num_iter++;
         }    
         //fitsio->write(mcnt, fits_matrix);
         fitsio->write(mcnt, data);

@@ -32,6 +32,7 @@
 import time
 import shlex
 import subprocess
+import os
 from datetime import datetime, timedelta
 
 from VegasBackend import VegasBackend
@@ -186,12 +187,17 @@ class BeamformerBackend(VegasBackend):
         # TBF: remove the special handling of beamformer
         if hpc_program == 'beamformer':
             cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_thread' % self.instance_id
-             
+
+
+            process_list = shlex.split(cmd)
+        elif hpc_program == 'pulsar_beamformer':
+            cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_psr_thread' % self.instance_id
+
             process_list = shlex.split(cmd)
         else:
             process_list = [self.dibas_dir + '/exec/x86_64-linux/' + hpc_program]
 
-        if self.mode.hpc_program_flags and hpc_program != 'beamformer':
+        if self.mode.hpc_program_flags and hpc_program != 'beamformer' and hpc_program != 'pulsar_beamformer':
             process_list = process_list + self.mode.hpc_program_flags.split()
 
         print "process_list: ", process_list
@@ -210,10 +216,24 @@ class BeamformerBackend(VegasBackend):
         self.stop_fits_writer()
         fits_writer_program = "bfFitsWriter"
 
+
         cmd = self.dibas_dir + '/exec/x86_64-linux/' + fits_writer_program
         #self.fits_writer_process = subprocess.Popen((sp_path, ), stdin=subprocess.PIPE)
+        
+        hpc_program = self.mode.hpc_program
         cmd += " -i %d" % self.instance_id
-        cmd += " -m c" 
+        if hpc_program == 'beamformer':
+          cmd += " -m c" 
+          check = 'hashpipe_check_status -Q COVMODE'
+          val = os.system(check)
+
+          if val == None:
+            print 'COVMODE not specified'
+            exit()
+
+        elif hpc_program == 'pulsar_beamformer':
+          cmd += "-m p"     
+   
         process_list = shlex.split(cmd)
         self.fits_writer_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
     
