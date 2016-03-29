@@ -315,6 +315,10 @@ class Dealer(object):
         """
         return self._pexecute("set_mode", 120, [mode, bandwidth, force])
 
+    def write_cmd(self,string):
+       
+        return self._pexecute("write_cmd",120,[string])
+
     def _all_same(self, m):
         """
         Given a map 'm', returns (True, val) if 'val' is the common

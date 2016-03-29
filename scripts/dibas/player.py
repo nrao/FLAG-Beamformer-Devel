@@ -473,6 +473,13 @@ class Bank(object):
         """
         return self.current_mode
 
+    def write_cmd(self,string):
+        
+        if self.backend:
+           print string
+           self.backend.hpc_cmd(string)
+           self.backend.fits_writer_cmd(string)
+
     def startin(self, inSecs, durSecs):
         "An alternative method for running a scan, only available for Beamformer backend."
         mode = self.get_mode()
@@ -483,7 +490,7 @@ class Bank(object):
 
     def start(self, starttime = None):
         """
-        start(self, starttime = None)
+        start(self, starttimeelf= None)
 
         starttime: a datetime object representing a start time, in UTC
 
