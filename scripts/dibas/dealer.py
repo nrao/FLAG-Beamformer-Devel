@@ -33,7 +33,7 @@ import ConfigParser
 import time
 import threading
 import pytz
-
+from Backend import Backend
 from datetime import datetime, timedelta
 from ZMQJSONProxy import ZMQJSONProxyClient
 

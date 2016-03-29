@@ -178,8 +178,9 @@ class BeamformerBackend(VegasBackend):
             return
 
         self.stop_hpc()
-
+        
         hpc_program = self.mode.hpc_program
+        print "THE PROGRAM IS", hpc_program
         if hpc_program is None:
             raise Exception("Configuration error: no field hpc_program specified in "
                             "MODE section of %s " % (self.current_mode))
@@ -224,16 +225,10 @@ class BeamformerBackend(VegasBackend):
         cmd += " -i %d" % self.instance_id
         if hpc_program == 'beamformer':
           cmd += " -m c" 
-          check = 'hashpipe_check_status -Q COVMODE'
-          val = os.system(check)
-
-          if val == None:
-            print 'COVMODE not specified'
-            exit()
-
-        elif hpc_program == 'pulsar_beamformer':
-          cmd += "-m p"     
-   
+        if hpc_program == 'pulsar_beamformer':
+          cmd += " -m p"     
+        
+        print cmd 
         process_list = shlex.split(cmd)
         self.fits_writer_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
     

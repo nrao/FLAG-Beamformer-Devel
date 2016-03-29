@@ -385,13 +385,11 @@ class Bank(object):
 
         """
         frequency = bandwidth
-
         if mode:
             if mode in self.mode_data:
                 if force or mode != self.current_mode or frequency != self.mode_data[mode].frequency:
                     self.check_shared_memory()
                     print "New mode specified and/or bandwidth specified!"
-
                     if self.current_mode:
                         old_hpc_program = self.mode_data[self.current_mode].hpc_program
                     else:
@@ -479,6 +477,7 @@ class Bank(object):
         "An alternative method for running a scan, only available for Beamformer backend."
         mode = self.get_mode()
         assert self.current_mode == mode
+        print "Current mode is",self.current_mode
         if self.backend:
             self.backend.start(inSecs, durSecs)
 
