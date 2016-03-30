@@ -151,6 +151,9 @@ int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
     // create command fifo based on username and instance_id
     char command_fifo_filename[MAX_CMD_LEN];
     char *user = getenv("USER");
+    char fifo_cmd[128];
+    sprintf(fifo_cmd, "touch /tmp/fits_fifo_%s_%d", user, instance_id);
+    system(fifo_cmd);
     sprintf(command_fifo_filename, "/tmp/fits_fifo_%s_%d", user, instance_id);
     printf("%s\n",command_fifo_filename);
 
@@ -175,6 +178,7 @@ int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
 
     //command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
     command_fifo = open(command_fifo_filename, O_RDONLY | O_NONBLOCK);
+    //command_fifo = fileno(stdin);
     if (command_fifo<0)
     {
         fprintf(stderr, "vegas_fits_writer: Error opening control fifo %s\n", command_fifo_filename);
@@ -225,10 +229,10 @@ int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
 
         // Wait for data on fifo
         struct pollfd pfd[2];
-        pfd[0].fd = command_fifo;
-        pfd[0].events = POLLIN;
-        pfd[1].fd = fileno(stdin);
+        pfd[1].fd = command_fifo;
         pfd[1].events = POLLIN;
+        pfd[0].fd = fileno(stdin);
+        pfd[0].events = POLLIN;
 		// ?, num file desc, timeout
         rv = poll(pfd, 2, 1000);
         if (rv==0)
@@ -251,8 +255,9 @@ int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
             rv = 0;
             if (pfd[i].revents & POLLIN)
             {
-                if (read(pfd[i].fd, cmd, MAX_CMD_LEN-1)<1)
+                if (read(pfd[i].fd, cmd, MAX_CMD_LEN-1)<1){
                     continue;
+                }
                 else
                 {
                     rv = 1;

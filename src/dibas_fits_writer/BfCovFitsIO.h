@@ -34,6 +34,6 @@ public:
     int write(int mcnt, float *data);
     void testthis(float *const fits_matrix);
     int myAbstract();
+    void parseAndReorderGpuCovMatrix(float const *const gpu_matrix, int gpu_corr_num, float *const fits_matrix, int fits_corr_num, int num_channels);
 };
-
 #endif

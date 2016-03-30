@@ -43,9 +43,7 @@ int BfCovFitsIO::write(int mcnt, float *data) {
     // For a matrix of 40x40 there will be 20 redundant values
     float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
     printf("about to parse data\n");
-    parseGpuCovMatrix(data, fits_matrix);
-
-    //testthis(fits_matrix);
+    parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS);
     printf("about to write parsed data\n");
     writeRow(mcnt, fits_matrix);
     printf("done writing data\n");
@@ -61,6 +59,37 @@ BfCovFitsIO::testthis(float *const fits_matrix)
     for (i = 0; i<sz; i++)
         fits_matrix[i] = (float)i;
 }
+
+void
+BfCovFitsIO::parseAndReorderGpuCovMatrix(float const *const gpu_matrix, int gpu_corr_num, float *const fits_matrix, int fits_corr_num, int num_channels)
+{
+        int gpuToNativeMap[820];
+        FILE *fptr= NULL;
+        fptr = fopen("/users/npingel/FLAG/bf/repos/FLAG-Beamformer-Devel/docs/gpuToNativeMap.dat","rb");
+        for (int i=0; i < 820; i++)
+        {
+        fscanf(fptr,"%d",&gpuToNativeMap[i]);
+         }
+        fclose(fptr);
+        for (int z = 0; z < num_channels; z++)
+        {
+            int fits_pos = z*fits_corr_num*2;
+            for (int j = 0; j < fits_corr_num; j++)
+                {
+                        int gpu_pos = z*gpu_corr_num*2;
+                        int gpu_idx_real = gpuToNativeMap[j]*2;
+                        int corr_idx_real = gpu_pos+gpu_idx_real;
+                        int corr_idx_imag = corr_idx_real+1;
+                        int fits_idx_real = fits_pos+(j*2);
+                        int fits_idx_imag = fits_idx_real+1;
+                        float corr_val_real = gpu_matrix[corr_idx_real];
+                        float corr_val_imag = gpu_matrix[corr_idx_imag];
+                        fits_matrix[fits_idx_real] = corr_val_real;
+                        fits_matrix[fits_idx_imag] = corr_val_imag;
+                 }
+        }
+}
+
 
 // This function takes the GPU's covariance matrix output (64x64)
 //   and parses it into a consolidated format suitable for writing to FITS.
@@ -101,7 +130,6 @@ BfCovFitsIO::parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, floa
     
     int fits_data_sz = num_channels * fits_size * 2;
     int i, j;
-    float value;
     //for (i = 0; i < NUM_CHANNELS; i++)
     for (i = 0; i < num_channels; i++)
     {
