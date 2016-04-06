@@ -109,7 +109,7 @@ const int MAX_CMD_LEN =64;
 
 extern "C" int setup_privileges();
 
-int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
+int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, int argc, char **argv)
 {
 
     /*
@@ -324,7 +324,9 @@ int mainThread(bool cov_mode, int instance_id, int argc, char **argv)
                 // pass on args 
                 vegas_thread_args *args = new vegas_thread_args;
                 args->input_buffer = instance_id;
-                args->cov_mode = (int)cov_mode;
+                args->cov_mode1 = (int)cov_mode1;
+                args->cov_mode2 = (int)cov_mode2;
+                args->cov_mode3 = (int)cov_mode3;
                 pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
 
             }
@@ -394,15 +396,21 @@ int main(int argc, char **argv) {
     int opt, opti;
     int instance_id = 0;
     bool test = false;
-    bool cov_mode = true;
-    char cov_mode_value = 'c';
+    bool cov_mode1 = true;
+    bool cov_mode2 = true;
+    bool cov_mode3 = true;
+    char cov_mode1_value = 's';
+    char cov_mode2_value = 'c';
+    char cov_mode3_value = 'f';
     while ((opt=getopt_long(argc,argv,"htm:i:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 't':
                 test = true;
                 break;
             case 'm':    
-                cov_mode = (cov_mode_value == *optarg);
+                cov_mode1 = (cov_mode1_value == *optarg);
+                cov_mode2 = (cov_mode2_value == *optarg);
+                cov_mode3 = (cov_mode3_value == *optarg);
                 break;
             case 'i':    
                 instance_id = atoi(optarg);
@@ -417,10 +425,22 @@ int main(int argc, char **argv) {
 
 
     if (test)
-        mainTest(cov_mode, argc, argv);
-    if(cov_mode)
-        mainThread(cov_mode, instance_id, argc, argv);
-    else
-        mainThread(false, instance_id, argc, argv);
+        mainTest(cov_mode1, argc, argv);
+    if(cov_mode1){
+        printf("RUNNING HI MODE\n");
+        mainThread(cov_mode1,false,false, instance_id, argc, argv);
+        }
+    else if (cov_mode2){
+        printf("RUNNING PAF MODE\n");
+        mainThread(false,cov_mode2,false,instance_id, argc, argv);
+        }
+    else if (cov_mode3){
+        printf("RUNNING FRB MODE\n");
+        mainThread(false,false,cov_mode3, instance_id, argc, argv);
+        }
+    else{
+        printf("RUNNING PULSAR MODE\n");
+        mainThread(false,false,false, instance_id, argc, argv);
+        }
     return (0);
 }

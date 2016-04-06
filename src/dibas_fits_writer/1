@@ -83,9 +83,7 @@ void *runGbtFitsWriter(void *ptr)
 void *
 BfFitsThread::run(struct vegas_thread_args *args)
 {
-    bool cov_mode1 = (bool)args->cov_mode1;
-    bool cov_mode2 = (bool)args->cov_mode2;
-    bool cov_mode3 = (bool)args->cov_mode3;
+    bool cov_mode = (bool)args->cov_mode;
     int rv;
     BfFitsIO *fitsio;
 
@@ -139,24 +137,11 @@ BfFitsThread::run(struct vegas_thread_args *args)
     // Different modes are taken into account due to the different buffer sizes
     void *gdb;
     int shmid, semid;
-    if (cov_mode1) {
+    if (cov_mode) {
         gdb = (void *)bf_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bf_databuf *)gdb)->header.semid;
     } 
-
-    else if (cov_mode2){
-        gdb = (void *)bfpaf_databuf_attach(databufid, instance_id);
-        if (gdb != 0)
-            semid = ((bfpaf_databuf *)gdb)->header.semid;
-    }
-
-    else if (cov_mode3){
-        gdb = (void *)bffrb_databuf_attach(databufid, instance_id);
-        if (gdb != 0)
-            semid = ((bffrb_databuf *)gdb)->header.semid;
-    }
-
     else {
         gdb = (void *)bfp_databuf_attach(databufid, instance_id);
         if (gdb != 0)
@@ -216,13 +201,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         pthread_exit(0);
     }
     // Create a BfFitsIO writer subclass based on mode
-    if (cov_mode1){
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id);
-        printf("COVARIANCE FITS OPENED!!!\n");
-       }
-    else if (cov_mode2)
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id);
-    else if (cov_mode3)
+    if (cov_mode)
         fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id);
     else   
         fitsio = (BfFitsIO *) new BfPulsarFitsIO(datadir, false, instance_id);
@@ -355,39 +334,20 @@ BfFitsThread::run(struct vegas_thread_args *args)
         // collect some mode dependent info about the databuffer blocks
         int mcnt, n_block;
         float *data;
-        if (cov_mode1) {
+        if (cov_mode) {
             mcnt = ((bf_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bf_databuf *)gdb)->header.n_block;
             data = ((bf_databuf *)gdb)->block[block].data;
-            fitsio->write_HI(mcnt, data);
-        }
-
-        else if (cov_mode2) {
-            mcnt = ((bfpaf_databuf *)gdb)->block[block].header.mcnt;
-            n_block = ((bfpaf_databuf *)gdb)->header.n_block;
-            data = ((bfpaf_databuf *)gdb)->block[block].data;
-            fitsio->write_PAF(mcnt, data);
-        }
-
-        else if (cov_mode3){
-            mcnt = ((bffrb_databuf *)gdb)->block[block].header.mcnt;
-            n_block = ((bffrb_databuf *)gdb)->header.n_block;
-            data = ((bffrb_databuf *)gdb)->block[block].data;
-            fitsio->write_FRB(mcnt, data);
-        }
+        } 
         else {
            // mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
             mcnt = num_iter*N;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
-            
-            
-            printf("TOTAL_GPU_PULSAR_DATA_SIZE %d\n", TOTAL_GPU_PULSAR_DATA_SIZE);
-	        printf("NUM_BLOCKS %d\n", NUM_BLOCKS);
             data = ((bfp_databuf *)gdb)->block[block].data;
             num_iter++;
-            fitsio->write(mcnt, data);
         }    
         //fitsio->write(mcnt, fits_matrix);
+        fitsio->write(mcnt, data);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         total_write_time += ELAPSED_NS(fits_start, fits_stop);
         

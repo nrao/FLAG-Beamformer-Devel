@@ -36,11 +36,11 @@ extern "C"
 #include "FakePulsarFile.h"
 #include "FakePulsarToFits.h"
 
-int mainTest(bool cov_mode, int argc, char **argv)
+int mainTest(bool cov_mode1, int argc, char **argv)
 {
-    printf("Beamformer FITS Festival! Cov. Matrix mode? %d\n", cov_mode);
+    printf("Beamformer FITS Festival! Cov. Matrix mode? %d\n", cov_mode1);
     int rv = 0;
-    if (cov_mode)
+    if (cov_mode1)
         rv = mainTestCov(argc, argv);
     else    
         rv = mainTestPulsar(argc, argv);

@@ -47,15 +47,19 @@ struct decprecated_bf_databuf {
 //   That is, the total number of complex pairs we will be writing to shared memory
 //   is given as: GPU_BIN_SIZE * NUM_CHANNELS
 #define NUM_CHANNELS 160
+#define NUM_CHANNELS_PAF 25
+#define NUM_CHANNELS_FRB 5
 // #define NUM_CHANNELS 160
 #define TOTAL_GPU_DATA_SIZE (GPU_BIN_SIZE * NUM_CHANNELS * 2)
+#define TOTAL_GPU_DATA_SIZE_PAF (GPU_BIN_SIZE * NUM_CHANNELS_PAF*2)
+#define TOTAL_GPU_DATA_SIZE_FRB (GPU_BIN_SIZE * NUM_CHANNELS_FRB * 2)
 
 // For pulsar mode 
 #define NUM_PULSAR_CHANNELS 50
 #define NUM_BEAMS 7
-#define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS)
+#define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS * 3)
 
-#define NUM_BLOCKS 4
+#define NUM_BLOCKS 7
 
 typedef struct {
     char data_type[64]; /* Type of data in buffer */
@@ -82,11 +86,39 @@ typedef struct bfp_databuf_block {
   float data[TOTAL_GPU_PULSAR_DATA_SIZE];
 } bfp_databuf_block_t;
 
+typedef struct bfpaf_databuf_block {
+  bf_databuf_block_header_t header;
+
+float data[TOTAL_GPU_DATA_SIZE_PAF];
+} bfpaf_databuf_block_t;
+
+
+typedef struct bffrb_databuf_block {
+  bf_databuf_block_header_t header;
+
+
+float data[TOTAL_GPU_DATA_SIZE_FRB];
+} bffrb_databuf_block_t;
+
 // Covariance Matrix outputmode
 struct bf_databuf {
         bf_databuf_header_t header;
         bf_databuf_block_t block[NUM_BLOCKS];
 };
+
+// PAF Cal output mode
+struct bfpaf_databuf {
+        bf_databuf_header_t header;
+        bfpaf_databuf_block_t block[NUM_BLOCKS];
+};
+
+// FRB output mode
+
+struct bffrb_databuf {
+        bf_databuf_header_t header;
+        bffrb_databuf_block_t block[NUM_BLOCKS];
+};
+
 
 // Pulsar outputmode
 struct bfp_databuf {
@@ -167,13 +199,15 @@ void bf_conf_databuf_size(struct bf_databuf *d, size_t new_block_size);
 //=======
 struct bf_databuf *bf_databuf_attach(int databuf_id, int instance_id);
 struct bfp_databuf *bfp_databuf_attach(int databuf_id, int instance_id);
+struct bfpaf_databuf *bfpaf_databuf_attach(int databuf_id, int instance_id);
+struct bffrb_databuf *bffrb_databuf_attach(int databuf_id, int instance_id);
 int databuf_get_shmid(int databuf_id, int instance_id);
 
 /** Detach from shared mem segment */
 int databuf_detach(void *d);
 int bf_databuf_detach(struct bf_databuf *d);
 int bfp_databuf_detach(struct bfp_databuf *d);
-
+int bfpaf_databuf_detach(struct bfpaf_databuf *d);
 /** Clear out either the whole databuf (set all sems to 0,
  * clear all header blocks) or a single FITS-style
  * header block.
@@ -224,11 +258,15 @@ int bf_databuf_total_status(struct bf_databuf *d);
  */
 int bf_databuf_wait_filled(struct bf_databuf *d, int block_id);
 int bfp_databuf_wait_filled(struct bfp_databuf *d, int block_id);
+int bfpaf_databuf_wait_filled(struct bfpaf_databuf *d, int block_id);
+int bffrb_databuf_wait_filled(struct bffrb_databuf *d, int block_id);
 int databuf_wait_filled(int semid, int block_id);
 int bf_databuf_set_filled(struct bf_databuf *d, int block_id);
 int bf_databuf_wait_free(struct bf_databuf *d, int block_id);
 int bf_databuf_set_free(struct bf_databuf *d, int block_id);
 int bfp_databuf_set_free(struct bfp_databuf *d, int block_id);
+int bfpaf_databuf_set_free(struct bfpaf_databuf *d, int block_id);
+int bffrb_databuf_set_free(struct bffrb_databuf *d, int block_id);
 int databuf_set_free(int semid, int block_id);
 
 #ifdef __cplusplus /* C++ prototypes */

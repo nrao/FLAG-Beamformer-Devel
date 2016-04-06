@@ -186,11 +186,24 @@ class BeamformerBackend(VegasBackend):
                             "MODE section of %s " % (self.current_mode))
 
         # TBF: remove the special handling of beamformer
-        if hpc_program == 'beamformer':
+        if hpc_program == 'beamformer_hi':
             cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_thread' % self.instance_id
 
 
             process_list = shlex.split(cmd)
+        
+        elif hpc_program == 'beamformer_paf':
+            cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_paf_thread' % self.instance_id
+
+
+            process_list = shlex.split(cmd)
+ 
+        elif hpc_program == 'beamformer_frb':
+            cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_frb_thread' % self.instance_id
+
+
+            process_list = shlex.split(cmd)
+
         elif hpc_program == 'pulsar_beamformer':
             cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_psr_thread' % self.instance_id
 
@@ -198,7 +211,7 @@ class BeamformerBackend(VegasBackend):
         else:
             process_list = [self.dibas_dir + '/exec/x86_64-linux/' + hpc_program]
 
-        if self.mode.hpc_program_flags and hpc_program != 'beamformer' and hpc_program != 'pulsar_beamformer':
+        if self.mode.hpc_program_flags and hpc_program != 'beamformer_hi' and hpc_program!= 'beamformer_paf' and hpc_program != 'beamformer_frb' and hpc_program != 'pulsar_beamformer':
             process_list = process_list + self.mode.hpc_program_flags.split()
 
         print "process_list: ", process_list
@@ -223,8 +236,12 @@ class BeamformerBackend(VegasBackend):
         
         hpc_program = self.mode.hpc_program
         cmd += " -i %d" % self.instance_id
-        if hpc_program == 'beamformer':
-          cmd += " -m c" 
+        if hpc_program == 'beamformer_hi':
+          cmd += " -m s" 
+        if hpc_program == 'beamformer_paf':
+          cmd += " -m c"
+        if hpc_program == 'beamformer_frb':
+          cmd += " -m f"
         if hpc_program == 'pulsar_beamformer':
           cmd += " -m p"     
         

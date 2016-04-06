@@ -81,8 +81,11 @@ class Bank(object):
                     "l8/lbw8"    : VegasL8LBWBackend.VegasL8LBWBackend,
                     "guppi-inco" : GuppiBackend.GuppiBackend,
                     "guppi-codd" : GuppiCODDBackend.GuppiCODDBackend,
-                    "beamformer" : BeamformerBackend.BeamformerBackend,
+                    "beamformer_hi" : BeamformerBackend.BeamformerBackend,
+                    "beamformer_paf" : BeamformerBackend.BeamformerBackend,
+                    "beamformer_frb" : BeamformerBackend.BeamformerBackend,
                     "pulsar_beamformer" : BeamformerBackend.BeamformerBackend}
+
 
         self.dibas_dir = os.getenv('DIBAS_DIR')
 

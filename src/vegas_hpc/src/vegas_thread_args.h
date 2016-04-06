@@ -15,7 +15,9 @@ struct vegas_thread_args {
     pthread_cond_t finished_c;
     pthread_mutex_t finished_m;
     cpu_set_t cpuset;
-    int cov_mode;
+    int cov_mode1;                          // HI fine channels
+    int cov_mode2;                          // PAF coarse channels
+    int cov_mode3;                          // FRB mode
 };
 
 void vegas_thread_args_init(struct vegas_thread_args *a);

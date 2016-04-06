@@ -63,6 +63,14 @@ int bfp_databuf_detach(struct bfp_databuf *d) {
     return databuf_detach(d);
 }
 
+int bfpaf_databuf_detach(struct bfpaf_databuf *d) {
+    return databuf_detach(d);
+}
+
+int bffrb_databuf_detach(struct bffrb_databuf *d) {
+    return databuf_detach(d);
+}
+
 int databuf_detach(void *d) {
     int rv = shmdt(d);
     if (rv!=0) {
@@ -286,7 +294,38 @@ struct bfp_databuf *bfp_databuf_attach(int databuf_id, int instance_id) {
         vegas_error("bf_databuf_attach", "shmat error");
         return(NULL);
     }
+     return(d);
+}
 
+struct bfpaf_databuf *bfpaf_databuf_attach(int databuf_id, int instance_id) {
+
+    int shmid = databuf_get_shmid(databuf_id, instance_id);
+    if (shmid == -1)
+        return NULL; 
+
+    //Attach
+    struct bfpaf_databuf *d;
+    d = shmat(shmid, NULL, 0);
+    if (d==(void *)-1) {
+        vegas_error("bf_databuf_attach", "shmat error");
+        return(NULL);
+    }
+    return(d);
+}
+
+struct bffrb_databuf *bffrb_databuf_attach(int databuf_id, int instance_id) {
+
+    int shmid = databuf_get_shmid(databuf_id, instance_id);
+    if (shmid == -1)
+        return NULL;  
+
+    // Attach
+    struct bffrb_databuf *d;
+    d = shmat(shmid, NULL, 0);
+    if (d==(void *)-1) {
+        vegas_error("bf_databuf_attach", "shmat error");
+        return(NULL);
+    }
     return(d);
 }
 
@@ -379,6 +418,15 @@ int bf_databuf_wait_free(struct bf_databuf *d, int block_id) {
 int bfp_databuf_wait_filled(struct bfp_databuf *d, int block_id) {
     return databuf_wait_filled(d->header.semid, block_id);
 }
+
+int bfpaf_databuf_wait_filled(struct bfpaf_databuf *d, int block_id) {
+    return databuf_wait_filled(d->header.semid, block_id);
+}
+
+int bffrb_databuf_wait_filled(struct bffrb_databuf *d, int block_id) {
+    return databuf_wait_filled(d->header.semid, block_id);
+}
+
 int bf_databuf_wait_filled(struct bf_databuf *d, int block_id) {
     return databuf_wait_filled(d->header.semid, block_id);
 }
@@ -415,6 +463,14 @@ int bf_databuf_set_free(struct bf_databuf *d, int block_id) {
 }
 
 int bfp_databuf_set_free(struct bfp_databuf *d, int block_id) {
+    return databuf_set_free(d->header.semid, block_id);
+}
+
+int bfpaf_databuf_set_free(struct bfpaf_databuf *d, int block_id) {
+    return databuf_set_free(d->header.semid, block_id);
+}
+
+int bffrb_databuf_set_free(struct bffrb_databuf *d, int block_id) {
     return databuf_set_free(d->header.semid, block_id);
 }
 

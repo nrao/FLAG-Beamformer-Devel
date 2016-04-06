@@ -120,6 +120,9 @@ public:
     // int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
     int writeRow(int mcnt, float *data);
     virtual int write(int mcnt, float *data) = 0;
+    virtual int write_HI(int mcnt, float *data) = 0;
+    virtual int write_PAF(int mcnt, float *data) = 0;
+    virtual int write_FRB(int mcnt, float *data) = 0;
     bool is_scan_complete();
     void set_scan_complete();
     static double timeval_2_mjd(timeval *tv);

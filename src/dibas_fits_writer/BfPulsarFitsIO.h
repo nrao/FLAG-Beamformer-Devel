@@ -34,6 +34,9 @@ class BfPulsarFitsIO : public BfFitsIO
 public:
     BfPulsarFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0);
     int write(int mcnt, float *data);
+    int write_HI(int mcnt, float *data);
+    int write_PAF(int mcnt, float *data);
+    int write_FRB(int mcnt, float *data);
     int myAbstract();
     void testthis(float *const psrdata);
 	int writeRow(int mcnt, float *data);

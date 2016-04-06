@@ -27,6 +27,7 @@ BfPulsarFitsIO::BfPulsarFitsIO(const char *path_prefix, int simulator, int insta
 {
     // What distinquishes modes is their data format
     data_size = NUM_BEAMS * NUM_PULSAR_CHANNELS*NUM_STOKES;
+    printf("THE DATA SIZE IS %d\n",data_size);
     sprintf(data_form, "%dE", data_size);
 }
 
@@ -78,6 +79,34 @@ int BfPulsarFitsIO::write(int mcnt, float *data) {
     writeRow(mcnt, data);
     printf("Done writing data\n");
     return 1;
+}
+
+
+int BfPulsarFitsIO::write_FRB(int mcnt, float *data) {
+        float fits_matrix[NUM_CHANNELS_FRB * FITS_BIN_SIZE * 2];
+        printf("about to parse data\n");
+        printf("about to write parsed data\n");
+        writeRow(mcnt, fits_matrix);
+        printf("done writing data\n");
+        return 1;
+}
+
+int BfPulsarFitsIO::write_PAF(int mcnt, float *data) {
+        float fits_matrix[NUM_CHANNELS_PAF * FITS_BIN_SIZE * 2];
+        printf("about to parse data\n");
+        printf("about to write parsed data\n");
+        writeRow(mcnt, fits_matrix);
+        printf("done writing data\n");
+        return 1;
+}
+
+int BfPulsarFitsIO::write_HI(int mcnt, float *data) {
+        float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
+        printf("about to parse data\n");
+        printf("about to write parsed data\n");
+        writeRow(mcnt, fits_matrix);
+        printf("done writing data\n");
+        return 1;
 }
 
 

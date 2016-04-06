@@ -31,6 +31,9 @@ public:
     BfCovFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0);
     void parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_matrix);
     void parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, float *const fits_matrix, int fits_size, int num_channels);
+    int write_HI(int mcnt, float *data);
+    int write_PAF(int mcnt, float *data);
+    int write_FRB(int mcnt, float *data);
     int write(int mcnt, float *data);
     void testthis(float *const fits_matrix);
     int myAbstract();

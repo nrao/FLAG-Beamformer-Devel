@@ -24,7 +24,6 @@
 #include "assert.h"
 
 #include "BfCovFitsIO.h"
-
 BfCovFitsIO::BfCovFitsIO(const char *path_prefix, int simulator, int instance_id) : BfFitsIO(path_prefix, simulator, instance_id)
 {
     // What distinquishes modes is their data format
@@ -37,28 +36,51 @@ int BfCovFitsIO::myAbstract() {
     return 1;
 }    
 
+
+
 // covariance data coming out of GPU has tons of zeros and some
 // redundant values that need to be purged first
-int BfCovFitsIO::write(int mcnt, float *data) {
-    // For a matrix of 40x40 there will be 20 redundant values
-    float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
-    printf("about to parse data\n");
-    parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS);
-    printf("about to write parsed data\n");
-    writeRow(mcnt, fits_matrix);
-    printf("done writing data\n");
-    return 1;
+int BfCovFitsIO::write_HI(int mcnt, float *data) {
+        data_size = FITS_BIN_SIZE * NUM_CHANNELS;
+        float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
+        printf("about to parse data\n");
+        parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS);
+        printf("about to write parsed data\n");
+        writeRow(mcnt, fits_matrix);
+        printf("done writing data\n");
+        return 1;
 }    
 
-void
-BfCovFitsIO::testthis(float *const fits_matrix)
-{
-    
-    int sz = NUM_CHANNELS * FITS_BIN_SIZE * 2;
-    int i = 0;
-    for (i = 0; i<sz; i++)
-        fits_matrix[i] = (float)i;
+int BfCovFitsIO::write_PAF(int mcnt, float *data) {
+        float fits_matrix[NUM_CHANNELS_PAF * FITS_BIN_SIZE * 2];
+        data_size = FITS_BIN_SIZE * NUM_CHANNELS_PAF;
+        printf("about to parse data\n");
+        parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS_PAF);
+        printf("about to write parsed data\n");
+        writeRow(mcnt, fits_matrix);
+        printf("done writing data\n");
+        return 1;
 }
+
+int BfCovFitsIO::write_FRB(int mcnt, float *data) {
+        float fits_matrix[NUM_CHANNELS_FRB * FITS_BIN_SIZE * 2];
+        data_size = FITS_BIN_SIZE * NUM_CHANNELS_FRB;
+        printf("about to parse data\n");
+        parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS_FRB);
+        printf("about to write parsed data\n");
+        writeRow(mcnt, fits_matrix);
+        printf("done writing data\n");
+        return 1;
+} 
+
+
+int BfCovFitsIO::write(int mcnt, float *data) {
+// For a matrix of 40x40 there will be 20 redundant values
+   float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
+   printf("about to parse data\n");
+   return 1;
+}
+
 
 void
 BfCovFitsIO::parseAndReorderGpuCovMatrix(float const *const gpu_matrix, int gpu_corr_num, float *const fits_matrix, int fits_corr_num, int num_channels)
