@@ -109,7 +109,7 @@ int mainTestCov(int argc, char **argv)
     //    printf("%f\n", fits_data[i]);
     printf("M: %d, # chans: %d, Gpu Data Size: %d, Fits Data Size: %d\n", M, numChan, gpuDataSz, covDataSz);
     printf("Parse!\n");
-    fitsio->parseGpuCovMatrix(gpu_matrix, gpuDataSz, fits, covDataSz, numChan);    
+    fitsio->parseAndReorderGpuCovMatrix(gpu_matrix, gpuDataSz, fits, covDataSz, numChan);    
     //for (i = 0; i<fitsSz; i++)
     //    printf("fits[%d] = %f\n", i, fits[i]);
     

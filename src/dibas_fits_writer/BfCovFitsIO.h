@@ -28,14 +28,11 @@
 class BfCovFitsIO : public BfFitsIO
 {
 public:
-    BfCovFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0);
-    void parseGpuCovMatrix(float const *const gpu_matrix, float *const fits_matrix);
-    void parseGpuCovMatrix(float const *const gpu_matrix, int gpu_size, float *const fits_matrix, int fits_size, int num_channels);
+    BfCovFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0, int cov_mode=0);    
     int write_HI(int mcnt, float *data);
     int write_PAF(int mcnt, float *data);
     int write_FRB(int mcnt, float *data);
     int write(int mcnt, float *data);
-    void testthis(float *const fits_matrix);
     int myAbstract();
     void parseAndReorderGpuCovMatrix(float const *const gpu_matrix, int gpu_corr_num, float *const fits_matrix, int fits_corr_num, int num_channels);
 };

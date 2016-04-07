@@ -83,41 +83,15 @@ int BfPulsarFitsIO::write(int mcnt, float *data) {
 
 
 int BfPulsarFitsIO::write_FRB(int mcnt, float *data) {
-        float fits_matrix[NUM_CHANNELS_FRB * FITS_BIN_SIZE * 2];
-        printf("about to parse data\n");
-        printf("about to write parsed data\n");
-        writeRow(mcnt, fits_matrix);
-        printf("done writing data\n");
         return 1;
 }
 
 int BfPulsarFitsIO::write_PAF(int mcnt, float *data) {
-        float fits_matrix[NUM_CHANNELS_PAF * FITS_BIN_SIZE * 2];
-        printf("about to parse data\n");
-        printf("about to write parsed data\n");
-        writeRow(mcnt, fits_matrix);
-        printf("done writing data\n");
         return 1;
 }
 
 int BfPulsarFitsIO::write_HI(int mcnt, float *data) {
-        float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
-        printf("about to parse data\n");
-        printf("about to write parsed data\n");
-        writeRow(mcnt, fits_matrix);
-        printf("done writing data\n");
         return 1;
-}
-
-
-void
-BfPulsarFitsIO::testthis(float *const psrdata)
-{
-
-    int sz = NUM_BEAMS * NUM_PULSAR_CHANNELS;
-    int i = 0;
-    for (i = 0; i<sz; i++)
-        psrdata[i] = (float)i;
 }
 
 // example implementation of abstract method

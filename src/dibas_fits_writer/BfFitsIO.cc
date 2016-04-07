@@ -108,7 +108,7 @@ int Mutex::unlock()
 /// path_prefix The environment varable to use which contains
 /// the directory prefix for the data files.
 /// simulator A boolean value which sets the 'SIMULATE' header keyword.
-BfFitsIO::BfFitsIO(const char *path_prefix, int simulator, int instance_id)
+BfFitsIO::BfFitsIO(const char *path_prefix, int simulator, int instance_id, int cov_mode)
     :
     FitsIO(path_prefix, 0, "BF", simulator),
     openFlag(0),

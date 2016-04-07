@@ -77,7 +77,7 @@ public:
     /// @param path_prefix is the first portion of the
     /// root directory for the FITS file path.
     /// @param simulator is a flag which sets the SIMULATE primary header keyword
-    BfFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0);
+    BfFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0,int cov_mode=0);
     ~BfFitsIO();
 
     virtual int myAbstract() = 0;
@@ -88,7 +88,6 @@ public:
     int open();//const TimeStamp &ts);
     int close();
     // </group>
-
     // Glean as much info as we can from the status memory area
     // the status_buffer should be a copy, not the real buffer
     void copyStatusMemory(const char *status_buffer);
@@ -177,7 +176,6 @@ protected:
 
     int data_size;
     char data_form[256];
-
     int instance_id;
     char inst2bank(int instance_id);
 };

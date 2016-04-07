@@ -38,8 +38,7 @@ public:
     int write_PAF(int mcnt, float *data);
     int write_FRB(int mcnt, float *data);
     int myAbstract();
-    void testthis(float *const psrdata);
-	int writeRow(int mcnt, float *data);
+    int writeRow(int mcnt, float *data);
 
 };
 

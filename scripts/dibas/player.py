@@ -355,6 +355,39 @@ class Bank(object):
         modes.sort()
         return modes
 
+
+    def set_cov_mode(self,n):
+
+      if n == 1:
+
+        string = 'HI'
+        cmd = 'hashpipe_check_status -k COVMODE -s %s'% string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd)
+
+      elif n == 2:
+        string = 'PAF_CAL'
+        cmd = 'hashpipe_check_status -k COVMODE -s %s' % string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd)
+
+      elif n == 3:
+        string = 'FRB'
+        cmd = 'hashpipe_check_status -k COVMODE -s %s' % string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd)
+
+      else:
+
+        string = 'NONE'
+        print 'Correct mode not found'
+        cmd = 'hashpipe_check_status -k COVMODE -f %s' % string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd)
+
+
+
+
     def set_mode(self, mode, bandwidth = None, force = False):
         """set_mode(mode, bandwidth = None, force=False)
 
@@ -400,6 +433,13 @@ class Bank(object):
 
                     self.current_mode = mode
                     new_hpc_program = self.mode_data[mode].hpc_program
+
+                    if(mode=='MODE42'):
+                       self.set_cov_mode(1)
+                    if(mode=='MODE44'):
+                       self.set_cov_mode(2)
+                    if(mode=='MODE45'):
+                       self.set_cov_mode(3)
 
                     if old_hpc_program != new_hpc_program:
                     #if 0:

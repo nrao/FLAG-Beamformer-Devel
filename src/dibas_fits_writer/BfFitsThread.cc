@@ -204,7 +204,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
     // If keyword does not exist, attempt to fill-in a default value.
     char status_buf[VEGAS_STATUS_SIZE];
     char datadir[64] = {0};
-
     vegas_status_lock_safe(&st);
     memcpy(status_buf, st.buf, VEGAS_STATUS_SIZE);
     vegas_status_unlock_safe(&st);
@@ -217,13 +216,14 @@ BfFitsThread::run(struct vegas_thread_args *args)
     }
     // Create a BfFitsIO writer subclass based on mode
     if (cov_mode1){
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id);
-        printf("COVARIANCE FITS OPENED!!!\n");
-       }
-    else if (cov_mode2)
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id);
-    else if (cov_mode3)
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id);
+        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id,0);
+    } 
+    else if (cov_mode2){
+        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id,1);
+    }
+    else if (cov_mode3){
+        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id,2);
+    }
     else   
         fitsio = (BfFitsIO *) new BfPulsarFitsIO(datadir, false, instance_id);
 
@@ -234,13 +234,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
     printf("status_buf: %s\n", status_buf);
 
-    // int nsubband;
-    // if (hgeti4(status_buf, "NSUBBAND", &nsubband))
-    // {
-    //     fitsio->setNumberSubBands(nsubband);
-    // }
-
-    // fitsio->setNumberStokes(1);
 
     // I'm assuming STRTDMJD is the starttime in DMJD
     if (hgetr8(status_buf, "STRTDMJD", &start_time) == 0)
@@ -279,9 +272,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
     }
 
     int block = 0,num_iter=0;
-    // int last_int = -2;
-    // bool data_waiting = false;
-    // bool new_integration = true;
     int num_accum_timeouts = 0;
     char scan_status[96];
     int rx_some_data = 0;
@@ -334,9 +324,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
             continue;
         }
         rx_some_data = 1;
-//         printf("Got a buffer block=%d, gdb=%p, mcnt=%d\n",
-//                block, gdb, gdb->block[block].header.mcnt);
-
 
         // Start the timer for how long it takes to write to FITS
         // We are now starting this timer before the data is copied
@@ -379,10 +366,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
            // mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
             mcnt = num_iter*N;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
-            
-            
-            printf("TOTAL_GPU_PULSAR_DATA_SIZE %d\n", TOTAL_GPU_PULSAR_DATA_SIZE);
-	        printf("NUM_BLOCKS %d\n", NUM_BLOCKS);
             data = ((bfp_databuf *)gdb)->block[block].data;
             num_iter++;
             fitsio->write(mcnt, data);
@@ -391,77 +374,8 @@ BfFitsThread::run(struct vegas_thread_args *args)
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         total_write_time += ELAPSED_NS(fits_start, fits_stop);
         
-        // printf("Writing integration to FITS took %ld ns\n", ELAPSED_NS(fits_start, fits_stop));
 
         rowsWritten++;
-
-        /*
-        char *fits_header = bf_databuf_header(gdb, block);
-
-        databuf_index *index = reinterpret_cast<databuf_index*>(
-            bf_databuf_index(gdb, block));
-        dbprintf("datasets=%d\n", index->num_datasets);
-        // Now iterate through the block processing each dataset
-        for(size_t dataset = 0; dataset < index->num_datasets; ++dataset)
-        {
-            // Get a chunk
-            sdfits_data_columns *data_header = reinterpret_cast<sdfits_data_columns*>(
-                bf_databuf_data(gdb, block) +
-                index->disk_buf[dataset].struct_offset);
-            float *data = reinterpret_cast<float*>
-                (bf_databuf_data(gdb, block) + index->disk_buf[dataset].array_offset);
-            // Create a DiskBufferChunk to process the dataset (organizes and transposes dataset)
-            DiskBufferChunk *chunk = new DiskBufferChunk(fits_header, data_header, data);
-
-            // Handle chunk
-            int integration = chunk->getIntegrationNumber();
-            if (integration < 0)
-            {
-                fitsio->set_scan_complete();
-            }
-
-            // Is the dataset is part of a new integration?
-            if(integration != last_int)
-            {
-                // Does the fits writer have data from a prior integration?
-                if(data_waiting)
-                {
-                    // If so, write the entire integration to the file
-                    if (fitsio->write() != 0)
-                    {
-                        perror("error writing to FITS file");
-                        delete chunk;
-                        chunk = 0;
-                        break;
-                    }
-                    dbprintf("fitsio->write\n");
-                    data_waiting = false;
-                }
-                if (fitsio->is_scan_complete())
-                {
-                    // The scan has ended so cleanup chunk and prepare to exit
-                    delete chunk;
-                    chunk=0;
-                    break;
-                }
-                new_integration = true;
-                last_int = integration;
-            }
-            // queue this dataset to be written later
-            fitsio->bufferedWrite(chunk, new_integration);
-            dbprintf("fitsio->bufferedWrite\n");
-            new_integration = false;
-            data_waiting = true;
-
-            // Note current block
-            vegas_status_lock_safe(&st);
-            hputi4(st.buf, "DSKBLKIN", block);
-            vegas_status_unlock_safe(&st);
-
-            delete chunk;
-        }
-
-        */
 
         // Free the datablock for the HPC program
         if(databuf_set_free(semid, block))
@@ -486,7 +400,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
         clock_gettime(CLOCK_MONOTONIC, &loop_stop);
         total_loop_time += ELAPSED_NS(loop_start, loop_stop);
-        // printf("It took %lu ns (%f seconds) for the loop to complete\n", ELAPSED_NS(loop_start, loop_stop), ELAPSED_NS(loop_start, loop_stop) / 1000000000.0);
     }
     printf("BfFitsThread::run exiting with scan_finished=%d run=%d\n", scan_finished, ::run);
     printf("\tWe wrote %d lines\n", rowsWritten);
@@ -501,7 +414,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
     vegas_status_unlock_safe(&st);
 
     // cleanup on exit
-    //databuf_detach(gdb);
     // TBF: is this the correct number of pops?
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
