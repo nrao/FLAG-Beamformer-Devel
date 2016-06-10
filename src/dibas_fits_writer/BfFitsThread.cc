@@ -101,7 +101,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::set_finished, args);
 
     /* Set cpu affinity */
-    //cpu_set_t cpuset, cpuset_orig;
+    ///cpu_set_t cpuset, cpuset_orig;
     //sched_getaffinity(0, sizeof(cpu_set_t), &cpuset_orig);
     //CPU_ZERO(&cpuset);
     //CPU_SET(6, &cpuset);
@@ -133,7 +133,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::status_detach, &st);
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::setExitStatus, &st);
 
-    const int databufid = 1; // disk buffer
+    const int databufid = 3; // disk buffer
 
     // Attach to the data buffer shared memory.
     // Different modes are taken into account due to the different buffer sizes
@@ -163,6 +163,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             semid = ((bfp_databuf *)gdb)->header.semid;
     }
 
+
     // If we couldn't attach, exit
     if(gdb == 0)
     {
@@ -186,7 +187,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
     /* Set the thread  status to init */
     vegas_status_lock_safe(&st);
-    hputs(st.buf, STATUS_KEYW, "init");
+    hputs(st.buf, STATUS_KEYW, "Init");
     vegas_status_unlock_safe(&st);
 
 
@@ -289,11 +290,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
     hputi4(st.buf, "DSKBLKIN", block);
     vegas_status_unlock_safe(&st);
 
-    /* change process status to running*/
-    vegas_status_lock_safe(&st);
-    hputs(st.buf, STATUS_KEYW, "running");
-    vegas_status_unlock_safe(&st);
-
     while(!scan_finished && ::run)
     {
         clock_gettime(CLOCK_MONOTONIC, &loop_start);
@@ -302,9 +298,12 @@ BfFitsThread::run(struct vegas_thread_args *args)
         {
             printf("Timed out\n");
             // Waiting timed out - check the scan status
-            // dbprintf("db not filled\n");
             vegas_status_lock_safe(&st);
             hgets(st.buf, "SCANSTAT", sizeof(scan_status), scan_status);
+            vegas_status_unlock_safe(&st);
+            /*change process status to waiting*/            
+            vegas_status_lock_safe(&st);
+            hputs(st.buf, STATUS_KEYW, "Waiting");
             vegas_status_unlock_safe(&st);
             // Is the scan still running?
             if (strcmp(scan_status, "running")!=0 && rx_some_data)
@@ -324,7 +323,12 @@ BfFitsThread::run(struct vegas_thread_args *args)
             continue;
         }
         rx_some_data = 1;
+        /*change process status to waiting*/
+        vegas_status_lock_safe(&st);
+        hputs(st.buf, STATUS_KEYW, "Writing");
+        vegas_status_unlock_safe(&st);
 
+        
         // Start the timer for how long it takes to write to FITS
         // We are now starting this timer before the data is copied
         //   from the gpu table to the fits table
@@ -410,7 +414,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
     // Set our process status to exiting
     vegas_status_lock_safe(&st);
-    hputs(st.buf, STATUS_KEYW, "exiting");
+    hputs(st.buf, STATUS_KEYW, "Exiting");
     vegas_status_unlock_safe(&st);
 
     // cleanup on exit
