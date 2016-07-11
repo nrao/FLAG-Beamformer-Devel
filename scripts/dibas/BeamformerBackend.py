@@ -193,9 +193,9 @@ class BeamformerBackend(VegasBackend):
             process_list = shlex.split(cmd)
         
         elif hpc_program == 'beamformer_paf':
-            cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID=0 -c 3 fake_gpu_paf_thread' % self.instance_id
-
-
+            cmd = 'hashpipe -p flag_gpu -I %d -o BINDHOST=10.18.0.150 -o BINDPORT=60001 -o GPUDEV=0 -o XID=0 -c 0 flag_net_thread -c 1 flag_transpose_thread -c 2 flag_correlator_thread' % self.instance_id
+            
+            #cmd = 'taskset 0x0606 hashpipe -p fake_gpu -I %d -o BINDHOST=px1-2.gb.nrao.edu -o GPUDEV=0 -o XID -c 3 fake_gpu_paf_thread' % sefl.instance_id
             process_list = shlex.split(cmd)
  
         elif hpc_program == 'beamformer_frb':
