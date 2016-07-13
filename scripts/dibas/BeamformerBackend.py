@@ -62,6 +62,7 @@ class BeamformerBackend(VegasBackend):
 
         VegasBackend.__init__(self, theBank, theMode, theRoach, theValon, hpc_macs, unit_test)
 
+	self.params["int_length"] = self.setIntegrationTime
         # In the Beamformer, there are 2 GPUs, so we run multiple instances
         # of the 'pipeline': more then one player!
         # should be set in base class ...
@@ -101,7 +102,7 @@ class BeamformerBackend(VegasBackend):
 
         # NOTE: SCANLEN can also be set w/ player.set_param(scan_length=#)
         self.write_status(STRTDMJD=str(startDMJD),SCANLEN=str(durSecs))
-
+	self.write_status(REQSTI=str(self.requested_integration_time))
         dt = datetime.utcnow()
         dt.replace(second = 0)
         dt.replace(microsecond = 0)

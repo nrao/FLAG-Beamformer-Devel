@@ -133,7 +133,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::status_detach, &st);
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::setExitStatus, &st);
 
-    const int databufid = 3; // disk buffer
+    const int databufid = 1; // disk buffer
 
     // Attach to the data buffer shared memory.
     // Different modes are taken into account due to the different buffer sizes
