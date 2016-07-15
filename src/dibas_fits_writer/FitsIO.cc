@@ -80,7 +80,10 @@ FitsIO::FitsIO(const char *path_env_variable,
         optimalRows(1),
         startTime(0),
         scanNumber(0),
-        fid(0)
+        fid(0),
+	xid(0),
+	scanLength(0),
+	intLength(0)
 {
     fid = new fitsio_data;
     fptr = 0;
@@ -127,11 +130,6 @@ FitsIO::FitsIO(const char *path_env_variable,
     strncpy(instrument,instrument_arg, FLEN_VALUE - 1);
     instrument[FLEN_VALUE - 1] = '\0';
 
-    source[0] = '\0';
-
-    projectId[0] = '\0';
-
-    scanId[0] = '\0';
 }
 
 template <typename T>
@@ -812,7 +810,6 @@ void FitsIO::set_projectId(const char *projectId_arg)
     strncpy(projectId, projectId_arg, FLEN_VALUE);
 }
 
-
 void FitsIO::set_scanNumber(const int scanNumber_arg)
 {
     scanNumber = static_cast<long>(scanNumber_arg);
@@ -823,6 +820,22 @@ void FitsIO::set_scanId(const char *scanId_arg)
 {
     strncpy(scanId, scanId_arg, FLEN_VALUE);
 }
+
+void FitsIO::set_scanLength(const float scanLength_arg)
+{
+   scanLength = (float) scanLength_arg;
+}
+
+void FitsIO::set_intLength(const float intLength_arg)
+{
+   intLength = (float) intLength_arg;
+}
+
+void FitsIO::set_xid(const int xid_arg)
+{
+   xid = static_cast<int>(xid_arg);
+}
+
 
 void FitsIO::update_key_date_obs()
 {
@@ -873,6 +886,39 @@ void FitsIO::update_key_scan()
     fits_update_key_lng(fptr, 
                         keyname,
                         scanNumber,
+                        comment,
+                        &status);
+}
+
+void FitsIO::update_key_scanLength()
+{
+    char keyname[] = "SCANLEN";
+    char comment[] = "Exposure (time spent taking data)";
+    fits_update_key_lng(fptr,
+                        keyname,
+                        scanLength,
+                        comment,
+                        &status);
+}
+
+void FitsIO::update_key_intLength()
+{
+    char keyname[] = "INTLEN";
+    char comment[] = "Duration of Scan";
+    fits_update_key_lng(fptr,
+                        keyname,
+                        intLength,
+                        comment,
+                        &status);
+}
+
+void FitsIO::update_key_xid()
+{
+    char keyname[] = "XID";
+    char comment[] = "GPU ID";
+    fits_update_key_lng(fptr,
+                        keyname,
+                        xid,
                         comment,
                         &status);
 }

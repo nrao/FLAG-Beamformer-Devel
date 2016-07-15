@@ -41,6 +41,7 @@ extern "C"
 {
 #include "vegas_error.h"
 #include "vegas_status.h"
+#include  "fifo.h"
 #include "bf_databuf.h"
 #include "spead_heap.h"
 #include "fitshead.h"
@@ -158,10 +159,7 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     printf("%s\n",command_fifo_filename);
 
     run = 1;
-    int command_fifo;
     int rv;
-    char cmd[MAX_CMD_LEN];
-    int i;
 
     signal(SIGHUP, signal_handler);     // hangup
 #if !defined(DEBUG)                     // when debugging, wish to use CTRL-C
@@ -176,20 +174,10 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
 
     setup_privileges();
 
-    //command_fifo = open(CONTROL_FIFO, O_RDONLY | O_NONBLOCK);
-    command_fifo = open(command_fifo_filename, O_RDONLY | O_NONBLOCK);
-    //command_fifo = fileno(stdin);
-    if (command_fifo<0)
-    {
-        fprintf(stderr, "vegas_fits_writer: Error opening control fifo %s\n", command_fifo_filename);
-        perror("open");
-        exit(1);
-    }
-    else
-    {
-        printf("Using FITS Control FIFO: %s\n", command_fifo_filename);
-    }
-    /* Set cpu affinity */
+    int fits_fifo_id = open_fifo(command_fifo_filename);
+    int cmd = INVALID;   
+    
+/* Set cpu affinity */
     cpu_set_t cpuset, cpuset_orig;
     sched_getaffinity(0, sizeof(cpu_set_t), &cpuset_orig);
     CPU_ZERO(&cpuset);
@@ -212,158 +200,80 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
 
     /* Loop over recv'd commands, process them */
     int cmd_wait=1;
-    while (cmd_wait && srv_run)
+    //initialize FIFO loop variables
+    int n = 0;
+    int n_loop = 1000;
+    
+    while (cmd_wait)
     {
 
         // Check to see if threads have exited
         if (thread_id != 0 && pthread_kill(thread_id, 0)!=0)
         {
-            run = 0;
+            
             // printf("writer thread exited unexpectedly\n");
             thread_id = 0;
+            run = 0;
         }
 
         // Flush any status/error/etc for logfiles
         fflush(stdout);
         fflush(stderr);
 
-        // Wait for data on fifo
-        struct pollfd pfd[2];
-        pfd[1].fd = command_fifo;
-        pfd[1].events = POLLIN;
-        pfd[0].fd = fileno(stdin);
-        pfd[0].events = POLLIN;
-		// ?, num file desc, timeout
-        rv = poll(pfd, 2, 1000);
-        if (rv==0)
-        {
-            continue;
-        }
-        else if (rv<0)
-        {
-            if (errno!=EINTR)
-            {
-                perror("poll");
-            }
-            continue;
-        }
-
-        // clear the command
-        memset(cmd, 0, MAX_CMD_LEN);
-        for (i=0; i<2; ++i)
-        {
-            rv = 0;
-            if (pfd[i].revents & POLLIN)
-            {
-                if (read(pfd[i].fd, cmd, MAX_CMD_LEN-1)<1){
-                    continue;
-                }
-                else
-                {
-                    rv = 1;
-                    break;
-                }
-            }
-        }
-
-        // If we got POLLHUP, it means the other side closed its
-        // connection.  Close and reopen the FIFO to clear this
-        // condition.  Is there a better/recommended way to do this?
-        if (pfd[0].revents==POLLHUP)
-        {
-            close(command_fifo);
-            command_fifo = open(command_fifo_filename, O_RDONLY | O_NONBLOCK);
-            if (command_fifo<0)
-            {
-                fprintf(stderr,
-                        "vegas_fits_writer: Error opening control fifo\n");
-                perror("open");
-                break;
-            }
-            continue;
-        }
-
-        if (rv==0)
-        {
-            continue;
-        }
-        else if (rv<0)
-        {
-            if (errno==EAGAIN)
-            {
-                continue;
-            }
-            else
-            {
-                perror("read");
-                continue;
-            }
-        }
-
-        // Truncate at newline
-        // TODO: allow multiple commands in one read?
-        char *ptr = strchr(cmd, '\n');
-        if (ptr!=NULL)
-        {
-            *ptr='\0';
-        }
+	if (n++ >= n_loop){
+		cmd = check_cmd(fits_fifo_id);
+		n = 0;
+	}	
 
         // Process the command
-        if (strncasecmp(cmd,"START",MAX_CMD_LEN)==0)
+        if (cmd == START)
         {
-            // Start observations
-            // TODO : decide how to behave if observations are running
-            printf("Start observations\n");
-            if (thread_id != 0)
-            {
-                printf("  observations already running!\n");
-            }
-            else
-            {
-                run = 1;
-                // pass on args 
-                vegas_thread_args *args = new vegas_thread_args;
-                args->input_buffer = instance_id;
-                args->cov_mode1 = (int)cov_mode1;
-                args->cov_mode2 = (int)cov_mode2;
-                args->cov_mode3 = (int)cov_mode3;
-                pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
-
-            }
+		printf("Start observations\n");
+		if (thread_id != 0)
+		{
+			printf("observations already running!\n");
+		}
+            	// Start observations
+            	// TODO : decide how to behave if observations are running
+            	// pass on args 
+                else 
+		{
+			run = 1;
+			vegas_thread_args *args = new vegas_thread_args;
+            		args->input_buffer = instance_id;
+                	args->cov_mode1 = (int)cov_mode1;
+                	args->cov_mode2 = (int)cov_mode2;
+          	  	args->cov_mode3 = (int)cov_mode3;
+            		pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
+		}
         }
-        else if (strncasecmp(cmd,"STOP",MAX_CMD_LEN)==0 ||
-                 strncasecmp(cmd,"QUIT",MAX_CMD_LEN)==0)
+        else if ((cmd == STOP) || (cmd == QUIT))
         {
             // Stop observations
-            printf("Stop observations\n");
+            //printf("Stop observations\n");
             run = 0;
-            if (thread_id && pthread_kill(thread_id, 0) == 0)
+	    if (thread_id && pthread_kill(thread_id, 0) == 0)
             {
                 pthread_cancel(thread_id);
                 pthread_kill(thread_id, SIGINT);
                 pthread_join(thread_id, NULL);
                 thread_id = 0;
+		cmd_wait=0;
             }
-
-            if (strncasecmp(cmd,"QUIT",MAX_CMD_LEN)==0)
+            if (cmd == QUIT)
             {
-                cmd_wait=0;
-                continue;
+	       cmd_wait=0;
+               continue;
             }
-        }
-        else
-        {
-            // Unknown command
-            printf("Unrecognized command '%s'\n", cmd);
         }
     }
 
     /* Stop any running threads */
     run = 0;
 
-    if (command_fifo>0)
+    if (fits_fifo_id>0)
     {
-        close(command_fifo);
+        close(fits_fifo_id);
     }
 
     time_t curtime = time(NULL);

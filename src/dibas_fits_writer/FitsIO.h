@@ -274,6 +274,9 @@ public:
     void set_projectId(const char *projectId);
     void set_scanNumber(const int scanNumber);
     void set_scanId(const char *scanId);
+    void set_scanLength(const float scanLength);
+    void set_intLength(const float intLength);
+    void set_xid(const int xid);
     // </group>
 
     // Set member functions for the Port Table.  The call to
@@ -381,6 +384,9 @@ protected:
     void update_key_telescop();
     void update_key_projid();
     void update_key_scan();
+    void update_key_scanLength();
+    void update_key_intLength();
+    void update_key_xid();
     // </group>
 
     // This method computes the value of the telescope
@@ -448,6 +454,9 @@ protected:
     char *projectId;
     long scanNumber;
     char *scanId;
+    float scanLength;
+    float intLength;
+    int xid;
     // </group>
 
 

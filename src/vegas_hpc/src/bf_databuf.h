@@ -55,7 +55,7 @@ struct decprecated_bf_databuf {
 #define TOTAL_GPU_DATA_SIZE_FRB (GPU_BIN_SIZE * NUM_CHANNELS_FRB * 2)
 
 // For pulsar mode 
-#define NUM_PULSAR_CHANNELS 50
+#define NUM_PULSAR_CHANNELS 25
 #define NUM_BEAMS 7
 #define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS * 3)
 

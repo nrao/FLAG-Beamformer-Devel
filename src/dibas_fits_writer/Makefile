@@ -41,8 +41,10 @@ EXTRA_SOURCES+=hashpipe_ipckey.c
 EXTRA_SOURCES+=hput.c
 EXTRA_SOURCES+=hget.c
 EXTRA_SOURCES+=sla.c
+EXTRA_SOURCES+=fifo.c
 # Extra objects
 EXTRA_OBJECTS =vegas_status.o
+EXTRA_OBJECTS+=fifo.o
 EXTRA_OBJECTS+=bf_databuf.o
 EXTRA_OBJECTS+=vegas_error.o
 EXTRA_OBJECTS+=vegas_params.o

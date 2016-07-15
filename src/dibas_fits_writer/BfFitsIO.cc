@@ -658,6 +658,32 @@ int BfFitsIO::open()//const TimeStamp &ts)
         sprintf(value, "JUNK");
     }
     set_projectId(value);
+    
+    //setting scan length
+
+    float keyval;
+    if (hgetr4(status_buffer,"SCANLEN",&keyval) == 0 )
+    {
+      keyval=0;
+    }
+   set_scanLength(keyval);
+
+   // Setting integation length
+   if (hgetr4(status_buffer,"ACTSTI",&keyval) == 0)
+   {
+      keyval =0;
+   }
+    set_intLength(keyval);
+
+  int xid;
+  // Setting Xid
+  if (hgeti4(status_buffer,"XID",&xid) == 0)
+  {
+    xid=0;
+  }
+   set_xid(xid);
+   
+
     // create directory path
     char *namePtr = createDirectoryPath(path,pathlength,3,
                                         rootDirectory,
