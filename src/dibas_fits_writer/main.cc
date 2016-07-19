@@ -250,27 +250,26 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
         else if ((cmd == STOP) || (cmd == QUIT))
         {
             // Stop observations
-            //printf("Stop observations\n");
+            printf("Stop observations\n");
             run = 0;
-	    if (thread_id && pthread_kill(thread_id, 0) == 0)
-            {
-                pthread_cancel(thread_id);
-                pthread_kill(thread_id, SIGINT);
-                pthread_join(thread_id, NULL);
-                thread_id = 0;
+	    //if (thread_id && pthread_kill(thread_id, 0) == 0)
+            
+    //            pthread_cancel(thread_id);
+    //            pthread_kill(thread_id, SIGINT);
+    //            pthread_join(thread_id, NULL);
+    //            thread_id = 0;
 		cmd_wait=0;
-            }
-            if (cmd == QUIT)
-            {
+		continue;
+            /*{
 	       cmd_wait=0;
                continue;
-            }
+            }*/
         }
     }
 
     /* Stop any running threads */
-    run = 0;
 
+    run = 0;
     if (fits_fifo_id>0)
     {
         close(fits_fifo_id);
