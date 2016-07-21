@@ -36,6 +36,7 @@ import traceback
 import time
 import os
 import socket
+import numpy as np
 
 from corr import katcp_wrapper
 from datetime import datetime, timedelta
@@ -522,6 +523,8 @@ class Bank(object):
            print string
            self.backend.hpc_cmd(string)
            self.backend.fits_writer_cmd(string)
+	if string == 'QUIT':
+	   os.system('clean_ipc')
 
     def startin(self, inSecs, durSecs):
         "An alternative method for running a scan, only available for Beamformer backend."
@@ -794,10 +797,12 @@ class Bank(object):
                     rem = (start + sl) - now
                     # lets have a little scan countdown in status memory
                     self.set_status(SCANREM=rem.seconds - 1)
-
-                    if now > start + sl:
-                        self.stop()
-                        self.set_status(SCANREM='scan terminated')
+                   
+                    #if now > start + sl:
+                     
+                       # print np.str(scanlength)
+                       # self.stop()
+                       # self.set_status(SCANREM='scan terminated')
 
 
 def _testCaseVegas1():

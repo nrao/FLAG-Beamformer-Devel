@@ -41,6 +41,7 @@ extern "C"
 #include "fitshead.h"
 #define STATUS_KEYW "DISKSTAT"
 #include "vegas_threads.h"
+#include "fifo.h"
 };
 
 #include "DiskBufferChunk.h"
@@ -65,6 +66,7 @@ extern "C"
 
 
 int scan_finished = 0;
+const int MAX_CMD_LEN = 64;
 static void stop_thread(int sig)
 {
     scan_finished = 1;
@@ -133,7 +135,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::status_detach, &st);
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::setExitStatus, &st);
 
-    const int databufid = 1; // disk buffer
+    const int databufid = 3; // disk buffer
 
     // Attach to the data buffer shared memory.
     // Different modes are taken into account due to the different buffer sizes
@@ -249,7 +251,8 @@ BfFitsThread::run(struct vegas_thread_args *args)
         unsigned long secs = BfFitsIO::dmjd_2_secs(start_time);
         printf("goes back to secs: %lu\n", secs);
     }
-
+    hgetr8(status_buf, "STRTDMJD", &start_time);
+    unsigned long secs = BfFitsIO::dmjd_2_secs(start_time);
     fitsio->set_startTime(start_time);
 
     // Starttime & DATADIR must be set as it is used to determine the file name
@@ -273,7 +276,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
     }
 
     int block = 0,num_iter=0;
-    int num_accum_timeouts = 0;
     char scan_status[96];
     int rx_some_data = 0;
     scan_finished = 0;
@@ -289,9 +291,13 @@ BfFitsThread::run(struct vegas_thread_args *args)
     vegas_status_lock_safe(&st);
     hputi4(st.buf, "DSKBLKIN", block);
     vegas_status_unlock_safe(&st);
-
+    int scanLen;
+     
+    hgeti4(status_buf,"SCANLEN",&scanLen);
+    printf("SCANLEN: %d\n",scanLen);
     while(!scan_finished && ::run)
     {
+        
         clock_gettime(CLOCK_MONOTONIC, &loop_start);
         // Wait for a data buffer from the HPC program
         if (databuf_wait_filled(semid, block))
@@ -306,21 +312,19 @@ BfFitsThread::run(struct vegas_thread_args *args)
             hputs(st.buf, STATUS_KEYW, "Waiting");
             vegas_status_unlock_safe(&st);
             // Is the scan still running?
-            if (strcmp(scan_status, "running")!=0 && rx_some_data)
-            {
-                // scan is not running. Wait a few more times to make sure the
+        //    if (strcmp(scan_status, "running")!=0 && rx_some_data)
+        //    {
+          //      double scanTimeClock = (double)(mcnt/PACKET_RATE);
+		// scan is not running. Wait a few more times to make sure the
                 // data memory is fully drained.
-                if (++num_accum_timeouts > MAX_ACCUM_TIMEOUTS)
-                {
-                    printf("Fits Writer detected end of scan\n");
-                    scan_finished = 1;
-                }
-            }
-            else
-            {
-                num_accum_timeouts = 0;
-            }
-            continue;
+           //     if (scanTimeClock > scanLen)
+           //     {
+           //         printf("Fits Writer detected end of scan\n");
+           //         printf("num_accum_timeouts: %d", num_accum_timeouts);
+	//	    scan_finished = 1;
+            //    }
+         //   }
+        continue;
         }
         rx_some_data = 1;
         /*change process status to waiting*/
@@ -344,7 +348,8 @@ BfFitsThread::run(struct vegas_thread_args *args)
         //    fitsio->parseGpuCovMatrix(((bf_databuf *)gdb)->block[block].data, fits_matrix);
 
         // collect some mode dependent info about the databuffer blocks
-        int mcnt, n_block;
+        uint64_t mcnt,n_block;
+        int64_t gd;
         float *data;
         if (cov_mode1) {
             mcnt = ((bf_databuf *)gdb)->block[block].header.mcnt;
@@ -358,6 +363,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             n_block = ((bfpaf_databuf *)gdb)->header.n_block;
             data = ((bfpaf_databuf *)gdb)->block[block].data;
             fitsio->write_PAF(mcnt, data);
+	    printf("mcnt: %llu\n",(long long unsigned int) mcnt);
         }
 
         else if (cov_mode3){
@@ -367,8 +373,8 @@ BfFitsThread::run(struct vegas_thread_args *args)
             fitsio->write_FRB(mcnt, data);
         }
         else {
-           // mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
-            mcnt = num_iter*N;
+             mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
+            //mcnt = num_iter*N;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
             data = ((bfp_databuf *)gdb)->block[block].data;
             num_iter++;
@@ -378,7 +384,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         total_write_time += ELAPSED_NS(fits_start, fits_stop);
         
-
         rowsWritten++;
 
         // Free the datablock for the HPC program
@@ -391,12 +396,19 @@ BfFitsThread::run(struct vegas_thread_args *args)
         block = (block + 1) % n_block;
 
         // Scan completed (We have more than SCANLEN of data)
-
-        if (fitsio->is_scan_complete())
+        if (fitsio->is_scan_complete(mcnt))
         //if (rowsWritten >= scanRows)
         {
             printf("Ending fits writer because scan is complete\n");
             scan_finished = 1;
+            //int instance_id=0;
+            //char command_fifo_filename[MAX_CMD_LEN];
+            //char *user = getenv("USER"); 
+            //sprintf(command_fifo_filename, "/tmp/fits_fifo_%s_%d", user, instance_id);
+
+            //char command[128];
+            //strcpy(command,"STOP");
+            //send_cmd(command_fifo_filename,command);
         }
 
         // Check for a thread cancellation
