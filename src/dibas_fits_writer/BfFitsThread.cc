@@ -43,7 +43,6 @@ extern "C"
 #include "vegas_threads.h"
 #include "fifo.h"
 };
-
 #include "DiskBufferChunk.h"
 #include "BfFitsIO.h"
 #include "BfPulsarFitsIO.h"
@@ -67,6 +66,7 @@ extern "C"
 
 int scan_finished = 0;
 const int MAX_CMD_LEN = 64;
+int fits_flag = 0;
 static void stop_thread(int sig)
 {
     scan_finished = 1;
@@ -401,14 +401,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
         {
             printf("Ending fits writer because scan is complete\n");
             scan_finished = 1;
-            //int instance_id=0;
-            //char command_fifo_filename[MAX_CMD_LEN];
-            //char *user = getenv("USER"); 
-            //sprintf(command_fifo_filename, "/tmp/fits_fifo_%s_%d", user, instance_id);
-
-            //char command[128];
-            //strcpy(command,"STOP");
-            //send_cmd(command_fifo_filename,command);
         }
 
         // Check for a thread cancellation

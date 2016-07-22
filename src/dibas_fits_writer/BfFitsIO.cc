@@ -1490,7 +1490,7 @@ void BfFitsIO::createDataTable()
 
 // We calculate all timestamps from the known start time and each mcnt ('packet counter')
 double BfFitsIO::calculateBlockTime(int mcnt, double startDMJD) {
-    scan_time_clock = (double)((double)mcnt/(double)(PACKET_RATE));
+    scan_time_clock = (double)((double)mcnt/((double)(PACKET_RATE)*200));
 #ifdef DEBUG
     printf("elapsed secs: %f\n", scan_time_clock);
 #endif
@@ -1613,10 +1613,11 @@ BfFitsIO::writeRow(int mcnt, float *data)
 
 // This checks to see if we have reached the desired scan time
 bool
-BfFitsIO::is_scan_complete()
+BfFitsIO::is_scan_complete(int mcnt)
 {
-    //bool has_ended = scan_time_clock > scanLength || scan_is_complete;
-    bool has_ended = scan_time_clock >= (scanLength - (float)N / (float)PACKET_RATE) || scan_is_complete;
+    float last_mcnt = scanLength*200*PACKET_RATE;
+    //bool has_ended = scantime > scanLength || scan_is_complete;
+    bool has_ended = mcnt >= last_mcnt || mcnt >= last_mcnt-200 || scan_is_complete;
 #ifdef DEBUG
     printf("int time: %f\n", (float)N / (float)PACKET_RATE);
 #endif

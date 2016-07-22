@@ -57,9 +57,9 @@ struct decprecated_bf_databuf {
 // For pulsar mode 
 #define NUM_PULSAR_CHANNELS 25
 #define NUM_BEAMS 7
-#define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS * 3)
+#define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS * 4* 100)
 
-#define NUM_BLOCKS 7
+#define NUM_BLOCKS 2
 
 typedef struct {
     char data_type[64]; /* Type of data in buffer */
@@ -70,25 +70,39 @@ typedef struct {
     int semid;          /* ID of locking semaphore set */
 } bf_databuf_header_t;
 
+#define CACHE_ALIGNMENT (128)
+typedef uint8_t bf_databuf_cache_alignment[
+    CACHE_ALIGNMENT - (sizeof(bf_databuf_header_t)%CACHE_ALIGNMENT)
+];
+
+
 typedef struct bf_databuf_block_header {
-	int mcnt;
+        int64_t good_data;
+	uint64_t  mcnt;
+        uint64_t flags[(25+63)/64];
 } bf_databuf_block_header_t;
+
+typedef uint8_t bf_databuf_block_header_cache_alignment[
+    CACHE_ALIGNMENT - (sizeof(bf_databuf_block_header_t)%CACHE_ALIGNMENT)
+];
 
 typedef struct bf_databuf_block {
   bf_databuf_block_header_t header;
+  bf_databuf_block_header_cache_alignment padding;
   // we must double the elements since CFITSIO interperates every two elements as a pair
   float data[TOTAL_GPU_DATA_SIZE];
 } bf_databuf_block_t;
 
 typedef struct bfp_databuf_block {
   bf_databuf_block_header_t header;
+  bf_databuf_block_header_cache_alignment padding;
   // we must double the elements since CFITSIO interperates every two elements as a pair
   float data[TOTAL_GPU_PULSAR_DATA_SIZE];
 } bfp_databuf_block_t;
 
 typedef struct bfpaf_databuf_block {
   bf_databuf_block_header_t header;
-
+  bf_databuf_block_header_cache_alignment padding;
 float data[TOTAL_GPU_DATA_SIZE_PAF];
 } bfpaf_databuf_block_t;
 
@@ -96,35 +110,39 @@ float data[TOTAL_GPU_DATA_SIZE_PAF];
 typedef struct bffrb_databuf_block {
   bf_databuf_block_header_t header;
 
-
+  bf_databuf_block_header_cache_alignment padding;
 float data[TOTAL_GPU_DATA_SIZE_FRB];
 } bffrb_databuf_block_t;
 
 // Covariance Matrix outputmode
-struct bf_databuf {
+typedef struct bf_databuf {
         bf_databuf_header_t header;
+        bf_databuf_cache_alignment padding;
         bf_databuf_block_t block[NUM_BLOCKS];
-};
+}bf_databuf_t;
 
 // PAF Cal output mode
-struct bfpaf_databuf {
+typedef struct bfpaf_databuf {
         bf_databuf_header_t header;
+        bf_databuf_cache_alignment padding;
         bfpaf_databuf_block_t block[NUM_BLOCKS];
-};
+}bfpaf_databuf_t;
 
 // FRB output mode
 
-struct bffrb_databuf {
+typedef struct bffrb_databuf {
         bf_databuf_header_t header;
+        bf_databuf_cache_alignment padding;
         bffrb_databuf_block_t block[NUM_BLOCKS];
-};
+}bffrb_databuf_t;
 
 
 // Pulsar outputmode
-struct bfp_databuf {
+typedef struct bfp_databuf {
         bf_databuf_header_t header;
+        bf_databuf_cache_alignment padding;
         bfp_databuf_block_t block[NUM_BLOCKS];
-};
+}bfp_databuf_t;
 
 /* union for semaphore ops. */
 union semun {

@@ -531,8 +531,8 @@ class Bank(object):
         mode = self.get_mode()
         assert self.current_mode == mode
         print "Current mode is",self.current_mode
-        if self.backend:
-            self.backend.start(inSecs, durSecs)
+        if self.backend: 
+           self.backend.start(inSecs, durSecs)
 
     def start(self, starttime = None):
         """

@@ -172,7 +172,7 @@ class Backend(object):
         self.setNoiseSource(NoiseSource.OFF)
         self.setNoiseTone1(NoiseTone.NOISE)
         self.setNoiseTone2(NoiseTone.NOISE)
-        self.setScanLength(30.0)
+        #self.setScanLength(30.0)
 
         self.params = {}
         # TBF: Rething "frequency" & "bandwidth" parameters. If one or
@@ -900,6 +900,7 @@ class Backend(object):
         """Stops a scan.
 
         """
+	exit()
         return (False, "stop() not implemented for this backend.")
 
     def monitor(self):

@@ -26,7 +26,7 @@
 BfPulsarFitsIO::BfPulsarFitsIO(const char *path_prefix, int simulator, int instance_id) : BfFitsIO(path_prefix, simulator, instance_id)
 {
     // What distinquishes modes is their data format
-    data_size = NUM_BEAMS * NUM_PULSAR_CHANNELS*NUM_STOKES;
+    data_size = NUM_BEAMS * NUM_PULSAR_CHANNELS*4*100;
     printf("THE DATA SIZE IS %d\n",data_size);
     sprintf(data_form, "%dE", data_size);
 }

@@ -58,6 +58,7 @@ extern "C"
 
 int run = 0;
 int srv_run = 1;
+int start_flag=0;
 
 extern "C" void *runGbtFitsWriter(void *);
 
@@ -203,7 +204,10 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     //initialize FIFO loop variables
     int n = 0;
     int n_loop = 1000;
+    int scan_num = 0;
     
+       
+ 
     while (cmd_wait)
     {
 
@@ -211,7 +215,7 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
         if (thread_id != 0 && pthread_kill(thread_id, 0)!=0)
         {
             
-            // printf("writer thread exited unexpectedly\n");
+            printf("writer thread exited unexpectedly\n");
             thread_id = 0;
             run = 0;
         }
@@ -224,7 +228,6 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
 		cmd = check_cmd(fits_fifo_id);
 		n = 0;
 	}	
-
         // Process the command
         if (cmd == START)
         {
@@ -236,7 +239,7 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
             	// Start observations
             	// TODO : decide how to behave if observations are running
             	// pass on args 
-                else 
+                else
 		{
 			run = 1;
 			vegas_thread_args *args = new vegas_thread_args;
@@ -245,7 +248,7 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
                 	args->cov_mode2 = (int)cov_mode2;
           	  	args->cov_mode3 = (int)cov_mode3;
             		pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
-		}
+                }
         }
         else if ((cmd == STOP) || (cmd == QUIT))
         {
