@@ -39,7 +39,7 @@
 // Rate (Hz) that the packets arrive from the roach
 // Each packet has it's own 'mcnt'.
 // 10 Samples in each packet.
-#define PACKET_RATE 600
+#define PACKET_RATE 75.75
 // #define PACKET_RATE 9492
 #define N 30
 // #define N 4746 // from spreadsheet
@@ -51,7 +51,8 @@
 
 #include "FitsIO.h"
 #include "SwitchingSignals.h"
-
+extern int fits_flag;
+extern int start_flag;
 extern "C"
 {
 #include "bf_databuf.h"
@@ -63,7 +64,6 @@ class DiskBufferChunk;
 #include <string>
 
 #include "Mutex.h"
-
 
 /// A GBT-like Vegas/spectral-line Fits writing class
 class BfFitsIO : public FitsIO
@@ -122,10 +122,11 @@ public:
     virtual int write_HI(int mcnt, float *data) = 0;
     virtual int write_PAF(int mcnt, float *data) = 0;
     virtual int write_FRB(int mcnt, float *data) = 0;
-    bool is_scan_complete();
+    bool is_scan_complete(int mcnt);
     void set_scan_complete();
     static double timeval_2_mjd(timeval *tv);
     static unsigned long dmjd_2_secs(double dmjd);
+    double calculateBlockTime(int mcnt, double startDMJD);
 
 protected:
     int openFlag;
@@ -170,7 +171,6 @@ protected:
     int32_t data_hdu;
     double scan_time_clock;
 
-    double calculateBlockTime(int mcnt, double startDMJD);
 
     struct timespec data_w_start, data_w_stop;
 
@@ -179,5 +179,6 @@ protected:
     int instance_id;
     char inst2bank(int instance_id);
 };
+
 
 #endif
