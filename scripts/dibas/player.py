@@ -566,7 +566,9 @@ class Bank(object):
         """
 
         if self.backend:
-            self.increment_scan_number()
+            mode = self.get_mode()
+            print "CURRENT MODE IS", mode
+            #self.increment_scan_number()
             print starttime
             return self.backend.start(starttime)
 

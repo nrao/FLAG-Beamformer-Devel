@@ -66,7 +66,6 @@ extern "C"
 
 int scan_finished = 0;
 const int MAX_CMD_LEN = 64;
-int fits_flag = 0;
 static void stop_thread(int sig)
 {
     scan_finished = 1;
@@ -377,6 +376,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             //mcnt = num_iter*N;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
             data = ((bfp_databuf *)gdb)->block[block].data;
+            printf("mcnt: %llu\n",(long long unsigned int) mcnt);
             num_iter++;
             fitsio->write(mcnt, data);
         }    
@@ -395,12 +395,14 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
         block = (block + 1) % n_block;
 
+        
         // Scan completed (We have more than SCANLEN of data)
         if (fitsio->is_scan_complete(mcnt))
         //if (rowsWritten >= scanRows)
         {
             printf("Ending fits writer because scan is complete\n");
             scan_finished = 1;
+            databuf_set_free(semid, block);
         }
 
         // Check for a thread cancellation

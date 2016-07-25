@@ -32,7 +32,7 @@ BfCovFitsIO::BfCovFitsIO(const char *path_prefix, int simulator, int instance_id
        sprintf(data_form, "%dC", data_size);
    } 
    else if (cov_mode == 1){
-       data_size = FITS_BIN_SIZE * NUM_CHANNELS_PAF;
+       data_size = 2112 * NUM_CHANNELS_PAF;
        sprintf(data_form, "%dC", data_size);
    }
    else if (cov_mode == 2){
@@ -53,33 +53,33 @@ int BfCovFitsIO::myAbstract() {
 int BfCovFitsIO::write_HI(int mcnt, float *data) {
         data_size = FITS_BIN_SIZE * NUM_CHANNELS;
         float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
-        printf("about to parse data\n");
+        //printf("about to parse data\n");
         parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS);
-        printf("about to write parsed data\n");
+        //printf("about to write parsed data\n");
         writeRow(mcnt, fits_matrix);
-        printf("done writing data\n");
+        //printf("done writing data\n");
         return 1;
 }    
 
 int BfCovFitsIO::write_PAF(int mcnt, float *data) {
         float fits_matrix[NUM_CHANNELS_PAF * FITS_BIN_SIZE * 2];
-        data_size = FITS_BIN_SIZE * NUM_CHANNELS_PAF;
-        printf("about to parse data\n");
-        parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS_PAF);
-        printf("about to write parsed data\n");
-        writeRow(mcnt, fits_matrix);
-        printf("done writing data\n");
+        data_size = 2112 * NUM_CHANNELS_PAF;
+        //printf("about to parse data\n");
+        //parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS_PAF);
+        //printf("about to write parsed data\n");
+        writeRow(mcnt, data);
+        //printf("done writing data\n");
         return 1;
 }
 
 int BfCovFitsIO::write_FRB(int mcnt, float *data) {
         float fits_matrix[NUM_CHANNELS_FRB * FITS_BIN_SIZE * 2];
         data_size = FITS_BIN_SIZE * NUM_CHANNELS_FRB;
-        printf("about to parse data\n");
+        //printf("about to parse data\n");
         parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS_FRB);
-        printf("about to write parsed data\n");
+        //printf("about to write parsed data\n");
         writeRow(mcnt, fits_matrix);
-        printf("done writing data\n");
+        //printf("done writing data\n");
         return 1;
 } 
 

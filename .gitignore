@@ -13,3 +13,5 @@ src/guppi_daq/python/possem_wrap.c
 /newmdls/
 /snaptest/
 /test16/
+*.o
+bfFitsWriter

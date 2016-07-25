@@ -74,10 +74,10 @@ BfPulsarFitsIO::writeRow(int mcnt, float *data)
 
 int BfPulsarFitsIO::write(int mcnt, float *data) {
     
-    printf("about to parse data\n");
-    printf("writing data\n");    
+   // printf("about to parse data\n");
+   // printf("writing data\n");    
     writeRow(mcnt, data);
-    printf("Done writing data\n");
+   // printf("Done writing data\n");
     return 1;
 }
 

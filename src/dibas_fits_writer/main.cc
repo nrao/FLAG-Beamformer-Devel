@@ -210,7 +210,7 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
  
     while (cmd_wait)
     {
-
+        cmd = INVALID;
         // Check to see if threads have exited
         if (thread_id != 0 && pthread_kill(thread_id, 0)!=0)
         {
