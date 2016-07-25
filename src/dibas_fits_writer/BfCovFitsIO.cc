@@ -28,15 +28,15 @@ BfCovFitsIO::BfCovFitsIO(const char *path_prefix, int simulator, int instance_id
 {
     // What distinquishes modes is their data format
    if (cov_mode == 0){  
-       data_size = FITS_BIN_SIZE * NUM_CHANNELS;
+       data_size = GPU_BIN_SIZE * NUM_CHANNELS;
        sprintf(data_form, "%dC", data_size);
    } 
    else if (cov_mode == 1){
-       data_size = 2112 * NUM_CHANNELS_PAF;
+       data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
        sprintf(data_form, "%dC", data_size);
    }
    else if (cov_mode == 2){
-       data_size = FITS_BIN_SIZE * NUM_CHANNELS_FRB;
+       data_size = GPU_BIN_SIZE * NUM_CHANNELS_FRB;
        sprintf(data_form, "%dC", data_size);
    }
 }
@@ -51,19 +51,19 @@ int BfCovFitsIO::myAbstract() {
 // covariance data coming out of GPU has tons of zeros and some
 // redundant values that need to be purged first
 int BfCovFitsIO::write_HI(int mcnt, float *data) {
-        data_size = FITS_BIN_SIZE * NUM_CHANNELS;
-        float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
+        data_size = GPU_BIN_SIZE * NUM_CHANNELS;
+        //float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
         //printf("about to parse data\n");
-        parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS);
+        //parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS);
         //printf("about to write parsed data\n");
-        writeRow(mcnt, fits_matrix);
+        writeRow(mcnt, data);
         //printf("done writing data\n");
         return 1;
 }    
 
 int BfCovFitsIO::write_PAF(int mcnt, float *data) {
-        float fits_matrix[NUM_CHANNELS_PAF * FITS_BIN_SIZE * 2];
-        data_size = 2112 * NUM_CHANNELS_PAF;
+        //float fits_matrix[NUM_CHANNELS_PAF * FITS_BIN_SIZE * 2];
+        data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
         //printf("about to parse data\n");
         //parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS_PAF);
         //printf("about to write parsed data\n");
@@ -73,12 +73,12 @@ int BfCovFitsIO::write_PAF(int mcnt, float *data) {
 }
 
 int BfCovFitsIO::write_FRB(int mcnt, float *data) {
-        float fits_matrix[NUM_CHANNELS_FRB * FITS_BIN_SIZE * 2];
-        data_size = FITS_BIN_SIZE * NUM_CHANNELS_FRB;
+        //float fits_matrix[NUM_CHANNELS_FRB * FITS_BIN_SIZE * 2];
+        data_size = GPU_BIN_SIZE * NUM_CHANNELS_FRB;
         //printf("about to parse data\n");
-        parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS_FRB);
+        //parseAndReorderGpuCovMatrix(data,2112,fits_matrix,FITS_BIN_SIZE,NUM_CHANNELS_FRB);
         //printf("about to write parsed data\n");
-        writeRow(mcnt, fits_matrix);
+        writeRow(mcnt, data);
         //printf("done writing data\n");
         return 1;
 } 
