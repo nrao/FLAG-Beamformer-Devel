@@ -15,3 +15,4 @@ src/guppi_daq/python/possem_wrap.c
 /test16/
 *.o
 bfFitsWriter
+*.pyc
