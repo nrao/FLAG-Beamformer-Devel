@@ -60,6 +60,10 @@ struct decprecated_bf_databuf {
 #define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS * 4* 100)
 
 #define NUM_BLOCKS 2
+//MACROs for mcnts/second
+#define ADC_SAMPLE_RATE 155.52
+#define COARSE_CHAN_SAMPLE_RATE ADC_SAMPLE_RATE/512
+#define MCNT_RATE (COARSE_CHAN_SAMPLE_RATE/20)*1000000
 
 typedef struct {
     char data_type[64]; /* Type of data in buffer */

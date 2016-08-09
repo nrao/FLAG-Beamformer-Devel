@@ -1490,7 +1490,7 @@ void BfFitsIO::createDataTable()
 
 // We calculate all timestamps from the known start time and each mcnt ('packet counter')
 double BfFitsIO::calculateBlockTime(int mcnt, double startDMJD) {
-    scan_time_clock = (double)((double)mcnt/((double)(PACKET_RATE)*200));
+    scan_time_clock = (double)((double)mcnt)/((double)MCNT_RATE);
 #ifdef DEBUG
     printf("elapsed secs: %f\n", scan_time_clock);
 #endif

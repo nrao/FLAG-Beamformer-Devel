@@ -207,7 +207,6 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     int scan_num = 0;
     
        
- 
     while (cmd_wait)
     {
         cmd = INVALID;
