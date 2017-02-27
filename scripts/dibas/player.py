@@ -43,8 +43,8 @@ from datetime import datetime, timedelta
 from ConfigData import ModeData, BankData, AutoVivification, _ip_string_to_int, _hostname_to_ip
 
 # The backends:
-#import Backend
-#import VegasBackend
+import Backend
+import VegasBackend
 import VegasHBWBackend
 import VegasL1LBWBackend
 import VegasL8LBWBackend
@@ -82,9 +82,9 @@ class Bank(object):
                     "l8/lbw8"    : VegasL8LBWBackend.VegasL8LBWBackend,
                     "guppi-inco" : GuppiBackend.GuppiBackend,
                     "guppi-codd" : GuppiCODDBackend.GuppiCODDBackend,
-                    "beamformer_hi" : BeamformerBackend.BeamformerBackend,
-                    "beamformer_paf" : BeamformerBackend.BeamformerBackend,
-                    "beamformer_frb" : BeamformerBackend.BeamformerBackend,
+                    "hi_correlator" : BeamformerBackend.BeamformerBackend,
+                    "cal_correlator" : BeamformerBackend.BeamformerBackend,
+                    "frb_correlator" : BeamformerBackend.BeamformerBackend,
                     "pulsar_beamformer" : BeamformerBackend.BeamformerBackend}
 
 
@@ -424,6 +424,7 @@ class Bank(object):
         frequency = bandwidth
         if mode:
             if mode in self.mode_data:
+                print self.current_mode
                 if force or mode != self.current_mode or frequency != self.mode_data[mode].frequency:
                     self.check_shared_memory()
                     print "New mode specified and/or bandwidth specified!"
@@ -566,9 +567,7 @@ class Bank(object):
         """
 
         if self.backend:
-            mode = self.get_mode()
-            print "CURRENT MODE IS", mode
-            #self.increment_scan_number()
+       #     self.increment_scan_number()
             print starttime
             return self.backend.start(starttime)
 
@@ -791,20 +790,24 @@ class Bank(object):
              # Monitor scan status
             if self.backend.scan_running:
                 now = datetime.utcnow()
+                now.strftime("%b %d, %y, %H:%M:%S")
                 start = self.backend.start_time
+               # print "Watch Dog Start time %f" % (start)
                 scanlength = self.backend.scan_length + 1
-
+                print "Watch Dog Scan length after = %f" % (scanlength)
+  
                 if all((start, scanlength)):
-                    sl = timedelta(seconds=scanlength)
+                    sl = timedelta(seconds=scanlength) 
+                    sl.strftime("%b %d, %y, %H:%M:%S")
                     rem = (start + sl) - now
                     # lets have a little scan countdown in status memory
                     self.set_status(SCANREM=rem.seconds - 1)
                    
-                    #if now > start + sl:
+                    if now > start + sl:
                      
-                       # print np.str(scanlength)
-                       # self.stop()
-                       # self.set_status(SCANREM='scan terminated')
+                       print np.str(scanlength)
+                       self.stop()
+                       self.set_status(SCANREM='scan terminated')
 
 
 def _testCaseVegas1():

@@ -708,7 +708,7 @@ class VegasBackend(Backend):
 
         now = datetime.utcnow()
         earliest_start = self.round_second_up(now) + self.mode.needed_arm_delay
-
+        print "Earliest time is",earliest_start
         if starttime:
             if type(starttime) == tuple or type(starttime) == list:
                 starttime = datetime(*starttime)
@@ -729,6 +729,7 @@ class VegasBackend(Backend):
 
         self.start_time = starttime
         max_delay = self.mode.needed_arm_delay - timedelta(microseconds = 1500000)
+	print "MAX DELAY!!!!!!!!",max_delay
         print now, starttime, max_delay
         # if simulating, just sleep until start time and return
         if self.test_mode:
