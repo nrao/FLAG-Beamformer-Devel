@@ -82,9 +82,9 @@ class Bank(object):
                     "l8/lbw8"    : VegasL8LBWBackend.VegasL8LBWBackend,
                     "guppi-inco" : GuppiBackend.GuppiBackend,
                     "guppi-codd" : GuppiCODDBackend.GuppiCODDBackend,
-                    "beamformer_hi" : BeamformerBackend.BeamformerBackend,
-                    "beamformer_paf" : BeamformerBackend.BeamformerBackend,
-                    "beamformer_frb" : BeamformerBackend.BeamformerBackend,
+                    "hi_correlator" : BeamformerBackend.BeamformerBackend,
+                    "cal_correlator" : BeamformerBackend.BeamformerBackend,
+                    "frb_correlator" : BeamformerBackend.BeamformerBackend,
                     "pulsar_beamformer" : BeamformerBackend.BeamformerBackend}
 
 
@@ -566,9 +566,7 @@ class Bank(object):
         """
 
         if self.backend:
-            mode = self.get_mode()
-            print "CURRENT MODE IS", mode
-            #self.increment_scan_number()
+       #     self.increment_scan_number()
             print starttime
             return self.backend.start(starttime)
 
@@ -793,18 +791,18 @@ class Bank(object):
                 now = datetime.utcnow()
                 start = self.backend.start_time
                 scanlength = self.backend.scan_length + 1
-
+  
                 if all((start, scanlength)):
                     sl = timedelta(seconds=scanlength)
                     rem = (start + sl) - now
                     # lets have a little scan countdown in status memory
                     self.set_status(SCANREM=rem.seconds - 1)
                    
-                    #if now > start + sl:
+                    if now > start + sl:
                      
-                       # print np.str(scanlength)
-                       # self.stop()
-                       # self.set_status(SCANREM='scan terminated')
+                       print np.str(scanlength)
+                       self.stop()
+                       self.set_status(SCANREM='scan terminated')
 
 
 def _testCaseVegas1():

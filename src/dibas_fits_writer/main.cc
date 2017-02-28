@@ -255,12 +255,12 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
             // Stop observations
             printf("Stop observations\n");
             run = 0;
-	    //if (thread_id && pthread_kill(thread_id, 0) == 0)
+	    pthread_kill(thread_id, SIGINT);
             
     //            pthread_cancel(thread_id);
     //            pthread_kill(thread_id, SIGINT);
     //            pthread_join(thread_id, NULL);
-    //            thread_id = 0;
+                thread_id = 0;
 		cmd_wait=0;
 		continue;
             /*{

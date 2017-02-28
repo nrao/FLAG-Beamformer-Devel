@@ -1,4 +1,4 @@
-######################################################################
+
 #
 #  VegasBackend.py -- The standard HBW Vegas backend; also serves as a
 #  base class for the LBW backends.
@@ -88,7 +88,7 @@ class VegasBackend(Backend):
         self.frequency_resolution = 0.0
         self.fpga_clock = None
         self.fits_writer_process = None
-        self.scan_length = 30.0
+        self.scan_length = 0.0
         self.spec_tick = self.computeSpecTick()
         self.setHwExposr(self.mode.hwexposr)
 
@@ -654,7 +654,7 @@ class VegasBackend(Backend):
         self.set_status(DATAPORT = self.dataport)
         self.set_status(DATADIR  = self.dataroot)
         self.set_status(PROJID   = self.projectid)
-        self.set_status(SCANLEN  = self.scan_length)
+       # self.set_status(SCANLEN  = self.scan_length)
         self.set_status(CAL_FREQ = self.cal_freq)
 
         for i in range(8):
@@ -752,9 +752,9 @@ class VegasBackend(Backend):
         #status,wait = self._wait_for_status('NETSTAT', 'receiving', max_delay)
 
         #if not status:
-        #    self.hpc_cmd('STOP')
-        #    self.fits_writer_cmd('STOP')
-        #    raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
+         #   self.hpc_cmd('STOP')
+         #   self.fits_writer_cmd('STOP')
+         #   raise Exception("start(): timed out waiting for 'NETSTAT=receiving'")
 #
 #        print "start(): waited %s for HPC program to be ready." % str(wait)
 
@@ -764,6 +764,7 @@ class VegasBackend(Backend):
         #          ^         ^
         #       arm_time  start_time
         arm_time = starttime - timedelta(microseconds = 900000)
+        print arm_time
         now = datetime.utcnow()
 
         if now > arm_time:
