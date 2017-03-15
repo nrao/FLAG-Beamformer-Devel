@@ -286,6 +286,9 @@ BfFitsThread::run(struct vegas_thread_args *args)
     uint64_t total_write_time = 0;
 
     signal(SIGINT, stop_thread);
+    signal(SIGHUP, stop_thread);
+    signal(SIGTERM, stop_thread);
+    signal(SIGKILL, stop_thread);
 
     vegas_status_lock_safe(&st);
     hputi4(st.buf, "DSKBLKIN", block);
@@ -397,7 +400,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
         
         // Scan completed (We have more than SCANLEN of data)
-        if (fitsio->is_scan_complete(mcnt))
+        if (fitsio->is_scan_complete(mcnt) || scan_finished ==1)
         //if (rowsWritten >= scanRows)
         {
             printf("Ending fits writer because scan is complete\n");

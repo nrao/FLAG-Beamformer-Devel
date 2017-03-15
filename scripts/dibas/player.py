@@ -85,8 +85,9 @@ class Bank(object):
                     "hi_correlator" : BeamformerBackend.BeamformerBackend,
                     "cal_correlator" : BeamformerBackend.BeamformerBackend,
                     "frb_correlator" : BeamformerBackend.BeamformerBackend,
-                    "pulsar_beamformer" : BeamformerBackend.BeamformerBackend}
-
+                    "pulsar_beamformer" : BeamformerBackend.BeamformerBackend
+	            "flag_hi_rtbf":BeamformerBackend.BeamformerBackend	
+		    "flag_frb_rtbf":BeamformerBackend.BeamformerBackend}	
 
         self.dibas_dir = os.getenv('DIBAS_DIR')
 
@@ -378,7 +379,24 @@ class Bank(object):
         print 'Writing mode into shared memory: %s' % cmd
         os.system(cmd)
 
-      else:
+      elif n == 4:
+	string = 'RTBF'
+        cmd = 'hashpipe_check_status -k COVMODE -s %s' % string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd)
+     
+      elif n == 5:
+	string = 'HI+RTBF'
+	cmd = 'hashpipe_check_status -k COVMODE -s %s' % string
+    	print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd) 
+      elif n == 6:
+	string = 'FRB+RTBF'
+        cmd = 'hashpipe_check_status -k COVMODE -s %s' % string
+        print 'Writing mode into shared memory: %s' % cmd
+        os.system(cmd)
+
+     else:
 
         string = 'NONE'
         print 'Correct mode not found'

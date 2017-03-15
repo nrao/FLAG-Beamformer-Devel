@@ -111,44 +111,8 @@ const int MAX_CMD_LEN =64;
 
 extern "C" int setup_privileges();
 
-int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, int argc, char **argv)
+int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, int argc, int multiFITS, char **argv)
 {
-
-    /*
-    static struct option long_opts[] = {
-        {"help",   0, NULL, 'h'},
-        {"mode",   0, NULL, 'm'},
-        {"instance",   0, NULL, 'i'},
-        {0,0,0,0}
-    };
-
-    int opt, opti;
-    int instance_id = 0;
-    while ((opt=getopt_long(argc,argv,"hm:i:",long_opts,&opti))!=-1) {
-        printf("opt: %d\n", opt);
-        switch (opt) {
-            case 'i':
-                printf("optarg: %s\n", optarg);
-                instance_id = atoi(optarg);
-                printf("instance_id: %d\n", instance_id);
-                break;
-            case 'h':
-            default:
-                usage();
-                exit(0);
-                break;
-        }
-    }
-    */
-
-    /* check args */
-    /*
-    if (optind==argc) {
-        usage();
-        exit(1);
-    }
-    */
-
 
     // create command fifo based on username and instance_id
     char command_fifo_filename[MAX_CMD_LEN];
@@ -240,13 +204,51 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
             	// pass on args 
                 else
 		{
-			run = 1;
-			vegas_thread_args *args = new vegas_thread_args;
-            		args->input_buffer = instance_id;
-                	args->cov_mode1 = (int)cov_mode1;
-                	args->cov_mode2 = (int)cov_mode2;
-          	  	args->cov_mode3 = (int)cov_mode3;
-            		pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
+			if (multiFITS == 0)
+			{
+				run = 1;
+				vegas_thread_args *args = new vegas_thread_args;
+            			args->input_buffer = instance_id;
+                		args->cov_mode1 = (int)cov_mode1;
+                		args->cov_mode2 = (int)cov_mode2;
+          	  		args->cov_mode3 = (int)cov_mode3;
+            			pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
+			}
+			else if (multiFITS == 1)
+			{
+				run = 1;
+                        	vegas_thread_args *args = new vegas_thread_args;
+                        	args->input_buffer = instance_id;
+                        	args->cov_mode1 = (int)cov_mode1;
+                        	args->cov_mode2 = (int)cov_mode2;
+                        	args->cov_mode3 = (int)cov_mode3;
+                        	pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
+				//run concurrent HI FITS thread
+   				cov_mode1 = true;
+                        	args->input_buffer = instance_id;
+                        	args->cov_mode1 = (int)cov_mode1;
+                        	args->cov_mode2 = (int)cov_mode2;
+                        	args->cov_mode3 = (int)cov_mode3;
+                        	pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
+			}
+			
+			else if (multiFITS ==2)
+			{
+		        	run = 1;
+                        	vegas_thread_args *args = new vegas_thread_args;
+                        	args->input_buffer = instance_id;
+                        	args->cov_mode1 = (int)cov_mode1;
+                        	args->cov_mode2 = (int)cov_mode2;
+                        	args->cov_mode3 = (int)cov_mode3;
+                        	pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);
+				//run concurrent FRB FITS thread
+				cov_mode2 = true;
+                        	args->input_buffer = instance_id;
+                        	args->cov_mode1 = (int)cov_mode1;
+                        	args->cov_mode2 = (int)cov_mode2;
+                        	args->cov_mode3 = (int)cov_mode3;
+                        	pthread_create(&thread_id, NULL, runGbtFitsWriter, (void *)args);	
+			}
                 }
         }
         else if ((cmd == STOP) || (cmd == QUIT))
@@ -254,18 +256,8 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
             // Stop observations
             printf("Stop observations\n");
             run = 0;
-	    //if (thread_id && pthread_kill(thread_id, 0) == 0)
-            
-    //            pthread_cancel(thread_id);
-    //            pthread_kill(thread_id, SIGINT);
-    //            pthread_join(thread_id, NULL);
-    //            thread_id = 0;
-		cmd_wait=0;
-		continue;
-            /*{
-	       cmd_wait=0;
-               continue;
-            }*/
+            cmd_wait=0;
+	    continue;
         }
     }
 
@@ -306,13 +298,26 @@ int main(int argc, char **argv) {
 
     int opt, opti;
     int instance_id = 0;
+    int multiFITS = 0;
     bool test = false;
+    // hi corr
     bool cov_mode1 = true;
+    //cal corr
     bool cov_mode2 = true;
+    //frb corr
     bool cov_mode3 = true;
+    //pulsar rt-beamformer
+    bool cov_mode4 = true;
+    //hi+pulsar mode (concurrent FITS writers)
+    bool cov_mode5 = true; 
+    //frb+pulsar mode (concurrent FITS writers)
+    bool cov_mode6 = true;
     char cov_mode1_value = 's';
     char cov_mode2_value = 'c';
     char cov_mode3_value = 'f';
+    char cov_mode4_value = 'p';
+    char cov_mode5_value = 'a';
+    char cov_mode6_value = 'b';
     while ((opt=getopt_long(argc,argv,"htm:i:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 't':
@@ -322,6 +327,9 @@ int main(int argc, char **argv) {
                 cov_mode1 = (cov_mode1_value == *optarg);
                 cov_mode2 = (cov_mode2_value == *optarg);
                 cov_mode3 = (cov_mode3_value == *optarg);
+                cov_mode4 = (cov_mode4_value == *optarg);
+                cov_mode5 = (cov_mode5_value == *optarg);
+		cov_mode6 = (cov_mode6_value == *optarg);
                 break;
             case 'i':    
                 instance_id = atoi(optarg);
@@ -338,20 +346,31 @@ int main(int argc, char **argv) {
     if (test)
         mainTest(cov_mode1, argc, argv);
     if(cov_mode1){
-        printf("RUNNING HI MODE\n");
-        mainThread(cov_mode1,false,false, instance_id, argc, argv);
+        printf("RUNNING SPECTRAL MODE\n");
+        mainThread(cov_mode1,false,false,instance_id, argc, multiFITS, argv);
         }
     else if (cov_mode2){
         printf("RUNNING PAF MODE\n");
-        mainThread(false,cov_mode2,false,instance_id, argc, argv);
+        mainThread(false,cov_mode2,false,instance_id, argc, multiFITS, argv);
         }
     else if (cov_mode3){
         printf("RUNNING FRB MODE\n");
-        mainThread(false,false,cov_mode3, instance_id, argc, argv);
+        mainThread(false,false,cov_mode3,instance_id, argc, multiFITS, argv);
+        }
+    else if (cov_mode4){
+        printf("RUNNING PULSAR MODE\n");
+        mainThread(false,false,false, instance_id, argc, multiFITS, argv);
+        }
+    else if (cov_mode5){
+	printf("RUNNING SPECTRAL+PULSAR MODE\n");
+	multiFITS = 1;
+	mainThread(false,false,false, instance_id, argc, multiFITS, argv);
         }
     else{
-        printf("RUNNING PULSAR MODE\n");
-        mainThread(false,false,false, instance_id, argc, argv);
+        printf("RUNNING FRB+PULSAR MODE\n");
+        multiFITS = 2;
+        mainThread(false,false,false, instance_id, argc, multiFITS, argv);
         }
+
     return (0);
 }

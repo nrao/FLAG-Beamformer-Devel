@@ -371,8 +371,7 @@ class BeamformerBackend(VegasBackend):
             process_list = process_list + thread1.split()
             process_list = process_list + thread2.split()
             process_list = process_list + thread3.split()
-            process_list = process_list + thread4.split()
-            
+            process_list = process_list + thread4.split() 
 
         print ' '.join(process_list)
         self.hpc_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
@@ -408,8 +407,12 @@ class BeamformerBackend(VegasBackend):
             cmd += " -m f"
         if self.name == 'pulsar_beamformer':
             cmd += " -m p"
+        if self.name == 'flag_hi_rtbf':
+	    cmd += " -m a"
+        if self.name == 'flag_frb_rtbf':
+	    cmd += " -m b"
         
-        print cmd
+	print cmd
         process_list = shlex.split(cmd)
         self.fits_writer_process = subprocess.Popen(process_list, stdin=subprocess.PIPE)
 
