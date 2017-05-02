@@ -255,7 +255,8 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
         {
             // Stop observations
             printf("Stop observations\n");
-            run = 0;
+            pthread_kill(thread_id, SIGINT);
+	    run = 0;
             cmd_wait=0;
 	    continue;
         }

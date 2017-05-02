@@ -45,7 +45,6 @@ public:
     /// 3. When a full integration is detected, the data is written as a row in the
     /// FITS file DATA table.
     static void *run(struct vegas_thread_args *args);
-
     static void set_finished(struct vegas_thread_args *args);
     static void status_detach(vegas_status *st);
     static void setExitStatus(vegas_status *st);
@@ -53,7 +52,6 @@ public:
     static void databuf_detach(void *);
     static void free_sdfits(vegas_status *st);
     static void close(BfFitsIO *f);
-
     //virtual void *databuf_attach(int id) = 0;
 
 protected:
@@ -61,6 +59,5 @@ protected:
 };
 
 // Calls directly into BfFitsThread::run()
-extern "C" void *runGbtFitsWriter(void *args);
-
+extern "C" void external_close(int sig); 
 #endif
