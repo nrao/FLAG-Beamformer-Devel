@@ -66,7 +66,8 @@ extern "C"
 
 int scan_finished = 0;
 const int MAX_CMD_LEN = 64;
-static void stop_thread(int sig)
+extern "C"
+void stop_thread(int sig)
 {
     scan_finished = 1;
 }

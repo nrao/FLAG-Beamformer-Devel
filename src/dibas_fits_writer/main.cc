@@ -61,6 +61,7 @@ int srv_run = 1;
 int start_flag=0;
 
 extern "C" void *runGbtFitsWriter(void *);
+extern "C" void stop_thread(int sig);
 
 void usage() {
     fprintf(stderr,
@@ -256,6 +257,7 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
             // Stop observations
             printf("Stop observations\n");
             pthread_kill(thread_id, SIGINT);
+	    stop_thread(1);	    
 	    run = 0;
             cmd_wait=0;
 	    continue;

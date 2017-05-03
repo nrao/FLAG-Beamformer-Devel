@@ -60,4 +60,5 @@ protected:
 
 // Calls directly into BfFitsThread::run()
 extern "C" void external_close(int sig); 
+extern "C" void stop_thread(int sig);
 #endif
