@@ -135,13 +135,14 @@ BfFitsThread::run(struct vegas_thread_args *args)
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::status_detach, &st);
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::setExitStatus, &st);
 
-    const int databufid = 3; // disk buffer
+    int databufid = 3; // disk buffer
 
     // Attach to the data buffer shared memory.
     // Different modes are taken into account due to the different buffer sizes
     void *gdb;
     int shmid, semid;
     if (cov_mode1) {
+	databufid = 4; // this is for FINE CHANNEL CORRELATOR ONLY
         gdb = (void *)bf_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bf_databuf *)gdb)->header.semid;
@@ -359,6 +360,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             n_block = ((bf_databuf *)gdb)->header.n_block;
             data = ((bf_databuf *)gdb)->block[block].data;
             fitsio->write_HI(mcnt, data);
+	    printf("mcnt: %llu\n",(long long unsigned int) mcnt);
         }
 
         else if (cov_mode2) {
