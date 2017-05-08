@@ -63,15 +63,15 @@ extern "C"
     vegas_status_lock(s)
 
 
-
+// variable for while loop exit
 int scan_finished = 0;
-const int MAX_CMD_LEN = 64;
-extern "C"
 void stop_thread(int sig)
 {
     scan_finished = 1;
 }
+const int MAX_CMD_LEN = 64;
 
+//called by main.cc to enter primary method 
 extern "C"
 void *runGbtFitsWriter(void *ptr)
 {
@@ -79,9 +79,7 @@ void *runGbtFitsWriter(void *ptr)
     return BfFitsThread::run(args);
 }
 
-// data_buffer timeouts are .250 sec, so wait up to 2.5 seconds
-#define MAX_ACCUM_TIMEOUTS 100
-
+//primary function
 void *
 BfFitsThread::run(struct vegas_thread_args *args)
 {
@@ -89,6 +87,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     bool cov_mode2 = (bool)args->cov_mode2;
     bool cov_mode3 = (bool)args->cov_mode3;
     int rv;
+    //create BfFitsIO pointer (the "fits writer")
     BfFitsIO *fitsio;
 
     timespec loop_start, loop_stop;
@@ -98,7 +97,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     // pass on the instance id from the args to our class member
     int instance_id = args->input_buffer;
 
-    printf("VegasFitsThread::run, instance_id = %d\n", instance_id);
+    printf("BfFitsThread::run, instance_id = %d\n", instance_id);
 
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::set_finished, args);
 
@@ -116,7 +115,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
     }
 
     /* Set priority */
-    // rv = setpriority(PRIO_PROCESS, 0, args->priority);
     if (rv<0)
     {
         vegas_error("BfFitsThread::run", "Error setting priority level.");
@@ -174,21 +172,11 @@ BfFitsThread::run(struct vegas_thread_args *args)
         pthread_exit(NULL);
     }
 
-    // collect information about mode specific databuffer
-    /*
-    int shmid, semid;
-    if (cov_mode)
-    {
-        semid = ((bf_databuf *)gdb)->header.semid;
-    } else {
-        semid = ((bfp_databuf *)gdb)->header.semid;
-    }
-    */
 
     // make sure we detach from this buffer when the thread exits
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::databuf_detach, gdb);
 
-    /* Set the thread  status to init */
+    /* Set the thread status to init */
     vegas_status_lock_safe(&st);
     hputs(st.buf, STATUS_KEYW, "Init");
     vegas_status_unlock_safe(&st);
@@ -201,7 +189,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     sf.filenum = 0;
     sf.new_file = 1;
 
-    pthread_cleanup_push((void (*)(void*))&BfFitsThread::free_sdfits, &sf);
+    pthread_cleanup_push((void (*)(void*))&BfFitsThread::free_sdfits, &sf); //is this needed?
 
     // Query status memory for keywords & settings
     // Make a local copy of the status area
@@ -220,22 +208,23 @@ BfFitsThread::run(struct vegas_thread_args *args)
     }
     // Create a BfFitsIO writer subclass based on mode
     if (cov_mode1){
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id,0);
+        fitsio = new BfFitsIO(datadir, false, instance_id,0);
     } 
     else if (cov_mode2){
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id,1);
+        fitsio = new BfFitsIO(datadir, false, instance_id,1);
     }
     else if (cov_mode3){
-        fitsio = (BfFitsIO *) new BfCovFitsIO(datadir, false, instance_id,2);
+        fitsio = new BfFitsIO(datadir, false, instance_id,2);
     }
     else   
-        fitsio = (BfFitsIO *) new BfPulsarFitsIO(datadir, false, instance_id);
+        fitsio = new BfFitsIO(datadir, false, instance_id);
 
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio);
 
     // pass a copy of the status memory to the writer
     fitsio->copyStatusMemory(status_buf);
 
+    // print status buffer to terminal
     printf("status_buf: %s\n", status_buf);
 
 
@@ -252,7 +241,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         unsigned long secs = BfFitsIO::dmjd_2_secs(start_time);
         printf("goes back to secs: %lu\n", secs);
     }
-    hgetr8(status_buf, "STRTDMJD", &start_time);
+    hgetr8(status_buf, "TSTAMP", &start_time);
     unsigned long secs = BfFitsIO::dmjd_2_secs(start_time);
     fitsio->set_startTime(start_time);
 
@@ -265,7 +254,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     // start_time=2013_10_01_12:00:00
     // BANK=A
     // would result in a file: /lustre/project_1/VEGAS/2013_10_01_12:00:00A.fits
-    printf("fitsio opening\n");
+    //open FITS file
     fitsio->open();
     printf("fitsio opened\n");
     if(fitsio->getStatus() != 0)
@@ -281,8 +270,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
     int rx_some_data = 0;
     scan_finished = 0;
 
-    // TBF: kluge
-    // int scanRows = 6;
     int rowsWritten = 0;
     uint64_t total_loop_time = 0;
     uint64_t total_write_time = 0;
@@ -298,7 +285,9 @@ BfFitsThread::run(struct vegas_thread_args *args)
     int scanLen;
      
     hgeti4(status_buf,"SCANLEN",&scanLen);
+    //ensure we have the correct scan length TODO: remove
     printf("SCANLEN: %d\n",scanLen);
+    //enter loop until scan is finished. 
     while(!scan_finished && ::run)
     {
         
@@ -315,20 +304,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             vegas_status_lock_safe(&st);
             hputs(st.buf, STATUS_KEYW, "Waiting");
             vegas_status_unlock_safe(&st);
-            // Is the scan still running?
-        //    if (strcmp(scan_status, "running")!=0 && rx_some_data)
-        //    {
-          //      double scanTimeClock = (double)(mcnt/PACKET_RATE);
-		// scan is not running. Wait a few more times to make sure the
-                // data memory is fully drained.
-           //     if (scanTimeClock > scanLen)
-           //     {
-           //         printf("Fits Writer detected end of scan\n");
-           //         printf("num_accum_timeouts: %d", num_accum_timeouts);
-	//	    scan_finished = 1;
-            //    }
-         //   }
-        continue;
+            continue;
         }
         rx_some_data = 1;
         /*change process status to waiting*/
@@ -341,15 +317,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
         // We are now starting this timer before the data is copied
         //   from the gpu table to the fits table
         clock_gettime(CLOCK_MONOTONIC, &fits_start);
-        // For a matrix of 40x40 there will be 20 redundant values
-//         int NONZERO_BIN_SIZE = (820 + 20);
-        // int i, j;
-        //float fits_matrix[NUM_CHANNELS * FITS_BIN_SIZE * 2];
-
-        // This parses the GPU's covariance matrix output into a format viable
-        //   for writing to FITS. 
-        //if (cov_mode)
-        //    fitsio->parseGpuCovMatrix(((bf_databuf *)gdb)->block[block].data, fits_matrix);
 
         // collect some mode dependent info about the databuffer blocks
         uint64_t mcnt,n_block;
@@ -378,15 +345,13 @@ BfFitsThread::run(struct vegas_thread_args *args)
             fitsio->write_FRB(mcnt, data);
         }
         else {
-             mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
-            //mcnt = num_iter*N;
+            mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
             data = ((bfp_databuf *)gdb)->block[block].data;
             printf("mcnt: %llu\n",(long long unsigned int) mcnt);
             num_iter++;
-            fitsio->write(mcnt, data);
+            fitsio->write_RTBF(mcnt, data);
         }    
-        //fitsio->write(mcnt, fits_matrix);
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         total_write_time += ELAPSED_NS(fits_start, fits_stop);
         
@@ -404,7 +369,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
         
         // Scan completed (We have more than SCANLEN of data)
         if (fitsio->is_scan_complete(mcnt) || scan_finished ==1)
-        //if (rowsWritten >= scanRows)
         {
             printf("Ending fits writer because scan is complete\n");
             scan_finished = 1;
@@ -443,8 +407,9 @@ BfFitsThread::run(struct vegas_thread_args *args)
 void
 BfFitsThread::set_finished(struct vegas_thread_args *args)
 {
-    // vegas_thread_set_finished(args);
+vegas_thread_set_finished(args);
 }
+
 
 void
 BfFitsThread::status_detach(vegas_status *st)

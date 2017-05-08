@@ -20,7 +20,7 @@
 //#	P. O. Box 2
 //#	Green Bank, WV 24944-0002 USA
 
-
+//import standard libraries
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
@@ -37,6 +37,7 @@
 #include <time.h>
 #include <sched.h>
 #include <getopt.h>
+//include VEGAS libraries for macro's and error handling
 extern "C"
 {
 #include "vegas_error.h"
@@ -48,34 +49,31 @@ extern "C"
 #define STATUS_KEYW "DISKSTAT"
 #include "vegas_threads.h"
 };
-
+//include FLAG libraries
 #include "BfFitsIO.h"
 #include "mainTest.h"
 
-// #include "vegas_threads.h"
 #define FITS_THREAD_CORE 3
 #define FITS_PRIORITY (-20)
 
-int run = 0;
-int srv_run = 1;
-int start_flag=0;
+//define local variables
+int run = 0; // is writer running? 0 => no 
 
 extern "C" void *runGbtFitsWriter(void *);
-extern "C" void stop_thread(int sig);
 
 void usage() {
     fprintf(stderr,
             "Usage: vegasFitsWriter (options) \n"
             "Options:\n"
-            "  -t , --test          run a test\n"
-            "  -m , --mode          'c' for Cov. Matrix, 'p' for Pulsar\n"
+            "  -m , --mode 'c' for Cov. Matrix, 'p' for Pulsar\n"
             "  -i n, --instance=nn  instance id\n"
             );
 }
 
-
+//create thread id for thread control
 pthread_t thread_id = 0;
 
+//signal handlers to close FITS files nicely if STOP, QUIT, or CTRL+C is detected
 void signal_handler(int sig)
 {
     if (signal(sig, SIG_IGN) == SIG_ERR)
@@ -107,11 +105,12 @@ void signal_handler(int sig)
         pthread_cancel(thread_id);
     }
 }
-
-const int MAX_CMD_LEN =64;
+//constrain command string length 
+const int MAX_CMD_LEN = 64;
 
 extern "C" int setup_privileges();
 
+//main thread to create and handle a BfFitsThread instance 
 int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, int argc, int multiFITS, char **argv)
 {
 
@@ -127,6 +126,7 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     run = 1;
     int rv;
 
+    //call to signal handlers for clean exit
     signal(SIGHUP, signal_handler);     // hangup
 #if !defined(DEBUG)                     // when debugging, wish to use CTRL-C
     signal(SIGINT, signal_handler);     // interrupt
@@ -138,12 +138,13 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     // If our process parent exits/dies, kernel should send us SIGKILL
     prctl(PR_SET_PDEATHSIG, SIGKILL);
 
+    // call from privilege_management.c in vegas_hpc 
     setup_privileges();
 
     int fits_fifo_id = open_fifo(command_fifo_filename);
     int cmd = INVALID;   
     
-/* Set cpu affinity */
+    /* Set cpu affinity */
     cpu_set_t cpuset, cpuset_orig;
     sched_getaffinity(0, sizeof(cpu_set_t), &cpuset_orig);
     CPU_ZERO(&cpuset);
@@ -159,10 +160,10 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
         perror("set_priority");
     }
 
-    printf("vegas_fits_writer started\n");
+    //inform user we are up and running
+    printf("bfFitsWrite started\n");
 
     run=1;
-    srv_run=1;
 
     /* Loop over recv'd commands, process them */
     int cmd_wait=1;
@@ -171,7 +172,7 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     int n_loop = 1000;
     int scan_num = 0;
     
-       
+    //wait to recieve a command    
     while (cmd_wait)
     {
         cmd = INVALID;
@@ -187,12 +188,12 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
         // Flush any status/error/etc for logfiles
         fflush(stdout);
         fflush(stderr);
-
+	//continuously check FIFO for command
 	if (n++ >= n_loop){
 		cmd = check_cmd(fits_fifo_id);
 		n = 0;
 	}	
-        // Process the command
+        // Process A START
         if (cmd == START)
         {
 		printf("Start observations\n");
@@ -201,10 +202,9 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
 			printf("observations already running!\n");
 		}
             	// Start observations
-            	// TODO : decide how to behave if observations are running
-            	// pass on args 
                 else
 		{
+			//run single FITS writer for a single mode
 			if (multiFITS == 0)
 			{
 				run = 1;
@@ -252,12 +252,12 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
 			}
                 }
         }
+	//STOP observations 
         else if ((cmd == STOP) || (cmd == QUIT))
         {
             // Stop observations
             printf("Stop observations\n");
             pthread_kill(thread_id, SIGKILL);
-	    //stop_thread(1);	    
 	    run = 0;
             cmd_wait=0;
 	    continue;
@@ -275,12 +275,11 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     time_t curtime = time(NULL);
     char tmp[256];
 
-    printf("vegas_fits_writer exiting cleanly at %s\n", ctime_r(&curtime,tmp));
+    //inform user about exit status
+    printf("bfFitsWriter exiting cleanly at %s\n", ctime_r(&curtime,tmp));
 
     fflush(stdout);
     fflush(stderr);
-
-    /* TODO: remove FIFO */
 
     exit(0);
 }
@@ -293,16 +292,14 @@ int main(int argc, char **argv) {
 
     static struct option long_opts[] = {
         {"help",   0, NULL, 'h'},
-        {"test",   0, NULL, 't'},
         {"mode",   1, NULL, 'm'},
         {"instance",   1, NULL, 'i'},
-        {0,0,0,0}
+        {0,0,0}
     };
 
     int opt, opti;
     int instance_id = 0;
     int multiFITS = 0;
-    bool test = false;
     // hi corr
     bool cov_mode1 = true;
     //cal corr
@@ -315,6 +312,7 @@ int main(int argc, char **argv) {
     bool cov_mode5 = true; 
     //frb+pulsar mode (concurrent FITS writers)
     bool cov_mode6 = true;
+    //flags from function call (command line arguments)
     char cov_mode1_value = 's';
     char cov_mode2_value = 'c';
     char cov_mode3_value = 'f';
@@ -324,8 +322,6 @@ int main(int argc, char **argv) {
     while ((opt=getopt_long(argc,argv,"htm:i:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 't':
-                test = true;
-                break;
             case 'm':    
                 cov_mode1 = (cov_mode1_value == *optarg);
                 cov_mode2 = (cov_mode2_value == *optarg);
@@ -345,9 +341,7 @@ int main(int argc, char **argv) {
         }
     }
 
-
-    if (test)
-        mainTest(cov_mode1, argc, argv);
+    //begin main thread to run BfFitsTread
     if(cov_mode1){
         printf("RUNNING SPECTRAL MODE\n");
         mainThread(cov_mode1,false,false,instance_id, argc, multiFITS, argv);

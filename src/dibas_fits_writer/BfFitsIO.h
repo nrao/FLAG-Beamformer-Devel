@@ -80,7 +80,7 @@ public:
     BfFitsIO(const char *path_prefix, int simulator = 0, int instance_id = 0,int cov_mode=0);
     ~BfFitsIO();
 
-    virtual int myAbstract() = 0;
+    //virtual int myAbstract() = 0;
 
     // This method opens the FITS file for writing.
     // The FitsIO status is returned.
@@ -116,12 +116,12 @@ public:
     virtual void createPrimaryHDU();
     void createDataTable();
 
-    // int bufferedWrite(DiskBufferChunk *chunk, bool new_integration = false);
     int writeRow(int mcnt, float *data);
-    virtual int write(int mcnt, float *data) = 0;
-    virtual int write_HI(int mcnt, float *data) = 0;
-    virtual int write_PAF(int mcnt, float *data) = 0;
-    virtual int write_FRB(int mcnt, float *data) = 0;
+    int write_HI(int mcnt, float *data);
+    int write_PAF(int mcnt, float *data);
+    int write_FRB(int mcnt, float *data);
+    int write_RTBF(int mcnt, float *data);
+
     bool is_scan_complete(int mcnt);
     void set_scan_complete();
     static double timeval_2_mjd(timeval *tv);
