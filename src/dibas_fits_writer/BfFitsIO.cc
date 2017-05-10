@@ -77,9 +77,30 @@ BfFitsIO::BfFitsIO(const char *path_prefix, int simulator, int instance_id, int 
     stopTime(),
     current_row(1),
     instance_id(instance_id)
-{
-    strcpy(theVEGASMode, "");
-    setBankName(inst2bank(instance_id));
+  {
+      if (cov_mode == 0)
+      { 
+        data_size = GPU_BIN_SIZE * NUM_CHANNELS; 
+        sprintf(data_form, "%dC", data_size);
+      }
+      else if (cov_mode == 1)
+      { 
+        data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
+        sprintf(data_form, "%dC", data_size); 
+      }
+      else if (cov_mode == 2)
+      {
+        data_size = GPU_BIN_SIZE * NUM_CHANNELS_FRB;
+        sprintf(data_form, "%dC", data_size);
+      }
+      else
+      {
+        data_size = GPU_BIN_SIZE * NUM_PULSAR_CHANNELS;
+        sprintf(data_form, "%dC", data_size);
+      }
+
+      strcpy(theVEGASMode, "");
+      setBankName(inst2bank(instance_id));
 }
 
 BfFitsIO::~BfFitsIO()
@@ -204,11 +225,12 @@ int BfFitsIO::open()
   }
   set_scanLength(keyval);
   // Setting integation length
-  if (hgetr4(status_buffer,"ACTSTI",&keyval) == 0)
+  if (hgetr4(status_buffer,"REQSTI",&keyval) == 0)
   {
     keyval =0;
   }
   set_intLength(keyval);
+  integration_time = keyval;
   int xid;
   // Setting Xid
   if (hgeti4(status_buffer,"XID",&xid) == 0)
@@ -263,21 +285,31 @@ int BfFitsIO::open()
 
   // Open the file
   l.lock();
+  printf("%s\n", path);
+  if (getStatus())
+  {
+    print_all_error_messages("Error opening file: ");
+  }
+
   create_file(path);
 
   nrows = 1;
 
   // Always create the primary, with defaults if necessary
   createPrimaryHDU();
+  //if (getStatus())
+  //{
+  //  print_all_error_messages("Error opening file: ");
+  //}
 
   data_hdu = next_hdu++;
   createDataTable();
 
   openFlag = 1;
-  if (getStatus())
-  {
-    print_all_error_messages("Error opening file: ");
-  }
+  //if (getStatus())
+  //{
+  //  print_all_error_messages("Error opening file: ");
+  //}
 
   return getStatus();
 }
@@ -378,6 +410,7 @@ void BfFitsIO::createPrimaryHDU()
 
 void BfFitsIO::createDataTable()
 {
+  
   fprintf(stderr, "data_form: %s\n", data_form);
 
   const int DATA_HDU = data_hdu;
@@ -444,7 +477,8 @@ bool BfFitsIO::is_scan_complete(int mcnt)
 {
   float last_mcnt = scanLength*200*PACKET_RATE;
   //bool has_ended = scantime > scanLength || scan_is_complete;
-  bool has_ended = mcnt >= last_mcnt || mcnt >= last_mcnt-200 || scan_is_complete;
+  printf("int time %f\n",integration_time);
+  bool has_ended = mcnt >= last_mcnt || mcnt >= last_mcnt-(200*PACKET_RATE*integration_time) || scan_is_complete;
 #ifdef DEBUG
   printf("int time: %f\n", (float)N / (float)PACKET_RATE);
 #endif
@@ -483,8 +517,8 @@ unsigned long BfFitsIO::dmjd_2_secs(double dmjd)
 //function for writing HI data
 int BfFitsIO::write_HI(int mcnt, float *data) 
 {
-  data_size = GPU_BIN_SIZE * NUM_CHANNELS;
-  sprintf(data_form, "%dC", data_size);
+  //data_size = GPU_BIN_SIZE * NUM_CHANNELS;
+  //sprintf(data_form, "%dC", data_size);
   writeRow(mcnt, data);
   return 1;
 }
@@ -492,24 +526,24 @@ int BfFitsIO::write_HI(int mcnt, float *data)
 //function for writing PAF calibration data
 int BfFitsIO::write_PAF(int mcnt, float *data) 
 {
-  data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
-  sprintf(data_form, "%dC", data_size);
+  //data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
+  //sprintf(data_form, "%dC", data_size);
   writeRow(mcnt, data);
   return 1;
 }
 //funciton for wrting FRB data
 int BfFitsIO::write_FRB(int mcnt, float *data) 
 {
-  data_size = GPU_BIN_SIZE * NUM_CHANNELS_FRB;
-  sprintf(data_form, "%dC", data_size);
+  //data_size = GPU_BIN_SIZE * NUM_CHANNELS_FRB;
+  //sprintf(data_form, "%dC", data_size);
   writeRow(mcnt, data);
   return 1;
 }
 
 //function for writing Real-Time beamforming data
 int BfFitsIO::write_RTBF(int mcnt, float *data) {
-  data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
-  sprintf(data_form, "%dC", data_size);
+  //data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
+  //sprintf(data_form, "%dC", data_size);
   writeRow(mcnt, data);
   return 1;
 }

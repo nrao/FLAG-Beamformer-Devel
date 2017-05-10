@@ -157,7 +157,7 @@ protected:
 
     // Pipeline storage
     TimeStamp integration_start_time;
-    float *integration_time;
+    float integration_time;
     float *fits_data;
     double utcfrac;
     int current_row;
