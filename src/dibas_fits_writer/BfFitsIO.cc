@@ -477,7 +477,6 @@ bool BfFitsIO::is_scan_complete(int mcnt)
 {
   float last_mcnt = scanLength*200*PACKET_RATE;
   //bool has_ended = scantime > scanLength || scan_is_complete;
-  printf("int time %f\n",integration_time);
   bool has_ended = mcnt >= last_mcnt || mcnt >= last_mcnt-(200*PACKET_RATE*integration_time) || scan_is_complete;
 #ifdef DEBUG
   printf("int time: %f\n", (float)N / (float)PACKET_RATE);
