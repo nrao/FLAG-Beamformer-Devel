@@ -295,7 +295,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         // Wait for a data buffer from the HPC program
         if (databuf_wait_filled(semid, block))
         {
-            printf("Timed out\n");
+            //printf("Timed out\n");
             // Waiting timed out - check the scan status
             vegas_status_lock_safe(&st);
             hgets(st.buf, "SCANSTAT", sizeof(scan_status), scan_status);

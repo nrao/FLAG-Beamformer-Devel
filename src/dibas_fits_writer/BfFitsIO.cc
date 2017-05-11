@@ -259,10 +259,20 @@ int BfFitsIO::open()
   string bnkstr(value);
   //size_t p = bnkstr.find_last_not_of(' ');
   // We disable this to allow us to set our own bank name directly
-  char *suffix = setFilename(namePtr, startTime);
-  strcpy(suffix, theBank);
-  strcat(suffix, ".fits");
-  suffix += strlen(theBank);
+  //char *suffix = setFilename(namePtr, startTime);
+  //strcpy(suffix, theBank);
+  //strcat(suffix, ".fits");
+  //suffix += strlen(theBank);
+
+  char byu_filename[24];
+  hgets(status_buffer, "TSTAMP", 24, byu_filename);
+  printf("FITS: Received TSTAMP = %s\n", byu_filename);
+  strcat(path, byu_filename);
+  printf("FITS: Filename Stage 1: %s\n", path);
+  strcat(path, theBank);
+  printf("FITS: Filename Stage 2: %s\n", path);
+  strcat(path, ".fits");
+  printf("FITS: Filename Stage 3: %s\n", path);
 
   // fresh start
   setStatus(0);
@@ -271,7 +281,8 @@ int BfFitsIO::open()
   if(access(path,F_OK) == 0)
   {
     cerr << path << " already exists, using " ;
-    sprintf(suffix,"_%ld.fits",(long)getpid());
+    //sprintf(suffix,"_%ld.fits",(long)getpid());
+    sprintf(path, "%s_%ld", path, (long)getpid());
     cerr << path << endl ;
   }
 
@@ -475,9 +486,10 @@ int BfFitsIO::writeRow(int mcnt, float *data)
 // This checks to see if we have reached the desired scan time
 bool BfFitsIO::is_scan_complete(int mcnt)
 {
-  float last_mcnt = scanLength*200*PACKET_RATE;
-  //bool has_ended = scantime > scanLength || scan_is_complete;
-  bool has_ended = mcnt >= last_mcnt || mcnt >= last_mcnt-(200*PACKET_RATE*integration_time) || scan_is_complete;
+    float last_mcnt = scanLength*200*PACKET_RATE;
+    //bool has_ended = scantime > scanLength || scan_is_complete;
+    // bool has_ended = mcnt >= last_mcnt || mcnt >= last_mcnt-200 || scan_is_complete;
+    bool has_ended = scan_is_complete;
 #ifdef DEBUG
   printf("int time: %f\n", (float)N / (float)PACKET_RATE);
 #endif
