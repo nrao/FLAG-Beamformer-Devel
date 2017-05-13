@@ -217,7 +217,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         fitsio = new BfFitsIO(datadir, false, instance_id,2);
     }
     else   
-        fitsio = new BfFitsIO(datadir, false, instance_id);
+        fitsio = new BfFitsIO(datadir, false, instance_id),3;
 
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio);
 
@@ -241,7 +241,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         unsigned long secs = BfFitsIO::dmjd_2_secs(start_time);
         printf("goes back to secs: %lu\n", secs);
     }
-    hgetr8(status_buf, "TSTAMP", &start_time);
+    hgetr8(status_buf, "STRTDMJD", &start_time);
     unsigned long secs = BfFitsIO::dmjd_2_secs(start_time);
     fitsio->set_startTime(start_time);
 
@@ -295,7 +295,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         // Wait for a data buffer from the HPC program
         if (databuf_wait_filled(semid, block))
         {
-            printf("Timed out\n");
+            //printf("Timed out\n");
             // Waiting timed out - check the scan status
             vegas_status_lock_safe(&st);
             hgets(st.buf, "SCANSTAT", sizeof(scan_status), scan_status);
@@ -343,6 +343,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             n_block = ((bffrb_databuf *)gdb)->header.n_block;
             data = ((bffrb_databuf *)gdb)->block[block].data;
             fitsio->write_FRB(mcnt, data);
+            printf("mcnt: %llu\n",(long long unsigned int) mcnt);
         }
         else {
             mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
