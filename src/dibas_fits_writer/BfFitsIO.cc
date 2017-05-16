@@ -95,8 +95,7 @@ BfFitsIO::BfFitsIO(const char *path_prefix, int simulator, int instance_id, int 
       }
       else
       {
-        printf("here\n");
-        data_size = GPU_BIN_SIZE * NUM_PULSAR_CHANNELS;
+        data_size = NUM_BEAMS * NUM_PULSAR_CHANNELS*4*100;
         sprintf(data_form, "%dE", data_size);
       }
 
