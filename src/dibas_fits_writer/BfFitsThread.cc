@@ -216,9 +216,9 @@ BfFitsThread::run(struct vegas_thread_args *args)
     else if (cov_mode3){
         fitsio = new BfFitsIO(datadir, false, instance_id,2);
     }
-    else   
-        fitsio = new BfFitsIO(datadir, false, instance_id),3;
-
+    else {  
+    	fitsio = new BfFitsIO(datadir, false, instance_id,3);
+    }
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio);
 
     // pass a copy of the status memory to the writer
@@ -226,7 +226,6 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
     // print status buffer to terminal
     printf("status_buf: %s\n", status_buf);
-
 
     // I'm assuming STRTDMJD is the starttime in DMJD
     if (hgetr8(status_buf, "STRTDMJD", &start_time) == 0)
