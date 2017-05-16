@@ -258,7 +258,6 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
             // Stop observations
             printf("Stop observations\n");
             pthread_kill(thread_id, SIGTERM);
-	    //stop_thread(1);	    
 	    run = 0;
             cmd_wait=0;
 	    continue;
@@ -278,7 +277,6 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     void * ret;
     pthread_join(thread_id, &ret);
     printf("FITS: thread has joined!\n");
-
     time_t curtime = time(NULL);
     char tmp[256];
 

@@ -95,8 +95,9 @@ BfFitsIO::BfFitsIO(const char *path_prefix, int simulator, int instance_id, int 
       }
       else
       {
+        printf("here\n");
         data_size = GPU_BIN_SIZE * NUM_PULSAR_CHANNELS;
-        sprintf(data_form, "%dC", data_size);
+        sprintf(data_form, "%dE", data_size);
       }
 
       strcpy(theVEGASMode, "");
@@ -263,17 +264,18 @@ int BfFitsIO::open()
   //strcpy(suffix, theBank);
   //strcat(suffix, ".fits");
   //suffix += strlen(theBank);
-
+  //set up FITS filename format
   char byu_filename[24];
   hgets(status_buffer, "TSTAMP", 24, byu_filename);
-  printf("FITS: Received TSTAMP = %s\n", byu_filename);
+  printf("FITS: Received TSTAMP = %s\n", byu_filename); 
   strcat(path, byu_filename);
-  printf("FITS: Filename Stage 1: %s\n", path);
+  printf("FITS: Filename Stage 1: %s\n", path); 
   strcat(path, theBank);
   printf("FITS: Filename Stage 2: %s\n", path);
   strcat(path, ".fits");
   printf("FITS: Filename Stage 3: %s\n", path);
 
+  
   // fresh start
   setStatus(0);
 
@@ -447,7 +449,7 @@ double BfFitsIO::calculateBlockTime(int mcnt, double startDMJD)
 
 
 /// Writes a full integration of data to a row in the FITS file.
-int BfFitsIO::writeRow(int mcnt, float *data)
+int BfFitsIO::writeRow(int mcnt, float *data, bool cmp)
 {
   int column = 1;
   MutexLock l(lock_mutex);
@@ -455,7 +457,7 @@ int BfFitsIO::writeRow(int mcnt, float *data)
 
   // DMJD
   double dmjd = calculateBlockTime(mcnt, startTime);
-
+//DMJD column
   write_col_dbl(column++,
                   current_row,
                   1,
@@ -471,12 +473,22 @@ int BfFitsIO::writeRow(int mcnt, float *data)
 
   clock_gettime(CLOCK_MONOTONIC, &data_w_start);
   // DATA column
-  write_col_cmp(column++,
+  if (cmp){
+      write_col_cmp(column++,
                   current_row,
                   1,
                   data_size, //FITS_BIN_SIZE * NUM_CHANNELS,
                   data);
-  clock_gettime(CLOCK_MONOTONIC, &data_w_stop);
+   } 
+   else
+   {
+       write_col_flt(column++,
+ 	           current_row,
+                   1, 
+                   data_size,
+                   data);
+   }
+clock_gettime(CLOCK_MONOTONIC, &data_w_stop);
   ++current_row;
   l.unlock();
   report_error(stderr, getStatus());
@@ -486,10 +498,10 @@ int BfFitsIO::writeRow(int mcnt, float *data)
 // This checks to see if we have reached the desired scan time
 bool BfFitsIO::is_scan_complete(int mcnt)
 {
-    float last_mcnt = scanLength*200*PACKET_RATE;
-    //bool has_ended = scantime > scanLength || scan_is_complete;
-    // bool has_ended = mcnt >= last_mcnt || mcnt >= last_mcnt-200 || scan_is_complete;
-    bool has_ended = scan_is_complete;
+  float last_mcnt = scanLength*200*PACKET_RATE;
+  //bool has_ended = scantime > scanLength || scan_is_complete;
+  //bool has_ended = mcnt >= last_mcnt || mcnt >= last_mcnt-(200*PACKET_RATE) || scan_is_complete;
+  bool has_ended = scan_is_complete;
 #ifdef DEBUG
   printf("int time: %f\n", (float)N / (float)PACKET_RATE);
 #endif
@@ -528,34 +540,26 @@ unsigned long BfFitsIO::dmjd_2_secs(double dmjd)
 //function for writing HI data
 int BfFitsIO::write_HI(int mcnt, float *data) 
 {
-  //data_size = GPU_BIN_SIZE * NUM_CHANNELS;
-  //sprintf(data_form, "%dC", data_size);
-  writeRow(mcnt, data);
+  writeRow(mcnt, data, true);
   return 1;
 }
 
 //function for writing PAF calibration data
 int BfFitsIO::write_PAF(int mcnt, float *data) 
 {
-  //data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
-  //sprintf(data_form, "%dC", data_size);
-  writeRow(mcnt, data);
+  writeRow(mcnt, data, true);
   return 1;
 }
 //funciton for wrting FRB data
 int BfFitsIO::write_FRB(int mcnt, float *data) 
 {
-  //data_size = GPU_BIN_SIZE * NUM_CHANNELS_FRB;
-  //sprintf(data_form, "%dC", data_size);
-  writeRow(mcnt, data);
+  writeRow(mcnt, data, true);
   return 1;
 }
 
 //function for writing Real-Time beamforming data
 int BfFitsIO::write_RTBF(int mcnt, float *data) {
-  //data_size = GPU_BIN_SIZE * NUM_CHANNELS_PAF;
-  //sprintf(data_form, "%dC", data_size);
-  writeRow(mcnt, data);
+  writeRow(mcnt, data, false);
   return 1;
 }
 
