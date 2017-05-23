@@ -32,7 +32,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <cassert>
-
+#include <time.h>
 #include "fitshead.h"
 #include "vegas_error.h"
 
@@ -455,7 +455,13 @@ int BfFitsIO::writeRow(int mcnt, float *data, bool cmp)
   l.lock();
 
   // DMJD
-  double dmjd = calculateBlockTime(mcnt, startTime);
+  //double dmjd = calculateBlockTime(mcnt, startTime);
+  
+  //DMJD
+  time_t numSec = time(NULL);
+  float elapsedDMJD = numSec / (86400);
+  double dmjd = 40587 + elapsedDMJD;  
+   
 //DMJD column
   write_col_dbl(column++,
                   current_row,
