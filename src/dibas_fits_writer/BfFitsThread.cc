@@ -45,8 +45,6 @@ extern "C"
 };
 #include "DiskBufferChunk.h"
 #include "BfFitsIO.h"
-#include "BfPulsarFitsIO.h"
-#include "BfCovFitsIO.h"
 #include "BfFitsThread.h"
 
 // static int verbose = false;
