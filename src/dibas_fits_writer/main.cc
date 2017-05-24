@@ -51,7 +51,6 @@ extern "C"
 };
 //include FLAG libraries
 #include "BfFitsIO.h"
-#include "mainTest.h"
 
 #define FITS_THREAD_CORE 3
 #define FITS_PRIORITY (-20)
