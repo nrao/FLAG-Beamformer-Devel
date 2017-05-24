@@ -455,12 +455,12 @@ int BfFitsIO::writeRow(int mcnt, float *data, bool cmp)
   l.lock();
 
   // DMJD
-  //double dmjd = calculateBlockTime(mcnt, startTime);
+  double dmjd = calculateBlockTime(mcnt, startTime);
   
   //DMJD
-  time_t numSec = time(NULL);
-  float elapsedDMJD = numSec / (float)86400;
-  double dmjd = 40587 + elapsedDMJD;  
+  //time_t numSec = time(NULL);
+  //float elapsedDMJD = numSec / (float)86400;
+  //double dmjd = 40587 + elapsedDMJD;  
    
 //DMJD column
   write_col_dbl(column++,
