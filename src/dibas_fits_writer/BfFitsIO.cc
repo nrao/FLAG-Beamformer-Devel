@@ -459,7 +459,7 @@ int BfFitsIO::writeRow(int mcnt, float *data, bool cmp)
   
   //DMJD
   time_t numSec = time(NULL);
-  float elapsedDMJD = numSec / (86400);
+  float elapsedDMJD = numSec / (float)86400;
   double dmjd = 40587 + elapsedDMJD;  
    
 //DMJD column
