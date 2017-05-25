@@ -317,13 +317,14 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
         // collect some mode dependent info about the databuffer blocks
         uint64_t mcnt,n_block;
-        int64_t gd;
+        int gd;
         float *data;
         if (cov_mode1) {
             mcnt = ((bf_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bf_databuf *)gdb)->header.n_block;
+            gd = ((bf_databuf *)gdb)->block[block].header.good_data;
             data = ((bf_databuf *)gdb)->block[block].data;
-            fitsio->write_HI(mcnt, data);
+            fitsio->write_HI(mcnt,gd, data);
 	    printf("mcnt: %llu\n",(long long unsigned int) mcnt);
         }
 
@@ -331,7 +332,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             mcnt = ((bfpaf_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bfpaf_databuf *)gdb)->header.n_block;
             data = ((bfpaf_databuf *)gdb)->block[block].data;
-            fitsio->write_PAF(mcnt, data);
+            fitsio->write_PAF(mcnt, gd,data);
 	    printf("mcnt: %llu\n",(long long unsigned int) mcnt);
         }
 
@@ -339,7 +340,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             mcnt = ((bffrb_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bffrb_databuf *)gdb)->header.n_block;
             data = ((bffrb_databuf *)gdb)->block[block].data;
-            fitsio->write_FRB(mcnt, data);
+            fitsio->write_FRB(mcnt,gd, data);
             printf("mcnt: %llu\n",(long long unsigned int) mcnt);
         }
         else {
@@ -348,7 +349,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
             data = ((bfp_databuf *)gdb)->block[block].data;
             printf("mcnt: %llu\n",(long long unsigned int) mcnt);
             num_iter++;
-            fitsio->write_RTBF(mcnt, data);
+            fitsio->write_RTBF(mcnt,gd, data);
         }    
         clock_gettime(CLOCK_MONOTONIC, &fits_stop);
         total_write_time += ELAPSED_NS(fits_start, fits_stop);

@@ -427,10 +427,10 @@ void BfFitsIO::createDataTable()
   fprintf(stderr, "data_form: %s\n", data_form);
 
   const int DATA_HDU = data_hdu;
-  const int DATA_COLS = 2;
-  char const *ttypeLags[] = {"MCNT", "DATA"};
-  char const *tformLags[] = {"1J", data_form};
-  char const *tunitLags[] = {" ", " "};
+  const int DATA_COLS = 3;
+  char const *ttypeLags[] = {"MCNT","GOOD_DATA","DATA"};
+  char const *tformLags[] = {"1J","1L", data_form};
+  char const *tunitLags[] = {" ", " ", " "};
 
     //                  HDU#, addtnl cols, ttypeState, tformState, tunitState
   createBaseDataTable(DATA_HDU, DATA_COLS, (char **)ttypeLags, (char **)tformLags, (char **)tunitLags);
@@ -449,7 +449,7 @@ double BfFitsIO::calculateBlockTime(int mcnt, double startDMJD)
 
 
 /// Writes a full integration of data to a row in the FITS file.
-int BfFitsIO::writeRow(int mcnt, float *data, bool cmp)
+int BfFitsIO::writeRow(int mcnt, float *data,int good_data, bool cmp)
 {
   int column = 1;
   MutexLock l(lock_mutex);
@@ -476,6 +476,12 @@ int BfFitsIO::writeRow(int mcnt, float *data, bool cmp)
                   1,
                   1,
                   &mcnt);
+
+  write_col_int(column++,
+                  current_row,
+                  1,
+                  1,
+                  &good_data);
 
   clock_gettime(CLOCK_MONOTONIC, &data_w_start);
   // DATA column
@@ -544,28 +550,28 @@ unsigned long BfFitsIO::dmjd_2_secs(double dmjd)
 }
 
 //function for writing HI data
-int BfFitsIO::write_HI(int mcnt, float *data) 
+int BfFitsIO::write_HI(int mcnt, int good_data, float *data) 
 {
-  writeRow(mcnt, data, true);
+  writeRow(mcnt, data, good_data, true);
   return 1;
 }
 
 //function for writing PAF calibration data
-int BfFitsIO::write_PAF(int mcnt, float *data) 
+int BfFitsIO::write_PAF(int mcnt,int good_data, float *data) 
 {
-  writeRow(mcnt, data, true);
+  writeRow(mcnt, data,good_data, true);
   return 1;
 }
 //funciton for wrting FRB data
-int BfFitsIO::write_FRB(int mcnt, float *data) 
+int BfFitsIO::write_FRB(int mcnt,int good_data, float *data) 
 {
-  writeRow(mcnt, data, true);
+  writeRow(mcnt, data,good_data, true);
   return 1;
 }
 
 //function for writing Real-Time beamforming data
-int BfFitsIO::write_RTBF(int mcnt, float *data) {
-  writeRow(mcnt, data, false);
+int BfFitsIO::write_RTBF(int mcnt,int good_data, float *data) {
+  writeRow(mcnt, data,good_data, false);
   return 1;
 }
 
