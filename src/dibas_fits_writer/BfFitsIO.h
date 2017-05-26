@@ -116,11 +116,11 @@ public:
     virtual void createPrimaryHDU();
     void createDataTable();
 
-    int writeRow(int mcnt, float *data, bool cmp);
-    int write_HI(int mcnt, float *data);
-    int write_PAF(int mcnt, float *data);
-    int write_FRB(int mcnt, float *data);
-    int write_RTBF(int mcnt, float *data);
+    int writeRow(int mcnt, float *data, int good_data, bool cmp);
+    int write_HI(int mcnt,int good_data, float *data);
+    int write_PAF(int mcnt,int good_data, float *data);
+    int write_FRB(int mcnt,int good_data, float *data);
+    int write_RTBF(int mcnt,int good_data, float *data);
 
     bool is_scan_complete(int mcnt);
     void set_scan_complete();
