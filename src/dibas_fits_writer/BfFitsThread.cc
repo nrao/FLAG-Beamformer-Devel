@@ -331,6 +331,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         else if (cov_mode2) {
             mcnt = ((bfpaf_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bfpaf_databuf *)gdb)->header.n_block;
+            gd = ((bf_databuf *)gdb)->block[block].header.good_data;
             data = ((bfpaf_databuf *)gdb)->block[block].data;
             fitsio->write_PAF(mcnt, gd,data);
 	    printf("mcnt: %llu\n",(long long unsigned int) mcnt);
@@ -339,6 +340,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         else if (cov_mode3){
             mcnt = ((bffrb_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bffrb_databuf *)gdb)->header.n_block;
+            gd = ((bf_databuf *)gdb)->block[block].header.good_data;
             data = ((bffrb_databuf *)gdb)->block[block].data;
             fitsio->write_FRB(mcnt,gd, data);
             printf("mcnt: %llu\n",(long long unsigned int) mcnt);
@@ -346,6 +348,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
         else {
             mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
+            gd = ((bf_databuf *)gdb)->block[block].header.good_data;
             data = ((bfp_databuf *)gdb)->block[block].data;
             printf("mcnt: %llu\n",(long long unsigned int) mcnt);
             num_iter++;
