@@ -448,7 +448,7 @@ double BfFitsIO::calculateBlockTime(int mcnt, double startDMJD)
 
 
 /// Writes a full integration of data to a row in the FITS file.
-int BfFitsIO::writeRow(int mcnt, float *data,int good_data, bool cmp)
+int BfFitsIO::writeRow(int mcnt,int good_data, float *data, bool cmp)
 {
   int column = 1;
   MutexLock l(lock_mutex);
@@ -477,10 +477,10 @@ int BfFitsIO::writeRow(int mcnt, float *data,int good_data, bool cmp)
                   &mcnt);
 
   write_col_int(column++,
-                  current_row,
+                 current_row,
                   1,
                   1,
-                  &good_data);
+                 &good_data);
 
   clock_gettime(CLOCK_MONOTONIC, &data_w_start);
   // DATA column
@@ -549,28 +549,28 @@ unsigned long BfFitsIO::dmjd_2_secs(double dmjd)
 }
 
 //function for writing HI data
-int BfFitsIO::write_HI(int mcnt, int good_data, float *data) 
+int BfFitsIO::write_HI(int mcnt,int good_data, float *data) 
 {
-  writeRow(mcnt, data, good_data, true);
+  writeRow(mcnt,good_data, data, true);
   return 1;
 }
 
 //function for writing PAF calibration data
 int BfFitsIO::write_PAF(int mcnt,int good_data, float *data) 
 {
-  writeRow(mcnt, data,good_data, true);
+  writeRow(mcnt,good_data, data, true);
   return 1;
 }
 //funciton for wrting FRB data
 int BfFitsIO::write_FRB(int mcnt,int good_data, float *data) 
 {
-  writeRow(mcnt, data,good_data, true);
+  writeRow(mcnt,good_data, data, true);
   return 1;
 }
 
 //function for writing Real-Time beamforming data
 int BfFitsIO::write_RTBF(int mcnt,int good_data, float *data) {
-  writeRow(mcnt, data,good_data, false);
+  writeRow(mcnt,good_data, data, false);
   return 1;
 }
 

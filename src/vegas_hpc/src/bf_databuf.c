@@ -276,7 +276,7 @@ struct bf_databuf *bf_databuf_attach(int databuf_id, int instance_id) {
         vegas_error("bf_databuf_attach", "shmat error");
         return(NULL);
     }
-
+    
     return(d);
 
 }
