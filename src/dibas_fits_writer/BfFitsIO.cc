@@ -69,7 +69,7 @@ int Mutex::unlock()
 /// simulator A boolean value which sets the 'SIMULATE' header keyword.
 BfFitsIO::BfFitsIO(const char *path_prefix, int simulator, int instance_id, int cov_mode)
     :
-    FitsIO(path_prefix, 0, "BF", simulator),
+    FitsIO(path_prefix, 0, "", simulator),
     openFlag(0),
     nrows(0),
     dmjd(0),
@@ -269,7 +269,8 @@ int BfFitsIO::open()
   printf("FITS: Received TSTAMP = %s\n", byu_filename); 
   strcat(path, byu_filename);
   printf("FITS: Filename Stage 1: %s\n", path); 
-  strcat(path, theBank);
+  strcat(path, value);
+  //strcat(path, theBank);
   printf("FITS: Filename Stage 2: %s\n", path);
   strcat(path, ".fits");
   printf("FITS: Filename Stage 3: %s\n", path);
@@ -428,7 +429,7 @@ void BfFitsIO::createDataTable()
   const int DATA_HDU = data_hdu;
   const int DATA_COLS = 3;
   char const *ttypeLags[] = {"MCNT","GOOD_DATA","DATA"};
-  char const *tformLags[] = {"1J","1J", data_form};
+  char const *tformLags[] = {"1J","1K", data_form};
   char const *tunitLags[] = {" ", " ", " "};
 
     //                  HDU#, addtnl cols, ttypeState, tformState, tunitState
@@ -448,7 +449,7 @@ double BfFitsIO::calculateBlockTime(int mcnt, double startDMJD)
 
 
 /// Writes a full integration of data to a row in the FITS file.
-int BfFitsIO::writeRow(int mcnt,int good_data, float *data, bool cmp)
+int BfFitsIO::writeRow(int mcnt, int64_t good_data, float *data, bool cmp)
 {
   int column = 1;
   MutexLock l(lock_mutex);
@@ -476,7 +477,7 @@ int BfFitsIO::writeRow(int mcnt,int good_data, float *data, bool cmp)
                   1,
                   &mcnt);
 
-  write_col_int(column++,
+  write_col_lng(column++,
                  current_row,
                   1,
                   1,
@@ -549,28 +550,28 @@ unsigned long BfFitsIO::dmjd_2_secs(double dmjd)
 }
 
 //function for writing HI data
-int BfFitsIO::write_HI(int mcnt,int good_data, float *data) 
+int BfFitsIO::write_HI(int mcnt, int64_t good_data, float *data) 
 {
-  writeRow(mcnt,good_data, data, true);
+  writeRow(mcnt, good_data, data, true);
   return 1;
 }
 
 //function for writing PAF calibration data
-int BfFitsIO::write_PAF(int mcnt,int good_data, float *data) 
+int BfFitsIO::write_PAF(int mcnt, int64_t good_data, float *data) 
 {
-  writeRow(mcnt,good_data, data, true);
+  writeRow(mcnt, good_data, data, true);
   return 1;
 }
 //funciton for wrting FRB data
-int BfFitsIO::write_FRB(int mcnt,int good_data, float *data) 
+int BfFitsIO::write_FRB(int mcnt, int64_t good_data, float *data) 
 {
-  writeRow(mcnt,good_data, data, true);
+  writeRow(mcnt, good_data, data, true);
   return 1;
 }
 
 //function for writing Real-Time beamforming data
-int BfFitsIO::write_RTBF(int mcnt,int good_data, float *data) {
-  writeRow(mcnt,good_data, data, false);
+int BfFitsIO::write_RTBF(int mcnt, int64_t good_data, float *data) {
+  writeRow(mcnt, good_data, data, false);
   return 1;
 }
 
