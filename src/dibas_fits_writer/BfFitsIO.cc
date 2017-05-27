@@ -429,7 +429,7 @@ void BfFitsIO::createDataTable()
   const int DATA_HDU = data_hdu;
   const int DATA_COLS = 3;
   char const *ttypeLags[] = {"MCNT","GOOD_DATA","DATA"};
-  char const *tformLags[] = {"1J","1L", data_form};
+  char const *tformLags[] = {"1J","1J", data_form};
   char const *tunitLags[] = {" ", " ", " "};
 
     //                  HDU#, addtnl cols, ttypeState, tformState, tunitState
