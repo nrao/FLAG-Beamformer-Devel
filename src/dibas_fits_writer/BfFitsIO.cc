@@ -268,12 +268,9 @@ int BfFitsIO::open()
   hgets(status_buffer, "TSTAMP", 24, byu_filename);
   printf("FITS: Received TSTAMP = %s\n", byu_filename); 
   strcat(path, byu_filename);
-  printf("FITS: Filename Stage 1: %s\n", path); 
   strcat(path, value);
-  //strcat(path, theBank);
-  printf("FITS: Filename Stage 2: %s\n", path);
   strcat(path, ".fits");
-  printf("FITS: Filename Stage 3: %s\n", path);
+  printf("FITS: Filename: %s\n", path);
 
   
   // fresh start
@@ -463,7 +460,7 @@ int BfFitsIO::writeRow(int mcnt, int64_t good_data, float *data, bool cmp)
   //float elapsedDMJD = numSec / (float)86400;
   //double dmjd = 40587 + elapsedDMJD;  
    
-//DMJD column
+  //DMJD column
   write_col_dbl(column++,
                   current_row,
                   1,
@@ -484,6 +481,7 @@ int BfFitsIO::writeRow(int mcnt, int64_t good_data, float *data, bool cmp)
                  &good_data);
 
   clock_gettime(CLOCK_MONOTONIC, &data_w_start);
+
   // DATA column
   if (cmp){
       write_col_cmp(column++,
@@ -503,6 +501,7 @@ int BfFitsIO::writeRow(int mcnt, int64_t good_data, float *data, bool cmp)
 clock_gettime(CLOCK_MONOTONIC, &data_w_stop);
   ++current_row;
   l.unlock();
+
   report_error(stderr, getStatus());
   return getStatus();
 }

@@ -83,7 +83,7 @@ typedef uint8_t bf_databuf_cache_alignment[
 typedef struct bf_databuf_block_header {
         int64_t good_data;
 	uint64_t  mcnt;
-        uint64_t flags[(25+63)/64];
+        //uint64_t flags[(25+63)/64];
 } bf_databuf_block_header_t;
 
 typedef uint8_t bf_databuf_block_header_cache_alignment[
