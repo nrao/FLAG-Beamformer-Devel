@@ -270,13 +270,12 @@ int mainThread(bool cov_mode1,bool cov_mode2,bool cov_mode3, int instance_id, in
     {
         close(fits_fifo_id);
     }
-    
-    //Wait until thread has joined
+
+    // Wait until thread has joined
     printf("FITS: waiting for thread to join...\n");
-    void * ret; 
+    void * ret;
     pthread_join(thread_id, &ret);
     printf("FITS: thread has joined!\n");
-    
     time_t curtime = time(NULL);
     char tmp[256];
 
