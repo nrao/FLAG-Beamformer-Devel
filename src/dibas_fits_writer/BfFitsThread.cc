@@ -325,32 +325,32 @@ BfFitsThread::run(struct vegas_thread_args *args)
             gd = ((bf_databuf *)gdb)->block[block].header.good_data;
             data = ((bf_databuf *)gdb)->block[block].data;
             fitsio->write_HI(mcnt, gd, data);
-	    printf("mcnt: %llu\n",(long long unsigned int) mcnt);
+	    printf("mcnt: %llu, good_data = %lld\n",(long long unsigned int) mcnt, (long long int) gd);
         }
 
         else if (cov_mode2) {
             mcnt = ((bfpaf_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bfpaf_databuf *)gdb)->header.n_block;
-            gd = ((bf_databuf *)gdb)->block[block].header.good_data;
+            gd = ((bfpaf_databuf *)gdb)->block[block].header.good_data;
             data = ((bfpaf_databuf *)gdb)->block[block].data;
             fitsio->write_PAF(mcnt, gd, data);
-	    printf("mcnt: %llu\n",(long long unsigned int) mcnt);
+	    printf("mcnt: %llu, good_data = %lld\n",(long long unsigned int) mcnt, (long long int) gd);
         }
 
         else if (cov_mode3){
             mcnt = ((bffrb_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bffrb_databuf *)gdb)->header.n_block;
-            gd = ((bf_databuf *)gdb)->block[block].header.good_data;
+            gd = ((bffrb_databuf *)gdb)->block[block].header.good_data;
             data = ((bffrb_databuf *)gdb)->block[block].data;
             fitsio->write_FRB(mcnt, gd, data);
-            printf("mcnt: %llu\n",(long long unsigned int) mcnt);
+            printf("mcnt: %llu, good_data = %lld\n",(long long unsigned int) mcnt, (long long int) gd);
         }
         else {
             mcnt = ((bfp_databuf *)gdb)->block[block].header.mcnt;
             n_block = ((bfp_databuf *)gdb)->header.n_block;
-            gd = ((bf_databuf *)gdb)->block[block].header.good_data;
+            gd = ((bfp_databuf *)gdb)->block[block].header.good_data;
             data = ((bfp_databuf *)gdb)->block[block].data;
-            printf("mcnt: %llu\n",(long long unsigned int) mcnt);
+            printf("mcnt: %llu, good_data = %lld\n",(long long unsigned int) mcnt, (long long int) gd);
             num_iter++;
             fitsio->write_RTBF(mcnt, gd, data);
         }    
