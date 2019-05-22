@@ -132,7 +132,7 @@ BfFitsIO::copyStatusMemory(const char *status_memory)
     {
         string line, keyword;
         size_t eq_idx, blk_idx, key_end;
-        line = string(status_memory, key_start, key_start+80);
+        line = string(status_memory, key_start, 80);
         eq_idx = line.find_first_of('=');
         blk_idx = line.find_first_of(' ');
         key_end = blk_idx < eq_idx ? blk_idx : eq_idx;
@@ -395,9 +395,9 @@ void BfFitsIO::createPrimaryHDU()
   update_key_str((char *)"MODE",
                    theVEGASMode,
                    (char *)"VEGAS mode");
-  update_key_lng((char *)"SELFTEST",
-                   selfTest,
-                   (char *)"Is VEGAS in self-test mode?");
+ // update_key_lng((char *)"SELFTEST",
+ //                  selfTest,
+ //                  (char *)"Is VEGAS in self-test mode?");
   update_key_str((char *)"FITSVER",
                    (char *)FITS_VERSION,
                    (char *)"FITS definition version for this device");
@@ -498,10 +498,11 @@ int BfFitsIO::writeRow(int mcnt, int64_t good_data, float *data, bool cmp)
                    data_size,
                    data);
    }
-clock_gettime(CLOCK_MONOTONIC, &data_w_stop);
+  //flush();
+  clock_gettime(CLOCK_MONOTONIC, &data_w_stop);
   ++current_row;
   l.unlock();
-
+  
   report_error(stderr, getStatus());
   return getStatus();
 }

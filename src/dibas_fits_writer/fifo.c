@@ -48,21 +48,21 @@ int open_fifo(char *command_fifo_filename)
 
 cmd_t check_cmd(int fifo_fd)
 {
-	char cmd[MAX_CMD_LEN];
-
-        struct pollfd pfd[2];
-        pfd[1].fd = fifo_fd;
-        pfd[1].events = POLLIN;
-        pfd[0].fd = fileno(stdin);
-        pfd[0].events = POLLIN;
-        int rv = poll(pfd, 2, 1000);
-       int i; 
+       char cmd[MAX_CMD_LEN];
+       struct pollfd pfd[2];
+       int i, rv;
+       pfd[1].fd = fifo_fd;
+       pfd[1].events = POLLIN;
+       pfd[0].fd = fileno(stdin);
+       pfd[0].events = POLLIN;
+       
+       rv = poll(pfd, 2, 1000);
        if (rv==0)
        {
             return INVALID;
-        }
-        else if (rv<0)
-        {
+       }
+       else if (rv<0)
+       {
             if (errno!=EINTR)
             {
                 perror("poll");
@@ -70,23 +70,29 @@ cmd_t check_cmd(int fifo_fd)
             return INVALID;
         }
 	// clear the command
-	        memset(cmd, 0, MAX_CMD_LEN);
+	memset(cmd, 0, MAX_CMD_LEN);
+        
+        // loop through poll structure to whether there are any returned events
         for (i=0; i<2; ++i)
         {
+            // initially, we have not detected any events
             rv = 0;
+            // if there are returned events, which are POLLIN (data to be read)
             if (pfd[i].revents & POLLIN)
             {
+                // if we read the stdin or file and it fails, continue to next input type
                 if (read(pfd[i].fd, cmd, MAX_CMD_LEN-1)<1){
                     continue;
                 }
                 else
                 {
+                    // we have a returned event 
                     rv = 1;
                     break;
                 }
             }
         }
-
+        // handle cases where read from fifo failed
 	if (rv==0)
         {
             return INVALID;
@@ -104,6 +110,7 @@ cmd_t check_cmd(int fifo_fd)
             }
         }
 	//TRUNCATE AT NEW LINE
+        
         char *ptr = strchr(cmd, '\n');
         if (ptr!=NULL)
         {

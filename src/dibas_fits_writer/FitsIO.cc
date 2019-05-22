@@ -245,10 +245,10 @@ FitsIO::~FitsIO()
     delete [] fits_version;
     delete [] instrument;
     delete [] rootDirectory;
-    delete [] origin;
-    delete [] telescope;
-    delete [] telescope_comment;
-    delete [] telescope_version_keyword;
+    free(origin);
+    free(telescope);
+    free(telescope_comment);
+    free(telescope_version_keyword);
     delete [] blanking;
     delete [] phase_start;
     delete [] sig_ref_state;
@@ -267,7 +267,8 @@ int FitsIO::close()
 {
     if (fptr != 0)
     {
-        fits_close_file(fptr,&status);
+        //fits_close_tsfile(fptr,&status);
+        fits_close_file(fptr, &status);
         return status;
     }
 
@@ -369,7 +370,7 @@ void FitsIO::createBasePrimaryHDU()
                         comment,
                         &status);
     update_key_scan();
-    flush();
+   flush();
 }
 
 void FitsIO::createPortTable()
@@ -684,7 +685,7 @@ const char *FitsIO::getRootDirectory() const
 
 void FitsIO::setRootDirectory(const char *dir)
 {
-    delete [] rootDirectory;
+    free(rootDirectory);
     rootDirectory = new char[strlen(dir)+1];
     strcpy(rootDirectory, dir);
 }

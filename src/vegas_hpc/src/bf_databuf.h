@@ -47,22 +47,29 @@ struct decprecated_bf_databuf {
 //   That is, the total number of complex pairs we will be writing to shared memory
 //   is given as: GPU_BIN_SIZE * NUM_CHANNELS
 #define NUM_CHANNELS 160
+// added by Nick (on 2/19/19) for scalloping fix code
 #define NUM_CHANNELS_PAF 25
+//#define NUM_CHANNELS_PAF 20
 #define NUM_CHANNELS_FRB 5
-// #define NUM_CHANNELS 160
 #define TOTAL_GPU_DATA_SIZE (GPU_BIN_SIZE * NUM_CHANNELS * 2)
 #define TOTAL_GPU_DATA_SIZE_PAF (GPU_BIN_SIZE * NUM_CHANNELS_PAF*2)
 #define TOTAL_GPU_DATA_SIZE_FRB (GPU_BIN_SIZE * NUM_CHANNELS_FRB * 2)
 
 // For pulsar mode 
 #define NUM_PULSAR_CHANNELS 25
+// added by Nick (on 2/19/19) for scalloping fix code
+//#define NUM_PULSAR_CHANNELS 20
 #define NUM_BEAMS 7
-#define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS * 4* 100)
+//#define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS * 4* 100)
+// added by Nick (on 3/2/19) to disregard cross-pol term
+#define TOTAL_GPU_PULSAR_DATA_SIZE (NUM_BEAMS * NUM_PULSAR_CHANNELS * 2 * 100)
 
 #define NUM_BLOCKS 2
 //MACROs for mcnts/second
 #define ADC_SAMPLE_RATE 155.52
 #define COARSE_CHAN_SAMPLE_RATE ADC_SAMPLE_RATE/512
+// added by Nick (on 2/19/19) for scalloping fix code
+//#define COARSE_CHAN_SAMPLE_RATE ADC_SAMPLE_RATE/256
 #define MCNT_RATE (COARSE_CHAN_SAMPLE_RATE/20)*1000000
 
 typedef struct {

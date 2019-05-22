@@ -46,6 +46,8 @@ extern "C"
 #include "DiskBufferChunk.h"
 #include "BfFitsIO.h"
 #include "BfFitsThread.h"
+#include "FitsIO.h"
+#include <memory>
 
 // static int verbose = false;
 #define dbprintf if(verbose) printf
@@ -69,6 +71,8 @@ void stop_thread(int sig)
 }
 const int MAX_CMD_LEN = 64;
 
+
+
 //called by main.cc to enter primary method 
 extern "C"
 void *runGbtFitsWriter(void *ptr)
@@ -86,7 +90,7 @@ BfFitsThread::run(struct vegas_thread_args *args)
     bool cov_mode3 = (bool)args->cov_mode3;
     int rv;
     //create BfFitsIO pointer (the "fits writer")
-    BfFitsIO *fitsio;
+    std::unique_ptr<BfFitsIO> fitsio;
 
     timespec loop_start, loop_stop;
     timespec fits_start, fits_stop;
@@ -131,32 +135,34 @@ BfFitsThread::run(struct vegas_thread_args *args)
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::status_detach, &st);
     pthread_cleanup_push((void (*)(void*))&BfFitsThread::setExitStatus, &st);
 
-    int databufid = 3; // disk buffer
+    int databufid = 3; // disk buffer; default for CALCORRMODE
 
     // Attach to the data buffer shared memory.
     // Different modes are taken into account due to the different buffer sizes
     void *gdb;
     int shmid, semid;
+    // HI/PFB mode
     if (cov_mode1) {
 	databufid = 4; // this is for FINE CHANNEL CORRELATOR ONLY
         gdb = (void *)bf_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bf_databuf *)gdb)->header.semid;
     } 
-
+    // CALCORR mode
     else if (cov_mode2){
         gdb = (void *)bfpaf_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bfpaf_databuf *)gdb)->header.semid;
     }
-
+    //FRB mode
     else if (cov_mode3){
         gdb = (void *)bffrb_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bffrb_databuf *)gdb)->header.semid;
     }
-
+    //PULSAR/RTBF mode
     else {
+        databufid = 2;
         gdb = (void *)bfp_databuf_attach(databufid, instance_id);
         if (gdb != 0)
             semid = ((bfp_databuf *)gdb)->header.semid;
@@ -181,13 +187,9 @@ BfFitsThread::run(struct vegas_thread_args *args)
 
 
     /* Initialize some key parameters */
-    struct sdfits sf;
-    double start_time = 0;
-    sf.data_columns.data = NULL;
-    sf.filenum = 0;
-    sf.new_file = 1;
 
-    pthread_cleanup_push((void (*)(void*))&BfFitsThread::free_sdfits, &sf); //is this needed?
+    double start_time = 0;
+
 
     // Query status memory for keywords & settings
     // Make a local copy of the status area
@@ -206,18 +208,18 @@ BfFitsThread::run(struct vegas_thread_args *args)
     }
     // Create a BfFitsIO writer subclass based on mode
     if (cov_mode1){
-        fitsio = new BfFitsIO(datadir, false, instance_id,0);
+        fitsio.reset( new BfFitsIO(datadir, false, instance_id,0) );
     } 
     else if (cov_mode2){
-        fitsio = new BfFitsIO(datadir, false, instance_id,1);
+        fitsio.reset( new BfFitsIO(datadir, false, instance_id,1) );
     }
     else if (cov_mode3){
-        fitsio = new BfFitsIO(datadir, false, instance_id,2);
+        fitsio.reset( new BfFitsIO(datadir, false, instance_id,2) );
     }
-    else {  
-    	fitsio = new BfFitsIO(datadir, false, instance_id,3);
+    else {
+        fitsio.reset( new BfFitsIO(datadir, false, instance_id,3) );
     }
-    pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio);
+    pthread_cleanup_push((void (*)(void*))&BfFitsThread::close, fitsio.get());
 
     // pass a copy of the status memory to the writer
     fitsio->copyStatusMemory(status_buf);
@@ -394,10 +396,9 @@ BfFitsThread::run(struct vegas_thread_args *args)
     vegas_status_lock_safe(&st);
     hputs(st.buf, STATUS_KEYW, "Exiting");
     vegas_status_unlock_safe(&st);
-
+    
     // cleanup on exit
     // TBF: is this the correct number of pops?
-    pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);

@@ -42,7 +42,7 @@
  * Subroutine:  hgetm  (hstring,keyword, lstr, str) returns multi-keyword string
  * Subroutine:  hgetdate (hstring,keyword,date) returns date as fractional year
  * Subroutine:  hgetndec (hstring, keyword, ndec) returns number of dec. places
- * Subroutine:  hgetc  (hstring,keyword) returns character string
+ * Subroutine:  hgetc  (hstring,keyword,value_buffer) returns character string
  * Subroutine:  blsearch (hstring,keyword) returns pointer to blank lines
                 before keyword
  * Subroutine:  ksearch (hstring,keyword) returns pointer to header string entry
@@ -61,8 +61,11 @@
 #include <stdio.h>
 #include "fitshead.h"   /* FITS header extraction subroutines */
 #include <stdlib.h>
+
 #ifndef VMS
+
 #include <limits.h>
+
 #else
 #define INT_MAX  2147483647 /* Biggest number that can fit in long */
 #define SHRT_MAX 32767
@@ -73,7 +76,7 @@
 static int use_saolib=0;
 #endif
 
-char *hgetc ();
+char *hgetc(const char *hstring, const char *keyword0, char *value_buffer);
 
 /* Don't know why this is global, seems to be just a 
  * temp buffer for parsing strings.  Made local copies in
@@ -98,12 +101,12 @@ const static int lhead0 = 0;  /* Length of header string */
 
 /* Set the length of the header string, if not terminated by NULL */
 int
-hlength (header, lhead)
-const char *header; /* FITS header */
-int     lhead;  /* Maximum length of FITS header */
+hlength(const char *header, int lhead)
+/* FITS header */
+/* Maximum length of FITS header */
 {
     char *hend;
-#if 0 
+#if 0
     if (lhead0 > 0)
         lhead0 = lhead;
     else {
@@ -113,563 +116,730 @@ int     lhead;  /* Maximum length of FITS header */
         }
 #endif
     /* Always return header length based on END.  --PBD*/
-    hend = ksearch (header,"END");
+    hend = ksearch(header, "END");
     return (hend + 80 - header);
 }
 
 /* Return the length of the header string, computing it if lhead0 not set */
 int
-gethlength (header)
-char    *header; /* FITS header */
+gethlength(char *header)
+/* FITS header */
 {
     if (lhead0 > 0)
+    {
         return (lhead0);
+    }
     else
-        return (hlength (header, 0));
+    {
+        return (hlength(header, 0));
+    }
 }
 
 
 /* Extract Integer*4 value for variable from FITS header string */
 
 int
-hgeti4c (hstring,keyword,wchar,ival)
+hgeti4c(const char *hstring, const char *keyword, const char *wchar, int *ival)
 
-const char *hstring;    /* character string containing FITS header information
-                           in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                           the value of which is returned.  hget searches for
-                           a line beginning with this string.  if "[n]" is
-                           present, the n'th token in the value is returned.
-                           (the first 8 characters must be unique) */
-const char *wchar;      /* Character of multiple WCS header; =0 if unused */
-int     *ival;          /* Keyword value returned */
+/* character string containing FITS header information
+   in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+   the value of which is returned.  hget searches for
+   a line beginning with this string.  if "[n]" is
+   present, the n'th token in the value is returned.
+   (the first 8 characters must be unique) */
+/* Character of multiple WCS header; =0 if unused */
+/* Keyword value returned */
 {
     char keyword1[16];
     int lkey;
 
     if (wchar[0] < (char) 64)
-        return (hgeti4 (hstring, keyword, ival));
-    else {
-        strcpy (keyword1, keyword);
-        lkey = strlen (keyword);
+    {
+        return (hgeti4(hstring, keyword, ival));
+    }
+    else
+    {
+        strcpy(keyword1, keyword);
+        lkey = strlen(keyword);
         keyword1[lkey] = wchar[0];
-        keyword1[lkey+1] = (char) 0;
-        return (hgeti4 (hstring, keyword1, ival));
-        }
+        keyword1[lkey + 1] = (char) 0;
+        return (hgeti4(hstring, keyword1, ival));
+    }
 }
 
 
 /* Extract long value for variable from FITS header string */
 
 int
-hgeti4 (hstring,keyword,ival)
+hgeti4(const char *hstring, const char *keyword, int *ival)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-int *ival;
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+
 {
     char *value;
     double dval;
     int minint;
     int lval;
     char *dchar;
-    char val[VLENGTH+1];
+    char val[VLENGTH + 1];
+    char value_buffer[VLENGTH + 1];
 
     /* Get value and comment from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* Translate value from ASCII to binary */
-    if (value != NULL) {
-        if (value[0] == '#') value++;
+    if (value != NULL)
+    {
+        if (value[0] == '#')
+        {
+            value++;
+        }
         minint = -INT_MAX - 1;
-        lval = strlen (value);
-        if (lval > VLENGTH) {
-            strncpy (val, value, VLENGTH);
+        lval = strlen(value);
+        if (lval > VLENGTH)
+        {
+            strncpy(val, value, VLENGTH);
             val[VLENGTH] = (char) 0;
-            }
+        }
         else
-            strcpy (val, value);
-        if (isnum (val) == 2) {
-            if ((dchar = strchr (val, 'D')))
-                *dchar = 'e';
-            if ((dchar = strchr (val, 'd')))
-                *dchar = 'e';
-            if ((dchar = strchr (val, 'E')))
+        {
+            strcpy(val, value);
+        }
+        if (isnum(val) == 2)
+        {
+            if ((dchar = strchr(val, 'D')))
+            {
                 *dchar = 'e';
             }
-        dval = atof (val);
-        if (dval+0.001 > INT_MAX)
+            if ((dchar = strchr(val, 'd')))
+            {
+                *dchar = 'e';
+            }
+            if ((dchar = strchr(val, 'E')))
+            {
+                *dchar = 'e';
+            }
+        }
+        dval = atof(val);
+        if (dval + 0.001 > INT_MAX)
+        {
             *ival = INT_MAX;
+        }
         else if (dval >= 0)
+        {
             *ival = (int) (dval + 0.001);
-        else if (dval-0.001 < minint)
+        }
+        else if (dval - 0.001 < minint)
+        {
             *ival = minint;
+        }
         else
+        {
             *ival = (int) (dval - 0.001);
+        }
         return (1);
-        }
-    else {
+    }
+    else
+    {
         return (0);
-        }
+    }
 }
 
 
 /* Extract integer*2 value for variable from fits header string */
 
 int
-hgeti2 (hstring,keyword,ival)
+hgeti2(const char *hstring, const char *keyword, short int *ival)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-short *ival;
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+
 {
     char *value;
     double dval;
     int minshort;
     int lval;
     char *dchar;
-    char val[VLENGTH+1];
+    char val[VLENGTH + 1];
+    char value_buffer[VLENGTH + 1];
 
     /* Get value and comment from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* Translate value from ASCII to binary */
-    if (value != NULL) {
-        if (value[0] == '#') value++;
-        lval = strlen (value);
-        if (lval > VLENGTH) {
-            strncpy (val, value, VLENGTH);
+    if (value != NULL)
+    {
+        if (value[0] == '#')
+        {
+            value++;
+        }
+        lval = strlen(value);
+        if (lval > VLENGTH)
+        {
+            strncpy(val, value, VLENGTH);
             val[VLENGTH] = (char) 0;
-            }
+        }
         else
-            strcpy (val, value);
-        if (isnum (val) == 2) {
-            if ((dchar = strchr (val, 'D')))
-                *dchar = 'e';
-            if ((dchar = strchr (val, 'd')))
-                *dchar = 'e';
-            if ((dchar = strchr (val, 'E')))
+        {
+            strcpy(val, value);
+        }
+        if (isnum(val) == 2)
+        {
+            if ((dchar = strchr(val, 'D')))
+            {
                 *dchar = 'e';
             }
-        dval = atof (val);
+            if ((dchar = strchr(val, 'd')))
+            {
+                *dchar = 'e';
+            }
+            if ((dchar = strchr(val, 'E')))
+            {
+                *dchar = 'e';
+            }
+        }
+        dval = atof(val);
         minshort = -SHRT_MAX - 1;
-        if (dval+0.001 > SHRT_MAX)
+        if (dval + 0.001 > SHRT_MAX)
+        {
             *ival = SHRT_MAX;
+        }
         else if (dval >= 0)
+        {
             *ival = (short) (dval + 0.001);
-        else if (dval-0.001 < minshort)
+        }
+        else if (dval - 0.001 < minshort)
+        {
             *ival = minshort;
+        }
         else
+        {
             *ival = (short) (dval - 0.001);
+        }
         return (1);
-        }
-    else {
+    }
+    else
+    {
         return (0);
-        }
+    }
 }
 
 /* Extract real value for variable from FITS header string */
 
 int
-hgetr4 (hstring,keyword,rval)
+hgetr4(const char *hstring, const char *keyword, float *rval)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-float *rval;
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+
 {
     char *value;
     int lval;
     char *dchar;
-    char val[VLENGTH+1];
+    char val[VLENGTH + 1];
+    char value_buffer[VLENGTH + 1];
 
     /* Get value and comment from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* translate value from ASCII to binary */
-    if (value != NULL) {
-        if (value[0] == '#') value++;
-        lval = strlen (value);
-        if (lval > VLENGTH) {
-            strncpy (val, value, VLENGTH);
+    if (value != NULL)
+    {
+        if (value[0] == '#')
+        {
+            value++;
+        }
+        lval = strlen(value);
+        if (lval > VLENGTH)
+        {
+            strncpy(val, value, VLENGTH);
             val[VLENGTH] = (char) 0;
-            }
+        }
         else
-            strcpy (val, value);
-        if (isnum (val) == 2) {
-            if ((dchar = strchr (val, 'D')))
-                *dchar = 'e';
-            if ((dchar = strchr (val, 'd')))
-                *dchar = 'e';
-            if ((dchar = strchr (val, 'E')))
+        {
+            strcpy(val, value);
+        }
+        if (isnum(val) == 2)
+        {
+            if ((dchar = strchr(val, 'D')))
+            {
                 *dchar = 'e';
             }
-        *rval = (float) atof (val);
+            if ((dchar = strchr(val, 'd')))
+            {
+                *dchar = 'e';
+            }
+            if ((dchar = strchr(val, 'E')))
+            {
+                *dchar = 'e';
+            }
+        }
+        *rval = (float) atof(val);
         return (1);
-        }
-    else {
+    }
+    else
+    {
         return (0);
-        }
+    }
 }
 
 
 /* Extract real*8 right ascension in degrees from FITS header string */
 
 int
-hgetra (hstring,keyword,dval)
+hgetra(const char *hstring, const char *keyword, double *dval)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-double *dval;   /* Right ascension in degrees (returned) */
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+/* Right ascension in degrees (returned) */
 {
     char *value;
+    char value_buffer[VLENGTH + 1];
 
     /* Get value from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* Translate value from ASCII colon-delimited string to binary */
-    if (value != NULL) {
-        *dval = str2ra (value);
+    if (value != NULL)
+    {
+        *dval = str2ra(value);
         return (1);
-        }
+    }
     else
+    {
         return (0);
+    }
 }
 
 
 /* Extract real*8 declination in degrees from FITS header string */
 
 int
-hgetdec (hstring,keyword,dval)
+hgetdec(const char *hstring, const char *keyword, double *dval)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-double *dval;   /* Right ascension in degrees (returned) */
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+/* Right ascension in degrees (returned) */
 {
     char *value;
+    char value_buffer[VLENGTH + 1];
 
     /* Get value from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* Translate value from ASCII colon-delimited string to binary */
-    if (value != NULL) {
-        *dval = str2dec (value);
+    if (value != NULL)
+    {
+        *dval = str2dec(value);
         return (1);
-        }
+    }
     else
+    {
         return (0);
+    }
 }
 
 
 /* Extract real*8 value for variable from FITS header string */
 
 int
-hgetr8c (hstring,keyword,wchar,dval)
+hgetr8c(const char *hstring, const char *keyword, const char *wchar, double *dval)
 
-const char *hstring;    /* character string containing FITS header information
-                           in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                           the value of which is returned.  hget searches for
-                           a line beginning with this string.  if "[n]" is
-                           present, the n'th token in the value is returned.
-                           (the first 8 characters must be unique) */
-const char *wchar;      /* Character of multiple WCS header; =0 if unused */
-double  *dval;          /* Keyword value returned */
+/* character string containing FITS header information
+   in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+   the value of which is returned.  hget searches for
+   a line beginning with this string.  if "[n]" is
+   present, the n'th token in the value is returned.
+   (the first 8 characters must be unique) */
+/* Character of multiple WCS header; =0 if unused */
+/* Keyword value returned */
 {
     char keyword1[16];
     int lkey;
 
     if (wchar[0] < (char) 64)
-        return (hgetr8 (hstring, keyword, dval));
-    else {
-        strcpy (keyword1, keyword);
-        lkey = strlen (keyword);
+    {
+        return (hgetr8(hstring, keyword, dval));
+    }
+    else
+    {
+        strcpy(keyword1, keyword);
+        lkey = strlen(keyword);
         keyword1[lkey] = wchar[0];
-        keyword1[lkey+1] = (char) 0;
-        return (hgetr8 (hstring, keyword1, dval));
-        }
+        keyword1[lkey + 1] = (char) 0;
+        return (hgetr8(hstring, keyword1, dval));
+    }
 }
-
 
 
 /* Extract real*8 value for variable from FITS header string */
 
 int
-hgetr8 (hstring,keyword,dval)
+hgetr8(const char *hstring, const char *keyword, double *dval)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-double *dval;
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+
 {
     char *value;
     int lval;
     char *dchar;
-    char val[VLENGTH+1];
+    char val[VLENGTH + 1];
+    char value_buffer[VLENGTH + 1];
 
     /* Get value and comment from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* Translate value from ASCII to binary */
-    if (value != NULL) {
-        if (value[0] == '#') value++;
-        lval = strlen (value);
-        if (lval > VLENGTH) {
-            strncpy (val, value, VLENGTH);
+    if (value != NULL)
+    {
+        if (value[0] == '#')
+        {
+            value++;
+        }
+        lval = strlen(value);
+        if (lval > VLENGTH)
+        {
+            strncpy(val, value, VLENGTH);
             val[VLENGTH] = (char) 0;
-            }
+        }
         else
-            strcpy (val, value);
-        if (isnum (val) == 2) {
-            if ((dchar = strchr (val, 'D')))
-                *dchar = 'e';
-            if ((dchar = strchr (val, 'd')))
-                *dchar = 'e';
-            if ((dchar = strchr (val, 'E')))
+        {
+            strcpy(val, value);
+        }
+        if (isnum(val) == 2)
+        {
+            if ((dchar = strchr(val, 'D')))
+            {
                 *dchar = 'e';
             }
-        *dval = atof (val);
+            if ((dchar = strchr(val, 'd')))
+            {
+                *dchar = 'e';
+            }
+            if ((dchar = strchr(val, 'E')))
+            {
+                *dchar = 'e';
+            }
+        }
+        *dval = atof(val);
         return (1);
-        }
-    else {
+    }
+    else
+    {
         return (0);
-        }
+    }
 }
 
 
 /* Extract logical value for variable from FITS header string */
 
 int
-hgetl (hstring,keyword,ival)
+hgetl(const char *hstring, const char *keyword, int *ival)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-int *ival;
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+
 {
     char *value;
     char newval;
     int lval;
-    char val[VLENGTH+1];
+    char val[VLENGTH + 1];
+    char value_buffer[VLENGTH + 1];
 
     /* Get value and comment from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* Translate value from ASCII to binary */
-    if (value != NULL) {
-        lval = strlen (value);
-        if (lval > VLENGTH) {
-            strncpy (val, value, VLENGTH);
+    if (value != NULL)
+    {
+        lval = strlen(value);
+        if (lval > VLENGTH)
+        {
+            strncpy(val, value, VLENGTH);
             val[VLENGTH] = (char) 0;
-            }
+        }
         else
-            strcpy (val, value);
+        {
+            strcpy(val, value);
+        }
         newval = val[0];
         if (newval == 't' || newval == 'T')
+        {
             *ival = 1;
+        }
         else
+        {
             *ival = 0;
+        }
         return (1);
-        }
-    else {
+    }
+    else
+    {
         return (0);
-        }
+    }
 }
 
 
 /* Extract real*8 date from FITS header string (dd/mm/yy or dd-mm-yy) */
 
 int
-hgetdate (hstring,keyword,dval)
+hgetdate(const char *hstring, const char *keyword, double *dval)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-double *dval;
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+
 {
     double yeardays, seconds, fday;
-    char *value,*sstr, *dstr, *tstr, *cstr, *nval;
+    char *value, *sstr, *dstr, *tstr, *cstr, *nval;
     int year, month, day, yday, i, hours, minutes;
     //static int mday[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
-    int mday[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    int mday[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    char value_buffer[VLENGTH + 1];
 
     /* Get value and comment from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* Translate value from ASCII to binary */
-    if (value != NULL) {
-        sstr = strchr (value,'/');
-        dstr = strchr (value,'-');
+    if (value != NULL)
+    {
+        sstr = strchr(value, '/');
+        dstr = strchr(value, '-');
 
         /* Original FITS date format: dd/mm/yy */
-        if (sstr > value) {
+        if (sstr > value)
+        {
             *sstr = '\0';
-            day = (int) atof (value);
+            day = (int) atof(value);
             *sstr = '/';
             nval = sstr + 1;
-            sstr = strchr (nval,'/');
+            sstr = strchr(nval, '/');
             if (sstr == NULL)
-                sstr = strchr (nval,'-');
-            if (sstr > value) {
+            {
+                sstr = strchr(nval, '-');
+            }
+            if (sstr > value)
+            {
                 *sstr = '\0';
-                month = (int) atof (nval);
+                month = (int) atof(nval);
                 *sstr = '/';
                 nval = sstr + 1;
-                year = (int) atof (nval);
-                if (day > 31) {
+                year = (int) atof(nval);
+                if (day > 31)
+                {
                     yday = year;
                     year = day;
                     day = yday;
-                    }
-                if (year >= 0 && year <= 49)
-                    year = year + 2000;
-                else if (year < 100)
-                    year = year + 1900;
-                if ((year % 4) == 0)
-                    mday[1] = 29;
-                else
-                    mday[1] = 28;
-                if ((year % 100) == 0 && (year % 400) != 0)
-                    mday[1] = 28;
-                if (day > mday[month-1])
-                    day = mday[month-1];
-                else if (day < 1)
-                    day = 1;
-                if (mday[1] == 28)
-                    yeardays = 365.0;
-                else
-                    yeardays = 366.0;
-                yday = day - 1;
-                for (i = 0; i < month-1; i++)
-                    yday = yday + mday[i];
-                *dval = (double) year + ((double)yday / yeardays);
-                return (1);
                 }
+                if (year >= 0 && year <= 49)
+                {
+                    year = year + 2000;
+                }
+                else if (year < 100)
+                {
+                    year = year + 1900;
+                }
+                if ((year % 4) == 0)
+                {
+                    mday[1] = 29;
+                }
+                else
+                {
+                    mday[1] = 28;
+                }
+                if ((year % 100) == 0 && (year % 400) != 0)
+                {
+                    mday[1] = 28;
+                }
+                if (day > mday[month - 1])
+                {
+                    day = mday[month - 1];
+                }
+                else if (day < 1)
+                {
+                    day = 1;
+                }
+                if (mday[1] == 28)
+                {
+                    yeardays = 365.0;
+                }
+                else
+                {
+                    yeardays = 366.0;
+                }
+                yday = day - 1;
+                for (i = 0; i < month - 1; i++)
+                {
+                    yday = yday + mday[i];
+                }
+                *dval = (double) year + ((double) yday / yeardays);
+                return (1);
+            }
             else
+            {
                 return (0);
             }
+        }
 
-        /* New FITS date format: yyyy-mm-ddThh:mm:ss[.sss] */
-        else if (dstr > value) {
+            /* New FITS date format: yyyy-mm-ddThh:mm:ss[.sss] */
+        else if (dstr > value)
+        {
             *dstr = '\0';
-            year = (int) atof (value);
+            year = (int) atof(value);
             *dstr = '-';
             nval = dstr + 1;
-            dstr = strchr (nval,'-');
+            dstr = strchr(nval, '-');
             month = 1;
             day = 1;
             tstr = NULL;
-            if (dstr > value) {
+            if (dstr > value)
+            {
                 *dstr = '\0';
-                month = (int) atof (nval);
+                month = (int) atof(nval);
                 *dstr = '-';
                 nval = dstr + 1;
-                tstr = strchr (nval,'T');
+                tstr = strchr(nval, 'T');
                 if (tstr > value)
+                {
                     *tstr = '\0';
-                day = (int) atof (nval);
+                }
+                day = (int) atof(nval);
                 if (tstr > value)
+                {
                     *tstr = 'T';
                 }
+            }
 
             /* If year is < 32, it is really day of month in old format */
-            if (year < 32) {
+            if (year < 32)
+            {
                 i = year;
                 year = day + 1900;
                 day = i;
-                }
+            }
 
             if ((year % 4) == 0)
+            {
                 mday[1] = 29;
+            }
             else
+            {
                 mday[1] = 28;
+            }
             if ((year % 100) == 0 && (year % 400) != 0)
+            {
                 mday[1] = 28;
-            if (day > mday[month-1])
-                day = mday[month-1];
+            }
+            if (day > mday[month - 1])
+            {
+                day = mday[month - 1];
+            }
             else if (day < 1)
+            {
                 day = 1;
+            }
             if (mday[1] == 28)
+            {
                 yeardays = 365.0;
+            }
             else
+            {
                 yeardays = 366.0;
+            }
             yday = day - 1;
-            for (i = 0; i < month-1; i++)
+            for (i = 0; i < month - 1; i++)
+            {
                 yday = yday + mday[i];
-            *dval = (double) year + ((double)yday / yeardays);
+            }
+            *dval = (double) year + ((double) yday / yeardays);
 
             /* Extract time, if it is present */
-            if (tstr > value) {
+            if (tstr > value)
+            {
                 nval = tstr + 1;
                 hours = 0.0;
                 minutes = 0.0;
                 seconds = 0.0;
-                cstr = strchr (nval,':');
-                if (cstr > value) {
+                cstr = strchr(nval, ':');
+                if (cstr > value)
+                {
                     *cstr = '\0';
-                    hours = (int) atof (nval);
+                    hours = (int) atof(nval);
                     *cstr = ':';
                     nval = cstr + 1;
-                    cstr = strchr (nval,':');
-                    if (cstr > value) {
+                    cstr = strchr(nval, ':');
+                    if (cstr > value)
+                    {
                         *cstr = '\0';
-                        minutes = (int) atof (nval);
+                        minutes = (int) atof(nval);
                         *cstr = ':';
                         nval = cstr + 1;
-                        seconds = atof (nval);
-                        }
-                    else {
-                        minutes = (int) atof (nval);
-                        seconds = 0.0;
-                        }
+                        seconds = atof(nval);
                     }
-                fday = ((3.6e3 * (double)hours) + (6.e1 * (double)minutes) +
-                       seconds) / 8.64e4;
-                *dval = *dval + (fday / yeardays);
+                    else
+                    {
+                        minutes = (int) atof(nval);
+                        seconds = 0.0;
+                    }
                 }
-            return (1);
+                fday = ((3.6e3 * (double) hours) + (6.e1 * (double) minutes) +
+                        seconds) / 8.64e4;
+                *dval = *dval + (fday / yeardays);
             }
+            return (1);
+        }
         else
+        {
             return (0);
         }
+    }
     else
+    {
         return (0);
+    }
 }
 
 
@@ -721,10 +891,11 @@ char *str;      /* String (returned) */
     /* Loop through sequentially-named keywords */
     multiline = 1;
     for (ikey = 1; ikey < 500; ikey++) {
+        char value_buffer[VLENGTH + 1];
         sprintf (keywordi, keyform, keyword, ikey);
 
         /* Get value for this keyword */
-        value = hgetc (hstring, keywordi);
+        value = hgetc (hstring, keywordi, value_buffer);
         if (value != NULL) {
             lval = strlen (value);
             if (lval < lstri)
@@ -758,121 +929,141 @@ char *str;      /* String (returned) */
 /* Extract string value for variable from FITS header string */
 
 int
-hgetsc (hstring,keyword,wchar,lstr,str)
+hgetsc(const char *hstring, const char *keyword, const char *wchar, const const int lstr, char *str)
 
-const char *hstring;    /* character string containing FITS header information
-                           in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                           the value of which is returned.  hget searches for
-                           a line beginning with this string.  if "[n]" is
-                           present, the n'th token in the value is returned.
-                           (the first 8 characters must be unique) */
-const char *wchar;      /* Character of multiple WCS header; =0 if unused */
-const int lstr;         /* Size of str in characters */
-char    *str;           /* String (returned) */
+/* character string containing FITS header information
+   in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+   the value of which is returned.  hget searches for
+   a line beginning with this string.  if "[n]" is
+   present, the n'th token in the value is returned.
+   (the first 8 characters must be unique) */
+/* Character of multiple WCS header; =0 if unused */
+/* Size of str in characters */
+/* String (returned) */
 {
     char keyword1[16];
     int lkey;
 
     if (wchar[0] < (char) 64)
-        return (hgets (hstring, keyword, lstr, str));
-    else {
-        strcpy (keyword1, keyword);
-        lkey = strlen (keyword);
+    {
+        return (hgets(hstring, keyword, lstr, str));
+    }
+    else
+    {
+        strcpy(keyword1, keyword);
+        lkey = strlen(keyword);
         keyword1[lkey] = wchar[0];
-        keyword1[lkey+1] = (char) 0;
-        return (hgets (hstring, keyword1, lstr, str));
-        }
+        keyword1[lkey + 1] = (char) 0;
+        return (hgets(hstring, keyword1, lstr, str));
+    }
 }
 
 
 /* Extract string value for variable from FITS header string */
 
 int
-hgets (hstring, keyword, lstr, str)
+hgets(const char *hstring, const char *keyword, const const int lstr, char *str)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-const int lstr; /* Size of str in characters */
-char *str;      /* String (returned) */
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+/* Size of str in characters */
+/* String (returned) */
 {
     char *value;
     int lval;
+    char value_buffer[VLENGTH + 1];
 
     /* Get value and comment from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
-    if (value != NULL) {
-        lval = strlen (value);
+    if (value != NULL)
+    {
+        lval = strlen(value);
         if (lval < lstr)
-            strcpy (str, value);
-        else if (lstr > 1)
-            strncpy (str, value, lstr-1);
-        else
-            str[0] = value[0];
-        return (1);
+        {
+            strcpy(str, value);
         }
+        else if (lstr > 1)
+        {
+            strncpy(str, value, lstr - 1);
+        }
+        else
+        {
+            str[0] = value[0];
+        }
+        return (1);
+    }
     else
+    {
         return (0);
+    }
 }
 
 
 /* Extract number of decimal places for value in FITS header string */
 
 int
-hgetndec (hstring, keyword, ndec)
+hgetndec(const char *hstring, const char *keyword, int *ndec)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword;    /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
-int *ndec;      /* Number of decimal places in keyword value */
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
+/* Number of decimal places in keyword value */
 {
     char *value;
     int i, nchar;
+    char value_buffer[VLENGTH + 1];
 
     /* Get value and comment from header string */
-    value = hgetc (hstring,keyword);
+    value = hgetc(hstring, keyword, value_buffer);
 
     /* Find end of string and count backward to decimal point */
     *ndec = 0;
-    if (value != NULL) {
-        nchar = strlen (value);
-        for (i = nchar-1; i >= 0; i--) {
+    if (value != NULL)
+    {
+        nchar = strlen(value);
+        for (i = nchar - 1; i >= 0; i--)
+        {
             if (value[i] == '.')
+            {
                 return (1);
-            *ndec = *ndec + 1;
             }
-        return (1);
+            *ndec = *ndec + 1;
         }
+        return (1);
+    }
     else
+    {
         return (0);
+    }
 }
 
 
 /* Extract character value for variable from FITS header string */
 
 char *
-hgetc (hstring,keyword0)
+hgetc(const char *hstring, const char *keyword0, char *value_buffer)
 
-const char *hstring;    /* character string containing FITS header information
-                   in the format <keyword>= <value> {/ <comment>} */
-const char *keyword0;   /* character string containing the name of the keyword
-                   the value of which is returned.  hget searches for a
-                   line beginning with this string.  if "[n]" is present,
-                   the n'th token in the value is returned.
-                   (the first 8 characters must be unique) */
+/* character string containing FITS header information
+in the format <keyword>= <value> {/ <comment>} */
+/* character string containing the name of the keyword
+the value of which is returned.  hget searches for a
+line beginning with this string.  if "[n]" is present,
+the n'th token in the value is returned.
+(the first 8 characters must be unique) */
 {
     //static char cval[80];
-    char cval[80];
+    char *cval;
     char *value;
     char cwhite[2];
     char squot[2], dquot[2], lbracket[2], rbracket[2], slash[2], comma[2];
@@ -890,6 +1081,11 @@ const char *keyword0;   /* character string containing the name of the keyword
 
     if( !use_saolib ){
 #endif
+    if (value_buffer == NULL)
+    {
+        return NULL;
+    }
+    cval = value_buffer;
 
     squot[0] = (char) 39;
     squot[1] = (char) 0;
@@ -906,178 +1102,247 @@ const char *keyword0;   /* character string containing the name of the keyword
     space = (char) 32;
 
     /* Find length of variable name */
-    strncpy (keyword,keyword0, sizeof(keyword)-1);
-    brack1 = strsrch (keyword,lbracket);
+    strncpy(keyword, keyword0, sizeof(keyword) - 1);
+    brack1 = strsrch(keyword, lbracket);
     if (brack1 == NULL)
-        brack1 = strsrch (keyword,comma);
-    if (brack1 != NULL) {
+    {
+        brack1 = strsrch(keyword, comma);
+    }
+    if (brack1 != NULL)
+    {
         *brack1 = '\0';
         brack1++;
-        }
+    }
 
     /* Search header string for variable name */
-    vpos = ksearch (hstring,keyword);
+    vpos = ksearch(hstring, keyword);
 
     /* Exit if not found */
-    if (vpos == NULL) {
+    if (vpos == NULL)
+    {
         return (NULL);
-        }
+    }
 
     /* Initialize line to nulls */
     for (i = 0; i < 100; i++)
+    {
         line[i] = 0;
+    }
 
 /* In standard FITS, data lasts until 80th character */
 
     /* Extract entry for this variable from the header */
-    strncpy (line,vpos,80);
+    strncpy(line, vpos, 80);
 
     /* Check for quoted value */
-    q1 = strsrch (line,squot);
-    c1 = strsrch (line,slash);
-    if (q1 != NULL) {
-        if (c1 != NULL && q1 < c1) {
-            q2 = strsrch (q1+1,squot);
-            if (q2 == NULL) {
+    q1 = strsrch(line, squot);
+    c1 = strsrch(line, slash);
+    if (q1 != NULL)
+    {
+        if (c1 != NULL && q1 < c1)
+        {
+            q2 = strsrch(q1 + 1, squot);
+            if (q2 == NULL)
+            {
                 q2 = c1 - 1;
                 while (*q2 == space)
+                {
                     q2--;
-                q2++;
                 }
-            else if (c1 < q2)
-                c1 = strsrch (q2,slash);
+                q2++;
             }
-        else if (c1 == NULL) {
-            q2 = strsrch (q1+1,squot);
-            if (q2 == NULL) {
+            else if (c1 < q2)
+            {
+                c1 = strsrch(q2, slash);
+            }
+        }
+        else if (c1 == NULL)
+        {
+            q2 = strsrch(q1 + 1, squot);
+            if (q2 == NULL)
+            {
                 q2 = line + 79;
                 while (*q2 == space)
+                {
                     q2--;
-                q2++;
                 }
+                q2++;
             }
+        }
         else
+        {
             q1 = NULL;
         }
-    else {
-        q1 = strsrch (line,dquot);
-        if (q1 != NULL) {
-            if (c1 != NULL && q1 < c1) {
-                q2 = strsrch (q1+1,dquot);
-                if (q2 == NULL) {
+    }
+    else
+    {
+        q1 = strsrch(line, dquot);
+        if (q1 != NULL)
+        {
+            if (c1 != NULL && q1 < c1)
+            {
+                q2 = strsrch(q1 + 1, dquot);
+                if (q2 == NULL)
+                {
                     q2 = c1 - 1;
                     while (*q2 == space)
+                    {
                         q2--;
-                    q2++;
                     }
-                else if (c1 < q2)
-                    c1 = strsrch (q2,slash);
+                    q2++;
                 }
-            else if (c1 == NULL) {
-                q2 = strsrch (q1+1,dquot);
-                if (q2 == NULL) {
+                else if (c1 < q2)
+                {
+                    c1 = strsrch(q2, slash);
+                }
+            }
+            else if (c1 == NULL)
+            {
+                q2 = strsrch(q1 + 1, dquot);
+                if (q2 == NULL)
+                {
                     q2 = line + 79;
                     while (*q2 == space)
+                    {
                         q2--;
-                    q2++;
                     }
+                    q2++;
                 }
+            }
             else
+            {
                 q1 = NULL;
             }
-        else {
+        }
+        else
+        {
             q1 = NULL;
             q2 = line + 10;
-            }
         }
+    }
 
     /* Extract value and remove excess spaces */
-    if (q1 != NULL) {
+    if (q1 != NULL)
+    {
         v1 = q1 + 1;
         v2 = q2;
-        }
-    else {
-        v1 = strsrch (line,"=");
+    }
+    else
+    {
+        v1 = strsrch(line, "=");
         if (v1 == NULL)
+        {
             v1 = line + 9;
+        }
         else
+        {
             v1 = v1 + 1;
-        c1 = strsrch (line,"/");
+        }
+        c1 = strsrch(line, "/");
         if (c1 != NULL)
+        {
             v2 = c1;
+        }
         else
+        {
             v2 = line + 79;
         }
+    }
 
     /* Ignore leading spaces if not multiline */
-    if (!multiline) {
-        while (*v1 == ' ' && v1 < v2) {
+    if (!multiline)
+    {
+        while (*v1 == ' ' && v1 < v2)
+        {
             v1++;
-            }
         }
+    }
 
     /* Drop trailing spaces */
     *v2 = '\0';
-    if (!multiline) {
+    if (!multiline)
+    {
         v2--;
-        while ((*v2 == ' ' || *v2 == (char) 13) && v2 > v1) {
+        while ((*v2 == ' ' || *v2 == (char) 13) && v2 > v1)
+        {
             *v2 = '\0';
             v2--;
-            }
         }
+    }
 
     /* Convert -zero to just plain 0 */
-    if (!strcmp (v1, "-0"))
+    if (!strcmp(v1, "-0"))
+    {
         v1++;
-    strcpy (cval,v1);
+    }
+    strcpy(cval, v1);
     value = cval;
 
     /* If keyword has brackets, extract appropriate token from value */
-    if (brack1 != NULL) {
-        brack2 = strsrch (brack1,rbracket);
+    if (brack1 != NULL)
+    {
+        brack2 = strsrch(brack1, rbracket);
         if (brack2 != NULL)
+        {
             *brack2 = '\0';
-        if (isnum (brack1)) {
-            ipar = atoi (brack1);
+        }
+        if (isnum(brack1))
+        {
+            ipar = atoi(brack1);
             cwhite[0] = ' ';
             cwhite[1] = '\0';
-            if (ipar > 0) {
-                for (i = 1; i <= ipar; i++) {
-                    cpar = strtok (v1,cwhite);
+            if (ipar > 0)
+            {
+                for (i = 1; i <= ipar; i++)
+                {
+                    cpar = strtok(v1, cwhite);
                     v1 = NULL;
-                    }
-                if (cpar != NULL) {
-                    strcpy (cval,cpar);
-                    value = cval;
-                    }
-                else
-                    value = NULL;
                 }
-
-            /* If token counter is negative, include rest of value */
-            else if (ipar < 0) {
-                for (i = 1; i < -ipar; i++) {
-                    v1 = strchr (v1, ' ');
-                    if (v1 == NULL)
-                        break;
-                    else
-                        v1 = v1 + 1;
-                    }
-                if (v1 != NULL) {
-                    strcpy (cval, v1);
+                if (cpar != NULL)
+                {
+                    strcpy(cval, cpar);
                     value = cval;
-                    }
+                }
                 else
+                {
                     value = NULL;
                 }
             }
-        else {
+
+                /* If token counter is negative, include rest of value */
+            else if (ipar < 0)
+            {
+                for (i = 1; i < -ipar; i++)
+                {
+                    v1 = strchr(v1, ' ');
+                    if (v1 == NULL)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        v1 = v1 + 1;
+                    }
+                }
+                if (v1 != NULL)
+                {
+                    strcpy(cval, v1);
+                    value = cval;
+                }
+                else
+                {
+                    value = NULL;
+                }
+            }
+        }
+        else
+        {
             value = NULL;
             /* This seems to be some extended IRAF syntax that 
              * we won't be using.  Removed since it calls igetc.
              * --PBD
              */
-#if 0 
+#if 0
             lkey = strlen (brack1);
             for (i = 0; i < lkey; i++) {
                 if (brack1[i] > 64 && brack1[i] < 91)
@@ -1091,8 +1356,8 @@ const char *keyword0;   /* character string containing the name of the keyword
             else
                 value = NULL;
 #endif
-            }
         }
+    }
 
     return (value);
 #ifdef USE_SAOLIB
@@ -1106,22 +1371,22 @@ const char *keyword0;   /* character string containing the name of the keyword
 /* Find beginning of fillable blank line before FITS header keyword line */
 
 char *
-blsearch (hstring,keyword)
+blsearch(const char *hstring, const char *keyword)
 
 /* Find entry for keyword keyword in FITS header string hstring.
    (the keyword may have a maximum of eight letters)
    NULL is returned if the keyword is not found */
 
-const char *hstring;    /* character string containing fits-style header
-                information in the format <keyword>= <value> {/ <comment>}
-                the default is that each entry is 80 characters long;
-                however, lines may be of arbitrary length terminated by
-                nulls, carriage returns or linefeeds, if packed is true.  */
-const char *keyword;    /* character string containing the name of the variable
-                to be returned.  ksearch searches for a line beginning
-                with this string.  The string may be a character
-                literal or a character variable terminated by a null
-                or '$'.  it is truncated to 8 characters. */
+/* character string containing fits-style header
+information in the format <keyword>= <value> {/ <comment>}
+the default is that each entry is 80 characters long;
+however, lines may be of arbitrary length terminated by
+nulls, carriage returns or linefeeds, if packed is true.  */
+/* character string containing the name of the variable
+to be returned.  ksearch searches for a line beginning
+with this string.  The string may be a character
+literal or a character variable terminated by a null
+or '$'.  it is truncated to 8 characters. */
 {
     const char *headlast;
     char *loc, *headnext, *pval, *lc, *line;
@@ -1132,169 +1397,213 @@ const char *keyword;    /* character string containing the name of the variable
 
     /* Search header string for variable name */
     if (lhead0)
+    {
         lhstr = lhead0;
-    else {
+    }
+    else
+    {
         lhstr = 0;
         while (lhstr < 256000 && hstring[lhstr] != 0)
+        {
             lhstr++;
         }
+    }
     headlast = hstring + lhstr;
     headnext = (char *) hstring;
     pval = NULL;
-    while (headnext < headlast) {
+    while (headnext < headlast)
+    {
         nleft = headlast - headnext;
-        loc = strncsrch (headnext, keyword, nleft);
+        loc = strncsrch(headnext, keyword, nleft);
 
         /* Exit if keyword is not found */
-        if (loc == NULL) {
+        if (loc == NULL)
+        {
             break;
-            }
+        }
 
         icol = (loc - hstring) % 80;
-        lkey = strlen (keyword);
+        lkey = strlen(keyword);
         nextchar = (int) *(loc + lkey);
 
         /* If this is not in the first 8 characters of a line, keep searching */
         if (icol > 7)
+        {
             headnext = loc + 1;
 
-        /* If parameter name in header is longer, keep searching */
+            /* If parameter name in header is longer, keep searching */
+        }
         else if (nextchar != 61 && nextchar > 32 && nextchar < 127)
+        {
             headnext = loc + 1;
 
-        /* If preceeding characters in line are not blanks, keep searching */
-        else {
+            /* If preceeding characters in line are not blanks, keep searching */
+        }
+        else
+        {
             line = loc - icol;
-            for (lc = line; lc < loc; lc++) {
+            for (lc = line; lc < loc; lc++)
+            {
                 if (*lc != ' ')
+                {
                     headnext = loc + 1;
                 }
+            }
 
-        /* Return pointer to start of line if match */
-            if (loc >= headnext) {
+            /* Return pointer to start of line if match */
+            if (loc >= headnext)
+            {
                 pval = line;
                 break;
-                }
             }
         }
+    }
 
     /* Return NULL to calling program if keyword is not found */
     if (pval == NULL)
+    {
         return (pval);
+    }
 
     /* Return NULL if keyword is found at start of FITS header string */
     if (pval == hstring)
+    {
         return (NULL);
+    }
 
     /* Find last nonblank in FITS header string line before requested keyword */
     bval = pval - 80;
-    while (!strncmp (bval,"        ",8) && bval >= hstring)
+    while (!strncmp(bval, "        ", 8) && bval >= hstring)
+    {
         bval = bval - 80;
+    }
     bval = bval + 80;
 
     /* Return pointer to calling program if blank lines found */
     if (bval < pval && bval >= hstring)
+    {
         return (bval);
+    }
     else
+    {
         return (NULL);
+    }
 }
 
 
 /* Find FITS header line containing specified keyword */
 
 char *
-ksearch (hstring,keyword)
+ksearch(const char *hstring, const char *keyword)
 
 /* Find entry for keyword keyword in FITS header string hstring.
    (the keyword may have a maximum of eight letters)
    NULL is returned if the keyword is not found */
 
-const char *hstring;    /* character string containing fits-style header
-                information in the format <keyword>= <value> {/ <comment>}
-                the default is that each entry is 80 characters long;
-                however, lines may be of arbitrary length terminated by
-                nulls, carriage returns or linefeeds, if packed is true.  */
-const char *keyword;    /* character string containing the name of the variable
-                to be returned.  ksearch searches for a line beginning
-                with this string.  The string may be a character
-                literal or a character variable terminated by a null
-                or '$'.  it is truncated to 8 characters. */
+/* character string containing fits-style header
+information in the format <keyword>= <value> {/ <comment>}
+the default is that each entry is 80 characters long;
+however, lines may be of arbitrary length terminated by
+nulls, carriage returns or linefeeds, if packed is true.  */
+/* character string containing the name of the variable
+to be returned.  ksearch searches for a line beginning
+with this string.  The string may be a character
+literal or a character variable terminated by a null
+or '$'.  it is truncated to 8 characters. */
 {
     const char *headlast;
     char *loc, *headnext, *pval, *lc, *line;
     int icol, nextchar, lkey, nleft, lhead, lmax;
 
 #ifdef USE_SAOLIB
-        int iel=1, ip=1, nel, np, ier;
-        char *get_fits_head_str();
+    int iel=1, ip=1, nel, np, ier;
+    char *get_fits_head_str();
 
-        if( !use_saolib ){
+    if( !use_saolib ){
 #endif
 
     pval = 0;
 
 /* Find current length of header string */
     if (lhead0)
+    {
         lmax = lhead0;
+    }
     else
+    {
         lmax = 256000;
-    for (lhead = 0; lhead < lmax; lhead++) {
+    }
+    for (lhead = 0; lhead < lmax; lhead++)
+    {
         if (hstring[lhead] == (char) 0)
+        {
             break;
         }
+    }
 
 /* Search header string for variable name */
     headlast = hstring + lhead;
     headnext = (char *) hstring;
     pval = NULL;
-    while (headnext < headlast) {
+    while (headnext < headlast)
+    {
         nleft = headlast - headnext;
-        loc = strncsrch (headnext, keyword, nleft);
+        loc = strncsrch(headnext, keyword, nleft);
 
         /* Exit if keyword is not found */
-        if (loc == NULL) {
+        if (loc == NULL)
+        {
             break;
-            }
+        }
 
         icol = (loc - hstring) % 80;
-        lkey = strlen (keyword);
+        lkey = strlen(keyword);
         nextchar = (int) *(loc + lkey);
 
         /* If this is not in the first 8 characters of a line, keep searching */
         if (icol > 7)
+        {
             headnext = loc + 1;
 
-        /* If parameter name in header is longer, keep searching */
+            /* If parameter name in header is longer, keep searching */
+        }
         else if (nextchar != 61 && nextchar > 32 && nextchar < 127)
+        {
             headnext = loc + 1;
 
-        /* If preceeding characters in line are not blanks, keep searching */
-        else {
+            /* If preceeding characters in line are not blanks, keep searching */
+        }
+        else
+        {
             line = loc - icol;
-            for (lc = line; lc < loc; lc++) {
+            for (lc = line; lc < loc; lc++)
+            {
                 if (*lc != ' ')
+                {
                     headnext = loc + 1;
                 }
+            }
 
-        /* Return pointer to start of line if match */
-            if (loc >= headnext) {
+            /* Return pointer to start of line if match */
+            if (loc >= headnext)
+            {
                 pval = line;
                 break;
-                }
             }
         }
+    }
 
 /* Return pointer to calling program */
-        return (pval);
+    return (pval);
 
 #ifdef USE_SAOLIB
+    }
+    else {
+        if (get_fits_head_str(keyword,iel,ip,&nel,&np,&ier,hstring) != NULL)
+            return(hstring);
+        else
+            return(NULL);
         }
-        else {
-            if (get_fits_head_str(keyword,iel,ip,&nel,&np,&ier,hstring) != NULL)
-                return(hstring);
-            else
-                return(NULL);
-            }
 #endif
 }
 
@@ -1302,16 +1611,18 @@ const char *keyword;    /* character string containing the name of the variable
 /* Return the right ascension in degrees from sexagesimal hours or decimal degrees */
 
 double
-str2ra (in)
+str2ra(const char *in)
 
-const char *in; /* Character string of sexigesimal hours or decimal degrees */
+/* Character string of sexigesimal hours or decimal degrees */
 
 {
     double ra;  /* Right ascension in degrees (returned) */
 
-    ra = str2dec (in);
-    if (strsrch (in,":"))
+    ra = str2dec(in);
+    if (strsrch(in, ":"))
+    {
         ra = ra * 15.0;
+    }
 
     return (ra);
 }
@@ -1320,9 +1631,9 @@ const char *in; /* Character string of sexigesimal hours or decimal degrees */
 /* Return the declination in degrees from sexagesimal or decimal degrees */
 
 double
-str2dec (in)
+str2dec(const char *in)
 
-const char *in; /* Character string of sexigesimal or decimal degrees */
+/* Character string of sexigesimal or decimal degrees */
 
 {
     double dec;         /* Declination in degrees (returned) */
@@ -1335,70 +1646,101 @@ const char *in; /* Character string of sexigesimal or decimal degrees */
 
     /* Return 0.0 if string is null */
     if (in == NULL)
+    {
         return (dec);
+    }
 
     /* Translate value from ASCII colon-delimited string to binary */
-    if (in[0]) {
+    if (in[0])
+    {
         value = (char *) in;
 
         /* Remove leading spaces */
         while (*value == ' ')
+        {
             value++;
+        }
 
         /* Save sign */
-        if (*value == '-') {
+        if (*value == '-')
+        {
             sign = -1.0;
             value++;
-            }
-        else if (*value == '+') {
+        }
+        else if (*value == '+')
+        {
             sign = 1.0;
             value++;
-            }
+        }
         else
+        {
             sign = 1.0;
+        }
 
         /* Remove trailing spaces */
-        lval = strlen (value);
-        while (value[lval-1] == ' ')
+        lval = strlen(value);
+        while (value[lval - 1] == ' ')
+        {
             lval--;
-        
-        if ((c1 = strsrch (value,":")) == NULL)
-            c1 = strnsrch (value," ",lval);
-        if (c1 != NULL) {
+        }
+
+        if ((c1 = strsrch(value, ":")) == NULL)
+        {
+            c1 = strnsrch(value, " ", lval);
+        }
+        if (c1 != NULL)
+        {
             *c1 = 0;
-            deg = (double) atoi (value);
+            deg = (double) atoi(value);
             *c1 = ':';
             value = c1 + 1;
-            if ((c2 = strsrch (value,":")) == NULL)
-                c2 = strsrch (value," ");
-            if (c2 != NULL) {
+            if ((c2 = strsrch(value, ":")) == NULL)
+            {
+                c2 = strsrch(value, " ");
+            }
+            if (c2 != NULL)
+            {
                 *c2 = 0;
-                min = (double) atoi (value);
+                min = (double) atoi(value);
                 *c2 = ':';
                 value = c2 + 1;
-                sec = atof (value);
-                }
-            else {
+                sec = atof(value);
+            }
+            else
+            {
                 sec = 0.0;
-                if ((c1 = strsrch (value,".")) != NULL)
-                    min = atof (value);
-                if (strlen (value) > 0)
-                    min = (double) atoi (value);
+                if ((c1 = strsrch(value, ".")) != NULL)
+                {
+                    min = atof(value);
                 }
+                if (strlen(value) > 0)
+                {
+                    min = (double) atoi(value);
+                }
+            }
             dec = sign * (deg + (min / 60.0) + (sec / 3600.0));
-            }
-        else if (isnum (value) == 2) {
-            if ((dchar = strchr (value, 'D')))
-                *dchar = 'e';
-            if ((dchar = strchr (value, 'd')))
-                *dchar = 'e';
-            if ((dchar = strchr (value, 'E')))
-                *dchar = 'e';
-            dec = sign * atof (value);
-            }
-        else 
-            dec = sign * (double) atoi (value);
         }
+        else if (isnum(value) == 2)
+        {
+            if ((dchar = strchr(value, 'D')))
+            {
+                *dchar = 'e';
+            }
+            if ((dchar = strchr(value, 'd')))
+            {
+                *dchar = 'e';
+            }
+            if ((dchar = strchr(value, 'E')))
+            {
+                *dchar = 'e';
+            }
+            dec = sign * atof(value);
+        }
+        else
+        {
+            dec = sign * (double) atoi(value);
+        }
+    }
     return (dec);
 }
 
@@ -1406,77 +1748,94 @@ const char *in; /* Character string of sexigesimal or decimal degrees */
 /* Find string s2 within null-terminated string s1 */
 
 char *
-strsrch (s1, s2)
+strsrch(const char *s1, const char *s2)
 
-const char *s1; /* String to search */
-const char *s2; /* String to look for */
+/* String to search */
+/* String to look for */
 
 {
     int ls1;
-    ls1 = strlen (s1);
-    return (strnsrch (s1, s2, ls1));
+    ls1 = strlen(s1);
+    return (strnsrch(s1, s2, ls1));
 }
 
 
 /* Find string s2 within string s1 */
 
 char *
-strnsrch (s1, s2, ls1)
+strnsrch(const char *s1, const char *s2, const const int ls1)
 
-const char *s1; /* String to search */
-const char *s2; /* String to look for */
-const int ls1;  /* Length of string being searched */
+/* String to search */
+/* String to look for */
+/* Length of string being searched */
 
 {
-    char *s,*s1e;
-    char cfirst,clast;
-    int i,ls2;
+    char *s, *s1e;
+    char cfirst, clast;
+    int i, ls2;
 
     /* Return null string if either pointer is NULL */
     if (s1 == NULL || s2 == NULL)
+    {
         return (NULL);
+    }
 
     /* A zero-length pattern is found in any string */
-    ls2 = strlen (s2);
-    if (ls2 ==0)
+    ls2 = strlen(s2);
+    if (ls2 == 0)
+    {
         return ((char *) s1);
+    }
 
     /* Only a zero-length string can be found in a zero-length string */
-    if (ls1 ==0)
+    if (ls1 == 0)
+    {
         return (NULL);
+    }
 
     cfirst = (char) s2[0];
-    clast = (char) s2[ls2-1];
+    clast = (char) s2[ls2 - 1];
     s1e = (char *) s1 + (int) ls1 - ls2 + 1;
     s = (char *) s1;
-    while (s < s1e) { 
+    while (s < s1e)
+    {
 
         /* Search for first character in pattern string */
-        if (*s == cfirst) {
+        if (*s == cfirst)
+        {
 
             /* If single character search, return */
             if (ls2 == 1)
+            {
                 return (s);
+            }
 
             /* Search for last character in pattern string if first found */
-            if (s[ls2-1] == clast) {
+            if (s[ls2 - 1] == clast)
+            {
 
                 /* If two-character search, return */
                 if (ls2 == 2)
+                {
                     return (s);
+                }
 
                 /* If 3 or more characters, check for rest of search string */
                 i = 1;
                 while (i < ls2 && s[i] == s2[i])
+                {
                     i++;
+                }
 
                 /* If entire string matches, return */
                 if (i >= ls2)
+                {
                     return (s);
                 }
             }
-        s++;
         }
+        s++;
+    }
     return (NULL);
 }
 
@@ -1484,134 +1843,178 @@ const int ls1;  /* Length of string being searched */
 /* Find string s2 within null-terminated string s1 (case-free search) */
 
 char *
-strcsrch (s1, s2)
+strcsrch(const char *s1, const char *s2)
 
-const char *s1; /* String to search */
-const char *s2; /* String to look for */
+/* String to search */
+/* String to look for */
 
 {
     int ls1;
-    ls1 = strlen ((char *) s1);
-    return (strncsrch (s1, s2, ls1));
+    ls1 = strlen((char *) s1);
+    return (strncsrch(s1, s2, ls1));
 }
 
 
 /* Find string s2 within string s1 (case-free search) */
 
 char *
-strncsrch (s1, s2, ls1)
+strncsrch(const char *s1, const char *s2, const const int ls1)
 
-const char *s1; /* String to search */
-const char *s2; /* String to look for */
-const int ls1;  /* Length of string being searched */
+/* String to search */
+/* String to look for */
+/* Length of string being searched */
 
 {
-    char *s,*s1e, sl, *os2;
-    char cfirst,ocfirst;
+    char *s, *s1e, sl, *os2;
+    char cfirst, ocfirst;
     char clast = ' ';
     char oclast = ' ';
-    int i,ls2;
+    int i, ls2;
 
     /* Return null string if either pointer is NULL */
     if (s1 == NULL || s2 == NULL)
+    {
         return (NULL);
+    }
 
     /* A zero-length pattern is found in any string */
-    ls2 = strlen (s2);
-    if (ls2 ==0)
+    ls2 = strlen(s2);
+    if (ls2 == 0)
+    {
         return ((char *) s1);
+    }
 
     /* Only a zero-length string can be found in a zero-length string */
     os2 = NULL;
-    if (ls1 ==0)
+    if (ls1 == 0)
+    {
         return (NULL);
+    }
 
     /* For one or two characters, set opposite case first and last letters */
-    if (ls2 < 3) {
+    if (ls2 < 3)
+    {
         cfirst = (char) s2[0];
         if (cfirst > 96 && cfirst < 123)
+        {
             ocfirst = cfirst - 32;
+        }
         else if (cfirst > 64 && cfirst < 91)
+        {
             ocfirst = cfirst + 32;
+        }
         else
+        {
             ocfirst = cfirst;
-        if (ls2 > 1) {
+        }
+        if (ls2 > 1)
+        {
             clast = s2[1];
             if (clast > 96 && clast < 123)
+            {
                 oclast = clast - 32;
+            }
             else if (clast > 64 && clast < 91)
+            {
                 oclast = clast + 32;
+            }
             else
+            {
                 oclast = clast;
             }
         }
+    }
 
-    /* Else duplicate string with opposite case letters for comparison */
-    else {
-        os2 = (char *) calloc (ls2, 1);
-        for (i = 0; i < ls2; i++) {
+        /* Else duplicate string with opposite case letters for comparison */
+    else
+    {
+        os2 = (char *) calloc(ls2, 1);
+        for (i = 0; i < ls2; i++)
+        {
             if (s2[i] > 96 && s2[i] < 123)
+            {
                 os2[i] = s2[i] - 32;
+            }
             else if (s2[i] > 64 && s2[i] < 91)
+            {
                 os2[i] = s2[i] + 32;
+            }
             else
+            {
                 os2[i] = s2[i];
             }
+        }
         cfirst = s2[0];
         ocfirst = os2[0];
-        clast = s2[ls2-1];
-        oclast = os2[ls2-1];
-        }
+        clast = s2[ls2 - 1];
+        oclast = os2[ls2 - 1];
+    }
 
     /* Loop through input string, character by character */
     s = (char *) s1;
     s1e = s + (int) ls1 - ls2 + 1;
-    while (s < s1e) { 
+    while (s < s1e)
+    {
 
         /* Search for first character in pattern string */
-        if (*s == cfirst || *s == ocfirst) {
+        if (*s == cfirst || *s == ocfirst)
+        {
 
             /* If single character search, return */
             if (ls2 == 1)
+            {
                 return (s);
+            }
 
             /* Search for last character in pattern string if first found */
-            sl = s[ls2-1];
-            if (sl == clast || sl == oclast) {
+            sl = s[ls2 - 1];
+            if (sl == clast || sl == oclast)
+            {
 
                 /* If two-character search, return */
                 if (ls2 == 2)
+                {
                     return (s);
+                }
 
                 /* If 3 or more characters, check for rest of search string */
                 i = 1;
                 while (i < ls2 && (s[i] == (char) s2[i] || s[i] == os2[i]))
+                {
                     i++;
+                }
 
                 /* If entire string matches, return */
-                if (i >= ls2) {
-                    free (os2);
+                if (i >= ls2)
+                {
+                    free(os2);
                     return (s);
-                    }
                 }
             }
-        s++;
         }
+        s++;
+    }
     if (os2 != NULL)
-        free (os2);
+    {
+        free(os2);
+    }
     return (NULL);
 }
 
 
 int
-notnum (string)
+notnum(const char *string)
 
-const char *string;     /* Character string */
+/* Character string */
 {
-    if (isnum (string))
+    if (isnum(string))
+    {
         return (0);
+    }
     else
+    {
         return (1);
+    }
 }
 
 
@@ -1622,9 +2025,9 @@ const char *string;     /* Character string */
  */
 
 int
-isnum (string)
+isnum(const char *string)
 
-const char *string;     /* Character string */
+/* Character string */
 {
     int lstr, i, nd, cl;
     char cstr, cstr1;
@@ -1632,9 +2035,11 @@ const char *string;     /* Character string */
 
     /* Return 0 if string is NULL */
     if (string == NULL)
+    {
         return (0);
+    }
 
-    lstr = strlen (string);
+    lstr = strlen(string);
     nd = 0;
     cl = 0;
     fpcode = 1;
@@ -1642,79 +2047,113 @@ const char *string;     /* Character string */
     /* Return 0 if string starts with a D or E */
     cstr = string[0];
     if (cstr == 'D' || cstr == 'd' ||
-        cstr == 'E' || cstr == 'e') {
+        cstr == 'E' || cstr == 'e')
+    {
         return (0);
-        }
+    }
 
     /* Remove trailing spaces */
-    while (string[lstr-1] == ' ')
+    while (string[lstr - 1] == ' ')
+    {
         lstr--;
+    }
 
     /* Numeric strings contain 0123456789-+ and d or e for exponents */
-    for (i = 0; i < lstr; i++) {
+    for (i = 0; i < lstr; i++)
+    {
         cstr = string[i];
         if (cstr == '\n')
+        {
             break;
+        }
 
         /* Ignore leading spaces */
         if (cstr == ' ' && nd == 0)
+        {
             continue;
+        }
 
         if ((cstr < 48 || cstr > 57) &&
             cstr != '+' && cstr != '-' &&
             cstr != 'D' && cstr != 'd' &&
             cstr != 'E' && cstr != 'e' &&
             cstr != ':' && cstr != '.')
+        {
             return (0);
-        else if (cstr == '+' || cstr == '-') {
-            if (string[i+1] == '-' || string[i+1] == '+')
+        }
+        else if (cstr == '+' || cstr == '-')
+        {
+            if (string[i + 1] == '-' || string[i + 1] == '+')
+            {
                 return (0);
-            else if (i > 0) {
-                cstr1 = string[i-1];
+            }
+            else if (i > 0)
+            {
+                cstr1 = string[i - 1];
                 if (cstr1 != 'D' && cstr1 != 'd' &&
                     cstr1 != 'E' && cstr1 != 'e' &&
                     cstr1 != ':' && cstr1 != ' ')
+                {
                     return (0);
                 }
             }
+        }
         else if (cstr >= 47 && cstr <= 57)
+        {
             nd++;
 
-        /* Check for colon */
+            /* Check for colon */
+        }
         else if (cstr == 58)
+        {
             cl++;
-        if (cstr=='.' || cstr=='d' || cstr=='e' || cstr=='d' || cstr=='e')
+        }
+        if (cstr == '.' || cstr == 'd' || cstr == 'e' || cstr == 'd' || cstr == 'e')
+        {
             fpcode = 2;
         }
-    if (nd > 0) {
+    }
+    if (nd > 0)
+    {
         if (cl)
+        {
             fpcode = 3;
-        return (fpcode);
         }
+        return (fpcode);
+    }
     else
+    {
         return (0);
+    }
 }
 
 
 /* NUMDEC -- Return number of decimal places in numeric string (-1 if not number) */
 
 int
-numdec (string)
+numdec(const char *string)
 
-const char *string;     /* Numeric string */
+/* Numeric string */
 {
     char *cdot;
     int lstr;
 
-    if (notnum (string) && !strchr (string, ':'))
+    if (notnum(string) && !strchr(string, ':'))
+    {
         return (-1);
-    else {
-        lstr = strlen (string);
-        if ((cdot = strchr (string, '.')) == NULL)
+    }
+    else
+    {
+        lstr = strlen(string);
+        if ((cdot = strchr(string, '.')) == NULL)
+        {
             return (0);
+        }
         else
+        {
             return (lstr - (cdot - string) - 1);
         }
+    }
 }
 
 
@@ -1733,87 +2172,110 @@ int set_saolib(hstring)
 
 /* Remove exponent, leading #, and/or trailing zeroes, if reasonable */
 void
-strfix (string, fillblank, dropzero)
+strfix(char *string, int fillblank, int dropzero)
 
-char    *string;        /* String to modify */
-int     fillblank;      /* If nonzero, fill blanks with underscores */
-int     dropzero;       /* If nonzero, drop trailing zeroes */
+/* String to modify */
+/* If nonzero, fill blanks with underscores */
+/* If nonzero, drop trailing zeroes */
 {
     char *sdot, *s, *strend, *str, ctemp, *slast;
     int ndek, lstr, i;
 
     /* If number, ignore leading # and remove trailing non-numeric character */
-    if (string[0] == '#') {
-        strend = string + strlen (string);
+    if (string[0] == '#')
+    {
+        strend = string + strlen(string);
         str = string + 1;
-        strend = str + strlen (str) - 1;
+        strend = str + strlen(str) - 1;
         ctemp = *strend;
-        if (!isnum (strend))
+        if (!isnum(strend))
+        {
             *strend = (char) 0;
-        if (isnum (str)) {
-            strend = string + strlen (string);
+        }
+        if (isnum(str))
+        {
+            strend = string + strlen(string);
             for (str = string; str < strend; str++)
+            {
                 *str = *(str + 1);
             }
+        }
         else
+        {
             *strend = ctemp;
         }
+    }
 
     /* Remove positive exponent if there are enough digits given */
-    if (isnum (string) > 1 && strsrch (string, "E+") != NULL) {
-        lstr = strlen (string);
-        ndek = (int) (string[lstr-1] - 48);
-        ndek = ndek + (10 * ((int) (string[lstr-2] - 48)));
-        if (ndek < lstr - 7) {
+    if (isnum(string) > 1 && strsrch(string, "E+") != NULL)
+    {
+        lstr = strlen(string);
+        ndek = (int) (string[lstr - 1] - 48);
+        ndek = ndek + (10 * ((int) (string[lstr - 2] - 48)));
+        if (ndek < lstr - 7)
+        {
             lstr = lstr - 4;
             string[lstr] = (char) 0;
-            string[lstr+1] = (char) 0;
-            string[lstr+2] = (char) 0;
-            string[lstr+3] = (char) 0;
-            sdot = strchr (string, '.');
-            if (ndek > 0 && sdot != NULL) {
-                for (i = 1; i <= ndek; i++) {
-                    *sdot = *(sdot+1);
+            string[lstr + 1] = (char) 0;
+            string[lstr + 2] = (char) 0;
+            string[lstr + 3] = (char) 0;
+            sdot = strchr(string, '.');
+            if (ndek > 0 && sdot != NULL)
+            {
+                for (i = 1; i <= ndek; i++)
+                {
+                    *sdot = *(sdot + 1);
                     sdot++;
                     *sdot = '.';
-                    }
                 }
             }
         }
+    }
 
     /* Remove trailing zeroes if they are not significant */
-    if (dropzero) {
-        if (isnum (string) > 1 && strchr (string, '.') != NULL &&
-            strsrch (string, "E-") == NULL &&
-            strsrch (string, "E+") == NULL &&
-            strsrch (string, "e-") == NULL &&
-            strsrch (string, "e+") == NULL) {
-            lstr = strlen (string);
+    if (dropzero)
+    {
+        if (isnum(string) > 1 && strchr(string, '.') != NULL &&
+            strsrch(string, "E-") == NULL &&
+            strsrch(string, "E+") == NULL &&
+            strsrch(string, "e-") == NULL &&
+            strsrch(string, "e+") == NULL)
+        {
+            lstr = strlen(string);
             s = string + lstr - 1;
-            while (*s == '0' && lstr > 1) {
-                if (*(s - 1) != '.') {
+            while (*s == '0' && lstr > 1)
+            {
+                if (*(s - 1) != '.')
+                {
                     *s = (char) 0;
-                    lstr --;
-                    }
-                s--;
+                    lstr--;
                 }
+                s--;
             }
         }
+    }
 
     /* Remove trailing decimal point */
-    lstr = strlen (string);
+    lstr = strlen(string);
     s = string + lstr - 1;
     if (*s == '.')
+    {
         *s = (char) 0;
+    }
 
     /* Replace embedded blanks with underscores, if requested to */
-    if (fillblank) {
-        lstr = strlen (string);
+    if (fillblank)
+    {
+        lstr = strlen(string);
         slast = string + lstr;
-        for (s = string; s < slast; s++) {
-            if (*s == ' ') *s = '_';
+        for (s = string; s < slast; s++)
+        {
+            if (*s == ' ')
+            {
+                *s = '_';
             }
         }
+    }
 
     return;
 
@@ -1921,4 +2383,5 @@ int     dropzero;       /* If nonzero, drop trailing zeroes */
  * Feb 28 2007  If header length is not set in hlength, set it to 0
  * May 31 2007  Add return value of 3 to isnum() if string has colon(s)
  * Aug 22 2007  If closing quote not found, make one up
+ * Sep  6 2016  Added third arg to hgetc() to correct a 'return ptr to stack' issue.
  */

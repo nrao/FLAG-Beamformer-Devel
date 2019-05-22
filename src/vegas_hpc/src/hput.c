@@ -59,22 +59,22 @@
 //static int verbose=0;   /* Set to 1 to print error messages and other info */
 const static int verbose=0;/* Set to 1 to print error messages and other info */
 
-static void fixnegzero();
+static void fixnegzero(char *string);
 
 
 /*  HPUTI4 - Set int keyword = ival in FITS header string */
 
 int
-hputi4 (hstring,keyword,ival)
+hputi4 (char *hstring, const char *keyword, int ival)
 
-char *hstring;          /* FITS-style header information in the format
-                           <keyword>= <value> {/ <comment>}
-                           each entry is padded with spaces to 80 characters */
+/* FITS-style header information in the format
+   <keyword>= <value> {/ <comment>}
+   each entry is padded with spaces to 80 characters */
 
-const char *keyword;    /* Name of the variable in header to be returned.
-                           If no line begins with this string, one is created.
-                           The first 8 characters of keyword must be unique. */
-int ival;               /* int number */
+/* Name of the variable in header to be returned.
+   If no line begins with this string, one is created.
+   The first 8 characters of keyword must be unique. */
+/* int number */
 {
     char value[30];
 
@@ -88,11 +88,11 @@ int ival;               /* int number */
 /* HPUTI8 - Set long long keyword in FITS header string.
  * Added 2010/12/8, PBD */
 int
-hputi8 (hstring, keyword, ival)
+hputi8 (char *hstring, const char *keyword, long long int ival)
 
-char *hstring;          /* Header string */
-const char *keyword;    /* keyword */
-long long ival;         /* long long (8-byte) integer */
+/* Header string */
+/* keyword */
+/* long long (8-byte) integer */
 {
     char value[30];
     sprintf (value, "%lld", ival);
@@ -102,11 +102,11 @@ long long ival;         /* long long (8-byte) integer */
 /*  HPUTR4 - Set float keyword = rval in FITS header string */
 
 int
-hputr4 (hstring, keyword, rval)
+hputr4 (char *hstring, const char *keyword, const const float rval)
 
-char *hstring;          /* FITS header string */
-const char *keyword;    /* Keyword name */
-const float rval;       /* float number */
+/* FITS header string */
+/* Keyword name */
+/* float number */
 
 {
     char value[30];
@@ -125,11 +125,11 @@ const float rval;       /* float number */
 /*  HPUTR8 - Set double keyword = dval in FITS header string */
 
 int
-hputr8 (hstring, keyword, dval)
+hputr8 (char *hstring, const char *keyword, const const double dval)
 
-char    *hstring;       /* FITS header string */
-const char *keyword;    /* Keyword name */
-const double dval;      /* double number */
+/* FITS header string */
+/* Keyword name */
+/* double number */
 {
     char value[30];
 
@@ -147,29 +147,34 @@ const double dval;      /* double number */
 /*  HPUTNR8 - Set double keyword = dval in FITS header string */
 
 int
-hputnr8 (hstring, keyword, ndec, dval)
+hputnr8 (char *hstring, const char *keyword, const const int ndec, const const double dval)
 
-char    *hstring;       /* FITS header string */
-const char *keyword;    /* Keyword name */
-const int ndec;         /* Number of decimal places to print */
-const double dval;      /* double number */
+/* FITS header string */
+/* Keyword name */
+/* Number of decimal places to print */
+/* double number */
 {
     char value[30];
     char format[8];
     int i, lval;
 
     /* Translate value from binary to ASCII */
-    if (ndec < 0) {
+    if (ndec < 0)
+    {
         sprintf (format, "%%.%dg", -ndec);
         sprintf (value, format, dval);
         lval = (int) strlen (value);
         for (i = 0; i < lval; i++)
-            if (value[i] == 'e') value[i] = 'E';
-        }
-    else {
+            if (value[i] == 'e')
+            {
+                value[i] = 'E';
+            }
+    }
+    else
+    {
         sprintf (format, "%%.%df", ndec);
         sprintf (value, format, dval);
-        }
+    }
 
     /* Remove sign if string is -0 or extension thereof */
     fixnegzero (value);
@@ -182,11 +187,11 @@ const double dval;      /* double number */
 /*  HPUTRA - Set double keyword = hh:mm:ss.sss in FITS header string */
 
 int
-hputra (hstring, keyword, ra)
+hputra (char *hstring, const char *keyword, const const double ra)
 
-char *hstring;          /* FITS header string */
-const char *keyword;    /* Keyword name */
-const double ra;                /* Right ascension in degrees */
+/* FITS header string */
+/* Keyword name */
+/* Right ascension in degrees */
 {
     char value[30];
 
@@ -204,11 +209,11 @@ const double ra;                /* Right ascension in degrees */
 /*  HPUTDEC - Set double keyword = dd:mm:ss.sss in FITS header string */
 
 int
-hputdec (hstring, keyword, dec)
+hputdec (char *hstring, const char *keyword, const const double dec)
 
-char *hstring;          /* FITS header string */
-const char *keyword;    /* Keyword name */
-const double dec;               /* Declination in degrees */
+/* FITS header string */
+/* Keyword name */
+/* Declination in degrees */
 {
     char value[30];
 
@@ -226,27 +231,34 @@ const double dec;               /* Declination in degrees */
 /* FIXNEGZERO -- Drop - sign from beginning of any string which is all zeros */
 
 static void
-fixnegzero (string)
-
-char *string;
+fixnegzero (char *string)
 {
     int i, lstr;
 
     if (string[0] != '-')
+    {
         return;
+    }
 
     /* Drop out if any non-zero digits in this string */
     lstr = (int) strlen (string);
-    for (i = 1; i < lstr; i++) {
+    for (i = 1; i < lstr; i++)
+    {
         if (string[i] > '0' && string[i] <= '9')
+        {
             return;
+        }
         if (string[i] == 'd' || string[i] == 'e' || string[i] == ' ')
+        {
             break;
         }
+    }
 
     /* Drop - from start of string; overwrite string in place */
     for (i = 1; i < lstr; i++)
+    {
         string[i-1] = string[i];
+    }
     string[lstr-1] = (char) 0;
 
     return;
@@ -257,19 +269,23 @@ char *string;
 /*  HPUTL - Set keyword = F if lval=0, else T, in FITS header string */
 
 int
-hputl (hstring, keyword,lval)
+hputl (char *hstring, const char *keyword, const const int lval)
 
-char *hstring;          /* FITS header */
-const char *keyword;    /* Keyword name */
-const int lval;         /* logical variable (0=false, else true) */
+/* FITS header */
+/* Keyword name */
+/* logical variable (0=false, else true) */
 {
     char value[8];
 
     /* Translate value from binary to ASCII */
     if (lval)
+    {
         strcpy (value, "T");
+    }
     else
+    {
         strcpy (value, "F");
+    }
 
     /* Put value into header string */
     return (hputc (hstring,keyword,value));
@@ -280,12 +296,12 @@ const int lval;         /* logical variable (0=false, else true) */
 /*          return number of keywords written */
 
 int
-hputm (hstring,keyword,cval)
+hputm (char *hstring, const char *keyword, const char *cval)
 
-char *hstring;  /* FITS header */
-const char *keyword;    /* Keyword name root (6 characters or less) */
-const char *cval;       /* character string containing the value for variable
-                   keyword.  trailing and leading blanks are removed.  */
+/* FITS header */
+/* Keyword name root (6 characters or less) */
+/* character string containing the value for variable
+keyword.  trailing and leading blanks are removed.  */
 {
     int lroot=0, lcv, i, ii, nkw, lkw, lval;
     int comment = 0;
@@ -296,63 +312,88 @@ const char *cval;       /* character string containing the value for variable
     /*  If COMMENT or HISTORY, use the same keyword on every line */
     lkw = (int) strlen (keyword);
     if (lkw == 7 && (strncmp (keyword,"COMMENT",7) == 0 ||
-        strncmp (keyword,"HISTORY",7) == 0))
+                     strncmp (keyword,"HISTORY",7) == 0))
+    {
         comment = 1;
+    }
 
     /* Set up keyword root, shortening it to 6 characters, if necessary */
-    else {
+    else
+    {
         comment = 0;
         strcpy (keyroot, keyword);
         lroot = (int) strlen (keyroot);
-        if (lroot > 6) {
+        if (lroot > 6)
+        {
             keyroot[6] = (char) 0;
             lroot = 6;
-            }
         }
+    }
 
     /* Write keyword value one line of up to 67 characters at a time */
     ii = '1';
     nkw = 0;
     lcv = (int) strlen (cval);
-    if (!comment) {
+    if (!comment)
+    {
         strcpy (newkey, keyroot);
         strcat (newkey, "_");
         newkey[lroot+2] = (char) 0;
-        }
+    }
     v = cval;
-    while (lcv > 0) {
+    while (lcv > 0)
+    {
         if (lcv > 67)
+        {
             lval = 67;
+        }
         else
+        {
             lval = lcv;
+        }
         value[0] = squot;
         for (i = 1; i <= lval; i++)
+        {
             value[i] = *v++;
+        }
 
         /* Pad short strings to 8 characters */
-        if (lval < 8) {
+        if (lval < 8)
+        {
             for (i = lval+1; i < 9; i++)
+            {
                 value[i] = ' ';
-            lval = 8;
             }
+            lval = 8;
+        }
         value[lval+1] = squot;
         value[lval+2] = (char) 0;
 
         /* Add this line to the header */
         if (comment)
+        {
             i = hputc (hstring, keyroot, value);
-        else {
+        }
+        else
+        {
             newkey[lroot+1] = ii;
             ii++;
             i = hputc (hstring, newkey, value);
-            }
-        if (i != 0) return (i);
+        }
+        if (i != 0)
+        {
+            return (i);
+        }
         nkw++;
         if (lcv > 67)
+        {
             lcv = lcv - 67;
+        }
         else
+        {
             break;
         }
+    }
     return (nkw);
 }
 
@@ -360,12 +401,12 @@ const char *cval;       /* character string containing the value for variable
 /*  HPUTS - Set character string keyword = 'cval' in FITS header string */
 
 int
-hputs (hstring,keyword,cval)
+hputs (char *hstring, const char *keyword, const char *cval)
 
-char *hstring;  /* FITS header */
-const char *keyword; /* Keyword name */
-const char *cval; /* character string containing the value for variable
-                   keyword.  trailing and leading blanks are removed.  */
+/* FITS header */
+/* Keyword name */
+/* character string containing the value for variable
+ keyword.  trailing and leading blanks are removed.  */
 {
     char squot = 39;
     char value[80];
@@ -374,25 +415,31 @@ const char *cval; /* character string containing the value for variable
     /*  If COMMENT or HISTORY, just add it as is */
     lkeyword = (int) strlen (keyword);
     if (lkeyword == 7 && (strncmp (keyword,"COMMENT",7) == 0 ||
-        strncmp (keyword,"HISTORY",7) == 0))
+                          strncmp (keyword,"HISTORY",7) == 0))
+    {
         return (hputc (hstring,keyword,cval));
+    }
 
     /*  find length of variable string */
     lcval = (int) strlen (cval);
     if (lcval > 67)
+    {
         lcval = 67;
+    }
 
     /* Put single quote at start of string */
     value[0] = squot;
     strncpy (&value[1],cval,lcval);
 
     /* If string is less than eight characters, pad it with spaces */
-    if (lcval < 8) {
-        for (i = lcval; i < 8; i++) {
+    if (lcval < 8)
+    {
+        for (i = lcval; i < 8; i++)
+        {
             value[i+1] = ' ';
-            }
-        lcval = 8;
         }
+        lcval = 8;
+    }
 
     /* Add single quote and null to end of string */
     value[lcval+1] = squot;
@@ -407,12 +454,12 @@ const char *cval; /* character string containing the value for variable
 /*          Return -1 if error, 0 if OK */
 
 int
-hputc (hstring,keyword,value)
+hputc (char *hstring, const char *keyword, const char *value)
 
-char *hstring;
-const char *keyword;
-const char *value; /* character string containing the value for variable
-                   keyword.  trailing and leading blanks are removed.  */
+
+
+/* character string containing the value for variable
+keyword.  trailing and leading blanks are removed.  */
 {
     char squot = 39;
     char line[100];
@@ -427,13 +474,15 @@ const char *value; /* character string containing the value for variable
 
     /*  If COMMENT or HISTORY, always add it just before the END */
     if (lkeyword == 7 && (strncmp (keyword,"COMMENT",7) == 0 ||
-        strncmp (keyword,"HISTORY",7) == 0)) {
+                          strncmp (keyword,"HISTORY",7) == 0))
+    {
 
         /* First look for blank lines before END */
         v1 = blsearch (hstring, "END");
 
         /*  Otherwise, create a space for it at the end of the header */
-        if (v1 == NULL) {
+        if (v1 == NULL)
+        {
 
             /* Find end of header */
             v1 = ksearch (hstring,"END");
@@ -451,45 +500,58 @@ const char *value; /* character string containing the value for variable
             v2 = v1 + 80;
 
             /* If header length is exceeded, return error code */
-            if (v2 - hstring > lhead) {
+            if (v2 - hstring > lhead)
+            {
                 return (-1);
-                }
+            }
 
             /* Move END down 80 characters */
             strncpy (v2, v1, 80);
-            }
+        }
         else
+        {
             v2 = v1 + 80;
+        }
 
         /* Insert keyword */
         strncpy (v1,keyword,7);
 
         /* Pad with spaces */
         for (vp = v1+lkeyword; vp < v2; vp++)
+        {
             *vp = ' ';
+        }
 
         if (lval > 71)
+        {
             lv1 = 71;
+        }
         else
+        {
             lv1 = lval;
+        }
 
         /* Insert comment */
         strncpy (v1+9,value,lv1);
         return (0);
-        }
+    }
 
     /* Otherwise search for keyword */
     else
+    {
         v1 = ksearch (hstring,keyword);
+    }
 
     /*  If parameter is not found, find a place to put it */
-    if (v1 == NULL) {
+    if (v1 == NULL)
+    {
 
         /* First look for blank lines before END */
         v1 = blsearch (hstring, "END");
 
         /*  Otherwise, create a space for it at the end of the header */
-        if (v1 == NULL) {
+        if (v1 == NULL)
+        {
             ve = ksearch (hstring,"END");
 
             if (ve == NULL)
@@ -509,20 +571,24 @@ const char *value; /* character string containing the value for variable
             v2 = v1 + 80;
 
             /* If header length is exceeded, return error code */
-            if (v2 - hstring > lhead) {
+            if (v2 - hstring > lhead)
+            {
                 return (-1);
-                }
+            }
 
             strncpy (v2, ve, 80);
-            }
+        }
         else
+        {
             v2 = v1 + 80;
+        }
         lcom = 0;
         newcom[0] = 0;
-        }
+    }
 
     /*  Otherwise, extract the entry for this keyword from the header */
-    else {
+    else
+    {
 
         /* Align pointer at start of 80-character line */
         lc = v1 - hstring;
@@ -537,33 +603,46 @@ const char *value; /* character string containing the value for variable
 
         /*  check for quoted value */
         q1 = strchr (line, squot);
-        if (q1 != NULL) {
+        if (q1 != NULL)
+        {
             q2 = strchr (q1+1,squot);
             if (q2 != NULL)
+            {
                 c1 = strchr (q2,'/');
+            }
             else
+            {
                 c1 = strrchr (line+79,'/');
             }
+        }
         else
+        {
             c1 = strchr (line,'/');
+        }
 
         /*  extract comment and discount trailing spaces */
-        if (c1 != NULL) {
+        if (c1 != NULL)
+        {
             lcom = 80 - (c1 + 2 - line);
             strncpy (newcom, c1+2, lcom);
             vp = newcom + lcom - 1;
             while (vp-- > newcom && *vp == ' ')
+            {
                 lcom--;
             }
-        else {
+        }
+        else
+        {
             newcom[0] = 0;
             lcom = 0;
-            }
         }
+    }
 
     /* Fill new entry with spaces */
     for (vp = v1; vp < v2; vp++)
+    {
         *vp = ' ';
+    }
 
     /*  Copy keyword to new entry */
     strncpy (v1, keyword, lkeyword);
@@ -574,54 +653,68 @@ const char *value; /* character string containing the value for variable
     vp = v1 + 9;
     *vp = ' ';
     vp = vp + 1;
-    if (*value == squot) {
+    if (*value == squot)
+    {
         strncpy (vp, value, lval);
         if (lval+12 > 31)
+        {
             lc = lval + 12;
+        }
         else
+        {
             lc = 30;
         }
-    else {
+    }
+    else
+    {
         vp = v1 + 30 - lval;
         strncpy (vp, value, lval);
         lc = 30;
-        }
+    }
 
     /* Add comment in the appropriate place */
-        if (lcom > 0) {
-            if (lc+2+lcom > 80)
-                lcom = 77 - lc;
-            vp = v1 + lc;     /* Jul 16 1997: was vp = v1 + lc * 2 */
-            *vp++ = ' ';
-            *vp++ = '/';
-            *vp++ = ' ';
-            lblank = v2 - vp;
-            for (i = 0; i < lblank; i++)
-                vp[i] = ' ';
-            if (lcom > lblank)
-                lcom = lblank;
-            strncpy (vp, newcom, lcom);
-            }
+    if (lcom > 0)
+    {
+        if (lc+2+lcom > 80)
+        {
+            lcom = 77 - lc;
+        }
+        vp = v1 + lc;     /* Jul 16 1997: was vp = v1 + lc * 2 */
+        *vp++ = ' ';
+        *vp++ = '/';
+        *vp++ = ' ';
+        lblank = v2 - vp;
+        for (i = 0; i < lblank; i++)
+        {
+            vp[i] = ' ';
+        }
+        if (lcom > lblank)
+        {
+            lcom = lblank;
+        }
+        strncpy (vp, newcom, lcom);
+    }
 
-        if (verbose) {
-            if (lcom > 0)
-                fprintf (stderr,"HPUT: %s  = %s  / %s\n",keyword, value, newcom);
-            else
-                fprintf (stderr,"HPUT: %s  = %s\n",keyword, value);
-            }
+    if (verbose)
+    {
+        if (lcom > 0)
+        {
+            fprintf (stderr,"HPUT: %s  = %s  / %s\n",keyword, value, newcom);
+        }
+        else
+        {
+            fprintf (stderr,"HPUT: %s  = %s\n",keyword, value);
+        }
+    }
 
-        return (0);
+    return (0);
 }
 
 
 /*  HPUTCOM - Set comment for keyword or on line in FITS header string */
 
 int
-hputcom (hstring,keyword,comment)
-
-  char *hstring;
-  const char *keyword;
-  const char *comment;
+hputcom (char *hstring, const char *keyword, const char *comment)
 {
     char squot, slash, space;
     char line[100];
@@ -639,7 +732,8 @@ hputcom (hstring,keyword,comment)
 
     /*  If COMMENT or HISTORY, always add it just before the END */
     if (lkeyword == 7 && (strncmp (keyword,"COMMENT",7) == 0 ||
-        strncmp (keyword,"HISTORY",7) == 0)) {
+                          strncmp (keyword,"HISTORY",7) == 0))
+    {
 
         /* Find end of header */
         v1 = ksearch (hstring,"END");
@@ -652,30 +746,37 @@ hputcom (hstring,keyword,comment)
         v2 = v1 + 80;
 
         /* If header length is exceeded, return error code */
-        if (v2 - hstring > lhead) {
+        if (v2 - hstring > lhead)
+        {
             return (-1);
-            }
+        }
 
         /* Move END down 80 characters */
         strncpy (v2, v1, 80);
 
         /*  blank out new line and insert keyword */
         for (vp = v1; vp < v2; vp++)
+        {
             *vp = ' ';
+        }
         strncpy (v1, keyword, lkeyword);
         c0 = v1 + lkeyword;
-        }
+    }
 
     /* Search header string for variable name */
-    else {
+    else
+    {
         v1 = ksearch (hstring,keyword);
 
         /* If parameter is not found, return without doing anything */
-        if (v1 == NULL) {
+        if (v1 == NULL)
+        {
             if (verbose)
+            {
                 fprintf (stderr,"HPUTCOM: %s not found\n",keyword);
-            return (-1);
             }
+            return (-1);
+        }
 
         /* Align pointer at start of 80-character line */
         lc = v1 - hstring;
@@ -691,61 +792,90 @@ hputcom (hstring,keyword,comment)
         /* check for quoted value */
         q1 = strchr (line,squot);
         c1 = strchr (line,slash);
-        if (q1 != NULL) {
-            if (c1 != NULL && q1 < c1) {
+        if (q1 != NULL)
+        {
+            if (c1 != NULL && q1 < c1)
+            {
                 q2 = strchr (q1+1, squot);
-                if (q2 == NULL) {
+                if (q2 == NULL)
+                {
                     q2 = c1 - 1;
                     while (*q2 == space)
+                    {
                         q2--;
-                    q2++;
                     }
+                    q2++;
+                }
                 else if (c1 < q2)
+                {
                     c1 = strchr (q2, slash);
                 }
-            else if (c1 == NULL) {
+            }
+            else if (c1 == NULL)
+            {
                 q2 = strchr (q1+1, squot);
-                if (q2 == NULL) {
+                if (q2 == NULL)
+                {
                     q2 = line + 79;
                     while (*q2 == space)
+                    {
                         q2--;
-                    q2++;
                     }
+                    q2++;
                 }
+            }
             else
+            {
                 q1 = NULL;
             }
+        }
 
         else
+        {
             q2 = NULL;
+        }
 
         if (c1 != NULL)
+        {
             c0 = v1 + (c1 - line) - 1;
+        }
         else if (q2 == NULL || q2-line < 30)
+        {
             c0 = v1 + 30;
+        }
         else
-            c0 = v1 + (q2 - line) + 1; /* allan: 1997-09-30, was c0=q2+2 */
+        {
+            c0 = v1 + (q2 - line) + 1;    /* allan: 1997-09-30, was c0=q2+2 */
+        }
 
         /* If comment will not fit at all, return */
         if (c0 - v1 > 77)
+        {
             return (-1);
-        strncpy (c0, " / ",3);
         }
+        strncpy (c0, " / ",3);
+    }
 
     /* Create new entry */
-    if (lcom > 0) {
+    if (lcom > 0)
+    {
         c1 = c0 + 3;
         lblank = v1 + 79 - c1;
         if (lcom > lblank)
+        {
             lcom = lblank;
+        }
         for (i = 0; i < lblank; i++)
+        {
             c1[i] = ' ';
+        }
         strncpy (c1, comment, lcom);
-        }
+    }
 
-    if (verbose) {
+    if (verbose)
+    {
         fprintf (stderr,"HPUTCOM: %s / %s\n",keyword,comment);
-        }
+    }
     return (0);
 }
 
@@ -757,7 +887,11 @@ const static int leaveblank = 0;      /* If 1, leave blank line when deleting */
 static int leaveblank = 0;      /* If 1, leave blank line when deleting */
 void
 setleaveblank (lb)
-int lb; { leaveblank = lb; return; }
+int lb;
+{
+    leaveblank = lb;
+    return;
+}
 #endif
 
 const static int headshrink=1;/* Set to 1 to drop line after deleting keyword */
@@ -766,7 +900,10 @@ static int headshrink=1; /* Set to 1 to drop line after deleting keyword */
 void
 setheadshrink (hsh)
 int hsh;
-{headshrink = hsh; return;}
+{
+    headshrink = hsh;
+    return;
+}
 #endif
 
 /*  HDEL - Set character string keyword = value in FITS header string
@@ -774,10 +911,10 @@ int hsh;
  */
 
 int
-hdel (hstring,keyword)
+hdel (char *hstring, const char *keyword)
 
-char *hstring;          /* FITS header */
-const char *keyword;    /* Keyword of entry to be deleted */
+/* FITS header */
+/* Keyword of entry to be deleted */
 {
     char *v, *v1, *v2, *ve;
 
@@ -785,36 +922,46 @@ const char *keyword;    /* Keyword of entry to be deleted */
     v1 = ksearch (hstring,keyword);
 
     /*  If keyword is not found, return header unchanged */
-    if (v1 == NULL) {
+    if (v1 == NULL)
+    {
         return (0);
-        }
+    }
 
     /*  Find end of header */
     ve = ksearch (hstring,"END");
 
     /* If headshrink is 0, leave END where it is */
     if (!leaveblank && !headshrink)
+    {
         ve = ve - 80;
+    }
 
     /* Cover deleted keyword line with spaces */
-    if (leaveblank) {
+    if (leaveblank)
+    {
         v2 = v1 + 80;
         for (v = ve; v < v2; v++)
+        {
             *v = ' ';
         }
+    }
 
     /* Shift rest of header up one line */
-    else {
-        for (v = v1; v < ve; v = v + 80) {
+    else
+    {
+        for (v = v1; v < ve; v = v + 80)
+        {
             v2 = v + 80;
             strncpy (v, v2, 80);
-            }
+        }
 
         /* Cover former last line with spaces */
         v2 = ve + 80;
         for (v = ve; v < v2; v++)
+        {
             *v = ' ';
         }
+    }
 
     return (1);
 }
@@ -826,10 +973,10 @@ const char *keyword;    /* Keyword of entry to be deleted */
  */
 
 int
-hadd (hplace, keyword)
+hadd (char *hplace, const char *keyword)
 
-char *hplace;           /* FITS header position for new keyword */
-const char *keyword;    /* Keyword of entry to be deleted */
+/* FITS header position for new keyword */
+/* Keyword of entry to be deleted */
 {
     char *v, *v1, *v2, *ve;
     int i, lkey;
@@ -838,29 +985,36 @@ const char *keyword;    /* Keyword of entry to be deleted */
     ve = ksearch (hplace,"END");
 
     /*  If END is not found, return header unchanged */
-    if (ve == NULL) {
+    if (ve == NULL)
+    {
         return (0);
-        }
+    }
 
     v1 = hplace;
 
     /* Shift rest of header down one line */
     /* limit bug found by Paolo Montegriffo fixed 2000-04-19 */
-    for (v = ve; v >= v1; v = v - 80) {
+    for (v = ve; v >= v1; v = v - 80)
+    {
         v2 = v + 80;
         strncpy (v2, v, 80);
-        }
+    }
 
     /* Cover former first line with new keyword */
     lkey = (int) strlen (keyword);
     strncpy (hplace, keyword, lkey);
-    if (lkey < 8) {
+    if (lkey < 8)
+    {
         for (i = lkey; i < 8; i++)
+        {
             hplace[i] = ' ';
-        hplace[8] = '=';
         }
+        hplace[8] = '=';
+    }
     for (i = 9; i < 80; i++)
+    {
         hplace[i] = ' ';
+    }
 
     return (1);
 }
@@ -872,11 +1026,11 @@ const char *keyword;    /* Keyword of entry to be deleted */
  */
 
 int
-hchange (hstring, keyword1, keyword2)
+hchange (char *hstring, const char *keyword1, const char *keyword2)
 
-char *hstring;          /* FITS header */
-const char *keyword1;   /* Keyword to be changed */
-const char *keyword2;   /* New keyword name */
+/* FITS header */
+/* Keyword to be changed */
+/* New keyword name */
 {
     char *v, *v1;
     const char *v2;
@@ -887,19 +1041,27 @@ const char *keyword2;   /* New keyword name */
 
     /*  If keyword is not found, return header unchanged */
     if (!v1)
+    {
         return (0);
+    }
 
-    else {
+    else
+    {
         lv2 = (int) strlen (keyword2);
         v = v1;
         v2 = keyword2;
-        for (i = 0; i < 8; i++) {
+        for (i = 0; i < 8; i++)
+        {
             if (i < lv2)
+            {
                 v[i] = v2[i];
+            }
             else
+            {
                 v[i] = ' ';
             }
         }
+    }
 
     return (1);
 }
@@ -908,12 +1070,12 @@ const char *keyword2;   /* New keyword name */
 /* Write the right ascension ra in sexagesimal format into string*/
 
 void
-ra2str (string, lstr, ra, ndec)
+ra2str (char *string, int lstr, double ra, int ndec)
 
-char    *string;        /* Character string (returned) */
-int     lstr;           /* Maximum number of characters in string */
-double  ra;             /* Right ascension in degrees */
-int     ndec;           /* Number of decimal places in seconds */
+/* Character string (returned) */
+/* Maximum number of characters in string */
+/* Right ascension in degrees */
+/* Number of decimal places in seconds */
 
 {
     double a,b;
@@ -925,16 +1087,21 @@ int     ndec;           /* Number of decimal places in seconds */
     double dsgn;
 
     /* Keep RA between 0 and 360 */
-    if (ra < 0.0 ) {
+    if (ra < 0.0 )
+    {
         ra = -ra;
         dsgn = -1.0;
-        }
+    }
     else
+    {
         dsgn = 1.0;
+    }
     ra = fmod(ra, 360.0);
     ra *= dsgn;
     if (ra < 0.0)
+    {
         ra = ra + 360.0;
+    }
 
     a = ra / 15.0;
 
@@ -948,100 +1115,124 @@ int     ndec;           /* Number of decimal places in seconds */
     /* Compute seconds */
     seconds = (b - (double)minutes) * 60.0;
 
-    if (ndec > 5) {
-        if (seconds > 59.999999) {
+    if (ndec > 5)
+    {
+        if (seconds > 59.999999)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             hours = hours + 1;
-            }
+        }
         hours = hours % 24;
         (void) sprintf (tstring,"%02d:%02d:%09.6f",hours,minutes,seconds);
-        }
-    else if (ndec > 4) {
-        if (seconds > 59.99999) {
+    }
+    else if (ndec > 4)
+    {
+        if (seconds > 59.99999)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             hours = hours + 1;
-            }
+        }
         hours = hours % 24;
         (void) sprintf (tstring,"%02d:%02d:%08.5f",hours,minutes,seconds);
-        }
-    else if (ndec > 3) {
-        if (seconds > 59.9999) {
+    }
+    else if (ndec > 3)
+    {
+        if (seconds > 59.9999)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             hours = hours + 1;
-            }
+        }
         hours = hours % 24;
         (void) sprintf (tstring,"%02d:%02d:%07.4f",hours,minutes,seconds);
-        }
-    else if (ndec > 2) {
-        if (seconds > 59.999) {
+    }
+    else if (ndec > 2)
+    {
+        if (seconds > 59.999)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             hours = hours + 1;
-            }
+        }
         hours = hours % 24;
         (void) sprintf (tstring,"%02d:%02d:%06.3f",hours,minutes,seconds);
-        }
-    else if (ndec > 1) {
-        if (seconds > 59.99) {
+    }
+    else if (ndec > 1)
+    {
+        if (seconds > 59.99)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             hours = hours + 1;
-            }
+        }
         hours = hours % 24;
         (void) sprintf (tstring,"%02d:%02d:%05.2f",hours,minutes,seconds);
-        }
-    else if (ndec > 0) {
-        if (seconds > 59.9) {
+    }
+    else if (ndec > 0)
+    {
+        if (seconds > 59.9)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             hours = hours + 1;
-            }
+        }
         hours = hours % 24;
         (void) sprintf (tstring,"%02d:%02d:%04.1f",hours,minutes,seconds);
-        }
-    else {
+    }
+    else
+    {
         isec = (int)(seconds + 0.5);
-        if (isec > 59) {
+        if (isec > 59)
+        {
             isec = 0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             hours = hours + 1;
-            }
+        }
         hours = hours % 24;
         (void) sprintf (tstring,"%02d:%02d:%02d",hours,minutes,isec);
-        }
+    }
 
     /* Move formatted string to returned string */
     ltstr = (int) strlen (tstring);
     if (ltstr < lstr-1)
+    {
         strcpy (string, tstring);
-    else {
+    }
+    else
+    {
         strncpy (string, tstring, lstr-1);
         string[lstr-1] = 0;
-        }
+    }
     return;
 }
 
@@ -1049,12 +1240,12 @@ int     ndec;           /* Number of decimal places in seconds */
 /* Write the variable a in sexagesimal format into string */
 
 void
-dec2str (string, lstr, dec, ndec)
+dec2str (char *string, int lstr, double dec, int ndec)
 
-char    *string;        /* Character string (returned) */
-int     lstr;           /* Maximum number of characters in string */
-double  dec;            /* Declination in degrees */
-int     ndec;           /* Number of decimal places in arcseconds */
+/* Character string (returned) */
+/* Maximum number of characters in string */
+/* Declination in degrees */
+/* Number of decimal places in arcseconds */
 
 {
     double a, b, dsgn, deg1;
@@ -1067,26 +1258,34 @@ int     ndec;           /* Number of decimal places in arcseconds */
 
     /* Keep angle between -180 and 360 degrees */
     deg1 = dec;
-    if (deg1 < 0.0 ) {
+    if (deg1 < 0.0 )
+    {
         deg1 = -deg1;
         dsgn = -1.0;
-        }
+    }
     else
+    {
         dsgn = 1.0;
+    }
     deg1 = fmod(deg1, 360.0);
     deg1 *= dsgn;
     if (deg1 <= -180.0)
+    {
         deg1 = deg1 + 360.0;
+    }
 
     a = deg1;
 
     /* Set sign and do all the rest with a positive */
-    if (a < 0) {
+    if (a < 0)
+    {
         sign = '-';
         a = -a;
-        }
+    }
     else
+    {
         sign = '+';
+    }
 
     /* Convert to degrees */
     degrees = (int) a;
@@ -1098,106 +1297,130 @@ int     ndec;           /* Number of decimal places in arcseconds */
     /* Compute seconds */
     seconds = (b - (double)minutes) * 60.0;
 
-    if (ndec > 5) {
-        if (seconds > 59.999999) {
+    if (ndec > 5)
+    {
+        if (seconds > 59.999999)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             degrees = degrees + 1;
-            }
+        }
         (void) sprintf (tstring,"%c%02d:%02d:%09.6f",sign,degrees,minutes,seconds);
-        }
-    else if (ndec > 4) {
-        if (seconds > 59.99999) {
+    }
+    else if (ndec > 4)
+    {
+        if (seconds > 59.99999)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             degrees = degrees + 1;
-            }
+        }
         (void) sprintf (tstring,"%c%02d:%02d:%08.5f",sign,degrees,minutes,seconds);
-        }
-    else if (ndec > 3) {
-        if (seconds > 59.9999) {
+    }
+    else if (ndec > 3)
+    {
+        if (seconds > 59.9999)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             degrees = degrees + 1;
-            }
+        }
         (void) sprintf (tstring,"%c%02d:%02d:%07.4f",sign,degrees,minutes,seconds);
-        }
-    else if (ndec > 2) {
-        if (seconds > 59.999) {
+    }
+    else if (ndec > 2)
+    {
+        if (seconds > 59.999)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             degrees = degrees + 1;
-            }
+        }
         (void) sprintf (tstring,"%c%02d:%02d:%06.3f",sign,degrees,minutes,seconds);
-        }
-    else if (ndec > 1) {
-        if (seconds > 59.99) {
+    }
+    else if (ndec > 1)
+    {
+        if (seconds > 59.99)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             degrees = degrees + 1;
-            }
+        }
         (void) sprintf (tstring,"%c%02d:%02d:%05.2f",sign,degrees,minutes,seconds);
-        }
-    else if (ndec > 0) {
-        if (seconds > 59.9) {
+    }
+    else if (ndec > 0)
+    {
+        if (seconds > 59.9)
+        {
             seconds = 0.0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             degrees = degrees + 1;
-            }
-        (void) sprintf (tstring,"%c%02d:%02d:%04.1f",sign,degrees,minutes,seconds);
         }
-    else {
+        (void) sprintf (tstring,"%c%02d:%02d:%04.1f",sign,degrees,minutes,seconds);
+    }
+    else
+    {
         isec = (int)(seconds + 0.5);
-        if (isec > 59) {
+        if (isec > 59)
+        {
             isec = 0;
             minutes = minutes + 1;
-            }
-        if (minutes > 59) {
+        }
+        if (minutes > 59)
+        {
             minutes = 0;
             degrees = degrees + 1;
-            }
-        (void) sprintf (tstring,"%c%02d:%02d:%02d",sign,degrees,minutes,isec);
         }
+        (void) sprintf (tstring,"%c%02d:%02d:%02d",sign,degrees,minutes,isec);
+    }
 
     /* Move formatted string to returned string */
     ltstr = (int) strlen (tstring);
     if (ltstr < lstr-1)
+    {
         strcpy (string, tstring);
-    else {
+    }
+    else
+    {
         strncpy (string, tstring, lstr-1);
         string[lstr-1] = 0;
-        }
-   return;
+    }
+    return;
 }
 
 
 /* Write the angle a in decimal format into string */
 
 void
-deg2str (string, lstr, deg, ndec)
+deg2str (char *string, int lstr, double deg, int ndec)
 
-char    *string;        /* Character string (returned) */
-int     lstr;           /* Maximum number of characters in string */
-double  deg;            /* Angle in degrees */
-int     ndec;           /* Number of decimal places in degree string */
+/* Character string (returned) */
+/* Maximum number of characters in string */
+/* Angle in degrees */
+/* Number of decimal places in degree string */
 
 {
     char degform[8];
@@ -1208,36 +1431,46 @@ int     ndec;           /* Number of decimal places in degree string */
 
     /* Keep angle between -180 and 360 degrees */
     deg1 = deg;
-    if (deg1 < 0.0 ) {
+    if (deg1 < 0.0 )
+    {
         deg1 = -deg1;
         dsgn = -1.0;
-        }
+    }
     else
+    {
         dsgn = 1.0;
+    }
     deg1 = fmod(deg1, 360.0);
     deg1 *= dsgn;
     if (deg1 <= -180.0)
+    {
         deg1 = deg1 + 360.0;
+    }
 
     /* Write angle to string, adding 4 digits to number of decimal places */
     field = ndec + 4;
-    if (ndec > 0) {
+    if (ndec > 0)
+    {
         sprintf (degform, "%%%d.%df", field, ndec);
         sprintf (tstring, degform, deg1);
-        }
-    else {
+    }
+    else
+    {
         sprintf (degform, "%%%4d", field);
         sprintf (tstring, degform, (int)deg1);
-        }
+    }
 
     /* Move formatted string to returned string */
     ltstr = (int) strlen (tstring);
     if (ltstr < lstr-1)
+    {
         strcpy (string, tstring);
-    else {
+    }
+    else
+    {
         strncpy (string, tstring, lstr-1);
         string[lstr-1] = 0;
-        }
+    }
     return;
 }
 
@@ -1245,35 +1478,41 @@ int     ndec;           /* Number of decimal places in degree string */
 /* Write the variable a in decimal format into field-character string  */
 
 void
-num2str (string, num, field, ndec)
+num2str (char *string, double num, int field, int ndec)
 
-char    *string;        /* Character string (returned) */
-double  num;            /* Number */
-int     field;          /* Number of characters in output field (0=any) */
-int     ndec;           /* Number of decimal places in degree string */
+/* Character string (returned) */
+/* Number */
+/* Number of characters in output field (0=any) */
+/* Number of decimal places in degree string */
 
 {
     char numform[8];
 
-    if (field > 0) {
-        if (ndec > 0) {
+    if (field > 0)
+    {
+        if (ndec > 0)
+        {
             sprintf (numform, "%%%d.%df", field, ndec);
             sprintf (string, numform, num);
-            }
-        else {
+        }
+        else
+        {
             sprintf (numform, "%%%dd", field);
             sprintf (string, numform, (int)num);
-            }
         }
-    else {
-        if (ndec > 0) {
+    }
+    else
+    {
+        if (ndec > 0)
+        {
             sprintf (numform, "%%.%df", ndec);
             sprintf (string, numform, num);
-            }
-        else {
-            sprintf (string, "%d", (int)num);
-            }
         }
+        else
+        {
+            sprintf (string, "%d", (int)num);
+        }
+    }
     return;
 }
 
